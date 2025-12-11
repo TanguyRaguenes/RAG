@@ -8,4 +8,4 @@ WORKDIR /app
 COPY . .
 
 # 4. Commande exécutée au démarrage du conteneur
-CMD ["python", "main.py"]
+CMD ["python", "app/main.py"]
