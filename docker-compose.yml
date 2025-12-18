@@ -9,6 +9,8 @@ services:
       - "5678:5678" #Port utilisé par debugpy
     environment:
       - DEBUG=1
+    volumes:
+      - ../RAG.wiki:/app/RAG.wiki:ro # Ici on charge dans le container en lecture seule le clone des wikis
     depends_on:
       - ollama
       - chroma
