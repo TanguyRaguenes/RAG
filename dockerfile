@@ -21,8 +21,8 @@ CMD ["sh", "-lc", "\
   if [ \"$DEBUG\" = \"1\" ]; then \
     exec uv run python -Xfrozen_modules=off -m debugpy \
       --listen 0.0.0.0:5678 \
-      -m uvicorn app.main:app --host 0.0.0.0 --port 8000; \
+      -m uvicorn src.app.main:app --host 0.0.0.0 --port 8000; \
   else \
-    exec uv run uvicorn app.main:app --host 0.0.0.0 --port 8000; \
+    exec uv run uvicorn src.app.main:app --host 0.0.0.0 --port 8000; \
   fi \
 "]
