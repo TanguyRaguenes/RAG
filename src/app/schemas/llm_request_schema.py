@@ -1,5 +1,5 @@
 
 from pydantic import BaseModel
 
-class llmRequestBase(BaseModel):
+class LlmRequestBase(BaseModel):
     question: str

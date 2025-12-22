@@ -1,13 +1,28 @@
 from fastapi import FastAPI
-from src.app.api.routers.llm_router import router as llm_router
-from src.app.api.routers.embedding_router import router as embedding_router
+from contextlib import asynccontextmanager
+from src.app.api.routers.query_router import router as llm_router
+from src.app.api.routers.ingest_router import router as ingest_router
 
 from src.app.core.config import load_config
+from src.app.dal.repositories.vector_store_repository import VectorStoreRepository
 
-app = FastAPI()
-app.state.config = load_config()
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+
+    # startup
+    app.state.config = load_config()
+    app.state.vector_db_service = VectorStoreRepository(app.state.config)
+    app.state.wikis_collection = app.state.vector_db_service.get_or_create_collection("wiki_chunks")
+
+    yield
+
+app = FastAPI(lifespan=lifespan)
+
+
+
 app.include_router(llm_router)
-app.include_router(embedding_router)
+app.include_router(ingest_router)
 
 @app.get("/")
 def read_root():

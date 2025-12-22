@@ -1,6 +1,6 @@
 
 from pydantic import BaseModel
 
-class llmResponseBase(BaseModel):
+class LlmResponseBase(BaseModel):
     answer: str
-    duration:str
+    duration: str

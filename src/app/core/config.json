@@ -8,10 +8,21 @@
         "timeout_seconds": 60,
         "stream":false
     },
+    "retriever":{
+        "top_k":5
+    },
+    "context_builder":{
+        "max_chars":6000
+    },
     "embedding":{
         "provider" : "ollama",
         "url_provider": "http://ollama:11434",
         "model": "snowflake-arctic-embed2"
+    },
+    "chuncking":{
+        "size": 800, 
+        "overlap": 150
     }
+
 
 }
