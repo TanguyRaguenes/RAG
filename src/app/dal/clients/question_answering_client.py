@@ -1,6 +1,6 @@
 import httpx
 from typing import Any
-from src.app.services.embedding_service import embed_text
+from src.app.dal.clients.embedding_client import embed_text
 from src.app.services.prompt_builder_service import build_message
 
 

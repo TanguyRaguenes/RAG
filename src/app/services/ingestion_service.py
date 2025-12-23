@@ -1,5 +1,5 @@
 from src.app.services.chuncking_service import chunk_text
-from src.app.services.embedding_service import embed_text
+from src.app.dal.clients.embedding_client import embed_text
 from src.app.schemas.vector_db_items_schema import VectorStoreItemsBase
 
 

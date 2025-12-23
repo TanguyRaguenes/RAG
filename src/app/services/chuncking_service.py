@@ -1,6 +1,5 @@
 def chunk_text(text: str, config:dict) -> list[str]:
 
-
     #text : le texte complet (page wiki)
     #size : taille maximale d’un chunk
     #overlap : chevauchement entre deux chunks
