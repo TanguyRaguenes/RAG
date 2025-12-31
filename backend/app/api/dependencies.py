@@ -1,7 +1,7 @@
 
 from fastapi import Request
 from chromadb.api.models.Collection import Collection
-from src.app.dal.repositories.vector_store_repository import VectorStoreRepository
+from app.dal.repositories.vector_store_repository import VectorStoreRepository
 
 def get_config(request: Request) -> dict:
     return request.app.state.config

@@ -1,12 +1,14 @@
-from src.app.services.chuncking_service import chunk_text
-from src.app.dal.clients.embedding_client import embed_text
-from src.app.schemas.vector_db_items_schema import VectorStoreItemsBase
+from app.services.chuncking_service import chunk_text
+from app.dal.clients.embedding_client import embed_text
+from app.schemas.vector_db_items_schema import VectorStoreItemsBase
 
 
-async def ingest_pages(pages: list[dict], config: dict, wikis_collection, vector_db_service) -> dict:
+async def ingest_pages(pages: list[dict], config: dict, vector_store_repository) -> dict:
+
+    wikis_collection= vector_store_repository.get_or_create_collection("wiki_chunks")
 
     collection_count_before = wikis_collection.count()
-
+ 
     items = VectorStoreItemsBase(
         ids=[],
         documents=[],
@@ -25,9 +27,9 @@ async def ingest_pages(pages: list[dict], config: dict, wikis_collection, vector
             items.embeddings.append(emb) 
             items.metadatas.append({"path": page["page_path"], "chunk": i})
 
-    vector_db_service.insert_or_update_items_in_collection(wikis_collection, items)
+    vector_store_repository.insert_or_update_items_in_collection(wikis_collection, items)
 
-    written_items = vector_db_service.get_collection_items(
+    written_items = vector_store_repository.get_collection_items(
         collection=wikis_collection,
         ids=items.ids,
         columns=["documents", "metadatas"],

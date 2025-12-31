@@ -1,12 +1,12 @@
 import time
 
 from fastapi import APIRouter, Depends
-from src.app.services.ingestion_service import ingest_pages
-from src.app.dal.files.markdown_reader import read_markdown_pages
-from src.app.schemas.ingest_request_schema import IngestRequestBase
-from src.app.schemas.ingest_response_schema import IngestResponseBase
+from app.services.ingestion_service import ingest_pages
+from app.dal.files.markdown_reader import read_markdown_pages
+from app.schemas.ingest_request_schema import IngestRequestBase
+from app.schemas.ingest_response_schema import IngestResponseBase
 from pathlib import Path
-from src.app.api.dependencies import get_config, get_wikis_collection, get_vector_store_repository
+from app.api.dependencies import get_config, get_wikis_collection, get_vector_store_repository
 
 router = APIRouter()
 
@@ -14,7 +14,6 @@ router = APIRouter()
 async def bulk_route(
         config = Depends(get_config),
         vector_store_repository  = Depends(get_vector_store_repository),
-        wikis_collection = Depends(get_wikis_collection)
     ) -> IngestResponseBase:
 
     start:float = time.perf_counter()
@@ -25,7 +24,7 @@ async def bulk_route(
 
     print(f"{len(pages)} pages trouvées\n")
 
-    ingested : dict = await ingest_pages(pages,config, wikis_collection, vector_store_repository)
+    ingested : dict = await ingest_pages(pages,config, vector_store_repository)
 
 
     elapsed:float = time.perf_counter() - start
@@ -38,3 +37,15 @@ async def bulk_route(
         collection_count_after=ingested["collection_count_after"],
         written_items=ingested["written_items"], 
         duration=duration)
+
+
+@router.post("/ingest/delete_collection", response_model=str)
+async def clear_collection_route(
+    vector_store_repository  = Depends(get_vector_store_repository),
+    wikis_collection = Depends(get_wikis_collection)
+    )->str:
+
+    vector_store_repository.delete_collection_by_name(wikis_collection.name)
+    vector_store_repository.get_or_create_collection("wiki_chunks")
+
+    return f"Collection : {wikis_collection.name} bien supprimée."

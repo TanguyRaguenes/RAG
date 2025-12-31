@@ -1,12 +1,12 @@
 import httpx
 from typing import Any
-from src.app.domain.models.ask_question_response_model import AskQuestionResponseModel
-from src.app.dal.clients.embedding_client import embed_text
-from src.app.services.prompt_builder_service import build_message
+from app.domain.models.ask_question_response_model import AskQuestionResponseModel
+from app.dal.clients.embedding_client import embed_text
+from app.services.prompt_builder_service import build_message
 
 
 
-async def ask_question(question: str, config:dict, wikis_collection, vector_db_service) -> str:
+async def ask_question(question: str, config:dict, wikis_collection, vector_store_repository) -> str:
 
     base_url = config["llm"]["url_provider"]
     model = config["llm"]["model"]
@@ -19,7 +19,7 @@ async def ask_question(question: str, config:dict, wikis_collection, vector_db_s
     max_chars = config["context_builder"]["max_chars"]
 
     query_embedding:list[float]=await embed_text(question,config)
-    retrieved_chunks:list[dict[str, Any]]  = vector_db_service.retrieve_chunks(wikis_collection,query_embedding,top_k)
+    retrieved_chunks:list[dict[str, Any]]  = vector_store_repository.retrieve_chunks(wikis_collection,query_embedding,top_k)
 
     if not retrieved_chunks:
         return "Je ne sais pas."

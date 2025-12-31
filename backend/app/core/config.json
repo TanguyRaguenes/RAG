@@ -9,19 +9,19 @@
         "stream":false
     },
     "retriever":{
-        "top_k":5
+        "top_k":10
     },
     "context_builder":{
-        "max_chars":6000
+        "max_chars":8000
     },
     "embedding":{
         "provider" : "ollama",
         "url_provider": "http://ollama:11434",
-        "model": "snowflake-arctic-embed2"
+        "model": "all-minilm:l6-v2"
     },
     "chuncking":{
-        "size": 800, 
-        "overlap": 150
+        "size": 400, 
+        "overlap": 100
     }
 
 

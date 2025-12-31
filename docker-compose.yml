@@ -1,7 +1,7 @@
 services:
   api:
     build:
-      context: .
+      context: ./backend
       dockerfile: dockerfile
     container_name: rag_api
     ports:
@@ -10,10 +10,26 @@ services:
     environment:
       - DEBUG=1
     volumes:
+      - ./backend:/app # Montage du code source pour que les modifs soient prises en compte sans rebuild
       - ../RAG.wiki:/app/RAG.wiki:ro # Ici on charge dans le container en lecture seule le clone des wikis
     depends_on:
       - ollama
       - chroma
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: dockerfile
+    container_name: rag_frontend
+    ports:
+      - "8501:8501" # Port par défaut utilisé par Streamlit.
+    environment:
+      - DEBUG=1
+      - API_URL=http://api:8000 # Définition de l'url à laquelle le frontend doit s'adresser pour envoyer ses requêtes au backend.
+    volumes:
+      - ./frontend:/app # Montage du code source pour que les modifs soient prises en compte sans rebuild
+    depends_on:
+      - api
 
   ollama:
     image: ollama/ollama:latest

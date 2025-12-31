@@ -1,7 +1,7 @@
 import chromadb
 from typing import Any
 from chromadb.api.models.Collection import Collection
-from src.app.schemas.vector_db_items_schema import VectorStoreItemsBase
+from app.schemas.vector_db_items_schema import VectorStoreItemsBase
 
 class VectorStoreRepository:
 
@@ -47,6 +47,11 @@ class VectorStoreRepository:
             return
         
         collection.delete(ids=ids)
+    
+    def delete_all_items(self, collection: Collection):
+        all_data = collection.get()
+        if all_data["ids"]:
+            collection.delete(ids=all_data["ids"])
 
     def retrieve_chunks(self, collection: Collection,query_embedding:list[float],top_k: int )->list[dict[str, Any]] :
 

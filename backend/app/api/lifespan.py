@@ -1,8 +1,8 @@
 from fastapi import FastAPI
 
 from contextlib import asynccontextmanager
-from src.app.core.config import load_config
-from src.app.dal.repositories.vector_store_repository import VectorStoreRepository
+from app.core.config import load_config
+from app.dal.repositories.vector_store_repository import VectorStoreRepository
 
 
 @asynccontextmanager

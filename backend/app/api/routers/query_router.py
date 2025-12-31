@@ -1,10 +1,10 @@
 import time
 
 from fastapi import APIRouter, Depends
-from src.app.dal.clients.question_answering_client import ask_question
-from src.app.schemas.llm_request_schema import LlmRequestBase
-from src.app.schemas.llm_response_schema import LlmResponseBase
-from src.app.api.dependencies import get_config, get_wikis_collection, get_vector_store_repository
+from app.dal.clients.question_answering_client import ask_question
+from app.schemas.llm_request_schema import LlmRequestBase
+from app.schemas.llm_response_schema import LlmResponseBase
+from app.api.dependencies import get_config, get_wikis_collection, get_vector_store_repository
 
 router = APIRouter()
 

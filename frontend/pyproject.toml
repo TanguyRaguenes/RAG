@@ -1,0 +1,10 @@
+[project]
+name = "rag-frontend"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "debugpy>=1.8.19",
+    "streamlit>=1.31.0",
+]
