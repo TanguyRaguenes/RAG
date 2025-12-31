@@ -1,5 +1,6 @@
 import httpx
 from typing import Any
+from src.app.domain.models.ask_question_response_model import AskQuestionResponseModel
 from src.app.dal.clients.embedding_client import embed_text
 from src.app.services.prompt_builder_service import build_message
 
@@ -38,4 +39,17 @@ async def ask_question(question: str, config:dict, wikis_collection, vector_db_s
         r.raise_for_status()
         data = r.json()
 
-    return data["choices"][0]["message"]["content"]
+
+    sources:list[str]=[]
+    for chunck in retrieved_chunks:
+        sources.append(chunck["metadata"]["path"])
+
+    sources=list(set(sources))
+
+    response:AskQuestionResponseModel ={
+        "llm_answer":data["choices"][0]["message"]["content"],
+        "sources": sources,
+        "chuncks":retrieved_chunks
+    }
+
+    return response
