@@ -1,0 +1,14 @@
+[
+  {
+    "question": "Quelle est la différence d'usage entre Kelio et Moffi ?",
+    "keywords": ["Kelio", "Moffi", "badgeage", "réservation"],
+    "reference_answer": "Kelio gère le badgeage et les absences. Moffi sert à la réservation de postes de travail en présentiel.",
+    "category": "tools_usage"
+  },
+  {
+    "question": "Quelles sont les règles de durée et de contenu à respecter pour un PCQ ?",
+    "keywords": ["PCQ", "10 minutes", "résolution"],
+    "reference_answer": "Max 10 minutes. Chaque membre donne avancement et objectifs. Pas de résolution de problèmes pendant le point.",
+    "category": "organization"
+  }
+]
