@@ -1,6 +1,6 @@
 from typing import Any
-from app.domain.judge_response_domain import JudgeOutput
-from app.domain.judge_response_domain import judge_parser
+from app.domain.models.judge_response_domain import JudgeOutput
+from app.domain.models.judge_response_domain import judge_parser
 
 def build_context(chunks: list[dict[str, Any]], max_chars: int) -> str:
     parts: list[str] = []
@@ -24,10 +24,10 @@ def build_judge_messages(
     question: str,
     generated_answer: str,
     reference_answer: str,
-    chunks: list[dict[str, Any]],
+    retrieved_chunks: list[dict[str, Any]],
     max_context_chars: int = 12000,
 ) -> list[dict[str, str]]:
-    context = build_context(chunks, max_context_chars)
+    context = build_context(retrieved_chunks, max_context_chars)
 
     format_instructions = judge_parser.get_format_instructions()
 

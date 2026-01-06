@@ -19,7 +19,7 @@
         "url_provider": "http://ollama:11434",
         "model": "all-minilm:l6-v2"
     },
-    "chuncking":{
+    "chunking":{
         "size": 400, 
         "overlap": 100
     }

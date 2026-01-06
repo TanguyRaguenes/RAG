@@ -19,8 +19,7 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 # --- VARIABLES D'ENVIRONNEMENT ---
-# Ajout d'une valeur par défaut pour éviter les erreurs si la variable n'est pas set
-API_URL = os.getenv("API_URL", "http://localhost:8000")
+RAG_API_URL = os.getenv("RAG_API_URL")
 
 # --- FONCTIONS UTILITAIRES ---
 
@@ -60,10 +59,10 @@ with st.sidebar:
     st.divider()
     
     # État du serveur
-    if st.button("🔍 État du serveur", use_container_width=True):
-        with st.status("Ping du Backend...", expanded=False) as status:
+    if st.button("🔍 État API", use_container_width=True):
+        with st.status("Ping API...", expanded=False) as status:
             try:
-                response = requests.get(f"{API_URL}/docs", timeout=5)
+                response = requests.get(f"{RAG_API_URL}/docs", timeout=5)
                 if response.status_code == 200:
                     status.update(label="Backend Connecté ✅", state="complete")
                 else:
@@ -107,7 +106,7 @@ if prompt := st.chat_input("Ex : C'est quoi les Microservices New Way ?"):
     with st.spinner("IsiDore réfléchit..."):
         try:
             payload = {"question": prompt}
-            response = requests.post(f"{API_URL}/ask_question", json=payload, timeout=180)
+            response = requests.post(f"{RAG_API_URL}/ask_question", json=payload, timeout=180)
             
             if response.status_code == 200:
                 full_response = response.json()
@@ -116,7 +115,7 @@ if prompt := st.chat_input("Ex : C'est quoi les Microservices New Way ?"):
                 data = full_response.get("answer", {})
                 llm_answer = data.get("llm_answer", "Pas de réponse générée.")
                 sources = data.get("sources", [])
-                chunks = data.get("chuncks", []) # Note: vérifiez si votre API renvoie "chuncks" ou "chunks"
+                chunks = data.get("chunks", []) # Note: vérifiez si votre API renvoie "chunks" ou "chunks"
                 duration = full_response.get("duration", "N/A")
 
                 # Sauvegarde complète dans le state (Texte + Métadonnées)

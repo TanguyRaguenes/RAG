@@ -1,6 +1,6 @@
 from typing import Any
 
-from app.domain.judge_response_domain import judge_parser
+from app.domain.models.judge_response_domain import judge_parser
 from app.schemas.Answer_evaluation_schema import AnswerEvaluationBase
 from app.dal.client.judge_client import judge_client
 from app.services.prompt_builder_service import build_judge_messages
@@ -11,14 +11,14 @@ async def evaluate_answer(
     question: str,
     generated_answer: str,
     reference_answer: str,
-    chunks: list[dict[str, Any]],
+    retrieved_chunks: list[dict[str, Any]],
 ) -> AnswerEvaluationBase:
     
     messages = build_judge_messages(
         question=question,
         generated_answer=generated_answer,
         reference_answer=reference_answer,
-        chunks=chunks,
+        retrieved_chunks=retrieved_chunks,
         max_context_chars=12000,
     )
 

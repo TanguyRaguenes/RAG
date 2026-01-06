@@ -1,7 +1,9 @@
 import streamlit as st
 import pandas as pd
-import time
 import numpy as np
+import requests
+import os
+import time
 
 # --- CONFIGURATION DE LA PAGE ---
 st.set_page_config(
@@ -28,12 +30,26 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
+# --- VARIABLES D'ENVIRONNEMENT ---
+EVALUATOR_URL = os.getenv("EVALUATOR_URL")
+
 # --- SIDEBAR ---
 with st.sidebar:
     st.title("📊 Dashboard")
     st.info("Ce tableau de bord évalue la qualité du système RAG (Retrieval Augmented Generation).")
     # if st.button("⬅️ Retour au Chat"):
     #     st.switch_page("main.py")
+            # État du serveur
+    if st.button("🔍 État API", use_container_width=True):
+        with st.status("Ping API...", expanded=False) as status:
+            try:
+                response = requests.get(f"{EVALUATOR_URL}/docs", timeout=5)
+                if response.status_code == 200:
+                    status.update(label="Backend Connecté ✅", state="complete")
+                else:
+                    status.update(label=f"Erreur API ({response.status_code})", state="error")
+            except Exception:
+                status.update(label="Serveur injoignable ❌", state="error")
 
 # --- HEADER ---
 st.title("Evaluation du RAG")
@@ -48,25 +64,53 @@ st.header("🔍 Retrieval Evaluation")
 if st.button("🚀 Lancer l'évaluation (Run Evaluation)", use_container_width=True, type="primary"):
     
     with st.spinner("Analyse des métriques en cours... (Simulation)"):
-        time.sleep(1.5) # Simulation du temps de calcul
-        
-        # Génération de données aléatoires pour l'exemple
-        st.session_state.mrr = 0.7298
-        st.session_state.ndcg = 0.7387
-        st.session_state.coverage = 83.8
-        
-        # Données pour le graphique
-        categories = ['direct_fact', 'temporal', 'comparative', 'numerical', 'relationship', 'spanning', 'holistic']
-        scores = np.random.uniform(0.5, 0.9, len(categories))
-        st.session_state.df_chart = pd.DataFrame({"Category": categories, "Average MRR": scores})
-        
-        st.session_state.evaluation_done = True
+        try:
+            if not EVALUATOR_URL:
+                raise RuntimeError("EVALUATOR_URL non défini")
+
+            # appel evaluator (adapter la route si besoin)
+            resp = requests.post(f"{EVALUATOR_URL}/evaluate_rag", timeout=100000)
+            resp.raise_for_status()
+            data = resp.json()
+
+            # mapping GlobalEvaluatorResponse
+            avg_r = data["average_retrieval"]
+
+            st.session_state.mrr = float(avg_r["mrr"])
+            st.session_state.ndcg = float(avg_r["ndcg"])
+            st.session_state.coverage = float(avg_r["keyword_coverage"])
+
+            # ton evaluator renvoie une moyenne globale => chart minimal
+            st.session_state.df_chart = pd.DataFrame({
+                "Category": ["global"],
+                "Average MRR": [st.session_state.mrr],
+            })
+
+            st.session_state.total_questions = int(data["total_questions"])
+            st.session_state.duration = str(data["total_duration"])
+
+            st.session_state.evaluation_done = True
+
+        except requests.Timeout:
+            st.session_state.evaluation_done = False
+            st.error("Timeout: l'évaluation a dépassé 300s.")
+        except requests.HTTPError as e:
+            st.session_state.evaluation_done = False
+            st.error(f"Erreur API evaluator: {e.response.status_code} - {e.response.text}")
+        except Exception as e:
+            st.session_state.evaluation_done = False
+            st.error(f"Erreur evaluator: {e}")
+
 
 # --- AFFICHAGE DES RÉSULTATS ---
 if "evaluation_done" in st.session_state and st.session_state.evaluation_done:
     
     # Barre de succès verte comme sur l'image
-    st.success("✅ Evaluation Complete: 150 tests performed", icon="✅")
+    st.success(
+        f"✅ Evaluation Complete: {st.session_state.get('total_questions','?')} tests performed "
+        f"(duration: {st.session_state.get('duration','??:??')})",
+        icon="✅"
+    )
 
     # Création de deux colonnes : Métriques (Gauche) vs Graphique (Droite)
     col_metrics, col_chart = st.columns([1, 2], gap="large")

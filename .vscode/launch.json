@@ -9,6 +9,15 @@
       "pathMappings": [
         { "localRoot": "${workspaceFolder}/backend", "remoteRoot": "/app" }
       ]
+    },
+     {
+      "name": "Attach evaluator (Docker)",
+      "type": "debugpy",
+      "request": "attach",
+      "connect": { "host": "localhost", "port": 5679 },
+      "pathMappings": [
+        { "localRoot": "${workspaceFolder}/evaluator", "remoteRoot": "/app" }
+      ]
     }
   ]
 }

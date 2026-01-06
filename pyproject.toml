@@ -4,4 +4,4 @@ version = "0.1.0"
 dependencies = []
 
 [tool.uv]
-workspace = { members = ["backend", "frontend"] }
+workspace = { members = ["backend", "frontend","evaluator"] }

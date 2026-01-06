@@ -2,8 +2,8 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 def chunk_text(text: str, config: dict) -> list[str]:
 
-    size = config["chuncking"]["size"]
-    overlap = config["chuncking"]["overlap"]
+    size = config["chunking"]["size"]
+    overlap = config["chunking"]["overlap"]
 
     text = text.replace("[[_TOC_]]", "").strip()
 

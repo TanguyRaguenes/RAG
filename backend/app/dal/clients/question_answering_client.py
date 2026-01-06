@@ -6,7 +6,7 @@ from app.services.prompt_builder_service import build_message
 
 
 
-async def ask_question(question: str, config:dict, wikis_collection, vector_store_repository) -> str:
+async def ask_question(question: str, config:dict, wikis_collection, vector_store_repository) -> AskQuestionResponseModel:
 
     base_url = config["llm"]["url_provider"]
     model = config["llm"]["model"]
@@ -41,15 +41,15 @@ async def ask_question(question: str, config:dict, wikis_collection, vector_stor
 
 
     sources:list[str]=[]
-    for chunck in retrieved_chunks:
-        sources.append(chunck["metadata"]["path"])
+    for chunk in retrieved_chunks:
+        sources.append(chunk["metadata"]["path"])
 
     sources=list(set(sources))
 
     response:AskQuestionResponseModel ={
         "llm_answer":data["choices"][0]["message"]["content"],
         "sources": sources,
-        "chuncks":retrieved_chunks
+        "chunks":retrieved_chunks
     }
 
     return response

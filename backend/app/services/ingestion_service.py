@@ -1,4 +1,4 @@
-from app.services.chuncking_service import chunk_text
+from app.services.chunking_service import chunk_text
 from app.dal.clients.embedding_client import embed_text
 from app.schemas.vector_db_items_schema import VectorStoreItemsBase
 

@@ -25,11 +25,32 @@ services:
       - "8501:8501" # Port par défaut utilisé par Streamlit.
     environment:
       - DEBUG=1
-      - API_URL=http://api:8000 # Définition de l'url à laquelle le frontend doit s'adresser pour envoyer ses requêtes au backend.
+      - RAG_API_URL=http://api:8000 # Définition de l'url à laquelle le frontend doit s'adresser pour envoyer des requêtes au RAG.
+      - EVALUATOR_URL=http://evaluator:8000 # Définition de l'url à laquelle le frontend doit s'adresser pour envoyer des requêtes à l'evaluator.
     volumes:
       - ./frontend:/app # Montage du code source pour que les modifs soient prises en compte sans rebuild
     depends_on:
       - api
+      - evaluator
+
+  evaluator:
+    build:
+      context: ./evaluator
+      dockerfile: dockerfile
+    container_name: rag_evaluator
+    ports:
+      - "8002:8000"   # evaluator expose 8000 en interne, publié sur 8002 host
+      - "5679:5678"   # port debug côté host (évite conflit avec api:5678)
+    environment:
+      - DEBUG=1
+      - RAG_API_URL=http://api:8000/ask_question
+      - DATASET_PATH=/app/data/dataset.json
+    volumes:
+      - ./evaluator:/app
+      - ./evaluator/dataset.json:/app/data/dataset.json:ro
+    depends_on:
+      - api
+      - ollama
 
   ollama:
     image: ollama/ollama:latest
