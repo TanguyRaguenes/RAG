@@ -4,6 +4,6 @@ from app.schemas.retrieval_evaluation_schema import RetrievalEvaluationBase
 
 class EvaluatorResponseBase(BaseModel):
     average_retrieval: RetrievalEvaluationBase
-    average_quality: AnswerEvaluationBase
+    average_answer_quality: AnswerEvaluationBase
     total_duration: str
     total_questions: int

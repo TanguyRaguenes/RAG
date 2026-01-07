@@ -30,7 +30,7 @@ async def evaluate_rag(config: dict) -> EvaluatorResponseBase:
     if nb_questions == 0:
         return EvaluatorResponseBase(
             average_retrieval=RetrievalEvaluationBase(mrr=0.0, ndcg=0.0, recall=0.0,precision=0.0),
-            average_quality=AnswerEvaluationBase(feedback="Aucune évaluation", accuracy=0, completeness=0, relevance=0),
+            average_answer_quality=AnswerEvaluationBase(feedback="Aucune évaluation", accuracy=0, completeness=0, relevance=0),
             total_duration="00:00",
             total_questions=0,
         )
@@ -51,17 +51,21 @@ async def evaluate_rag(config: dict) -> EvaluatorResponseBase:
         retrieved_chunks: list[dict[str, Any]] = []
         
         try:
-            data:RagResponseBase = await rag_api_client(question)
+
+            # 1° On pose la question à notre RAG
+            raw_data:dict= await rag_api_client(question)
+            data:RagResponseBase =RagResponseBase(**raw_data)
 
             rag_api_response = data.answer
             rag_answer = rag_api_response.llm_answer
             retrieved_chunks = rag_api_response.chunks
 
-        except Exception:
+        except Exception as e:
+            print(e)
             rag_answer = ""
             retrieved_chunks = []
 
-        # Retrieval evaluation (math)
+        # 2° On calcule les métriques sur les chuncks récupérés par notre RAG (MRR, nDCG, recall@K, precision@K)
         retrieval_evaluation_response = evaluate_retrieval(keywords=keywords, retrieved_chunks=retrieved_chunks, k=5)
 
         acc_retrieval["mrr"] += retrieval_evaluation_response.mrr
@@ -69,22 +73,23 @@ async def evaluate_rag(config: dict) -> EvaluatorResponseBase:
         acc_retrieval["recall"] += retrieval_evaluation_response.recall
         acc_retrieval["precision"] += retrieval_evaluation_response.precision
 
-        # Answer evaluation (judge)
+        # 3° On demande à un autre LLM son avis sur la réponse de notre RAG
         try:
-            answer_evaluation_response = await evaluate_answer(
+            answer_evaluation_response : AnswerEvaluationBase = await evaluate_answer(
                 config=config,
                 question=question,
                 reference_answer=ref_answer,
                 generated_answer=rag_answer,
                 retrieved_chunks=retrieved_chunks,
             )
+
             acc_quality["accuracy"] += answer_evaluation_response.accuracy
             acc_quality["completeness"] += answer_evaluation_response.completeness
             acc_quality["relevance"] += answer_evaluation_response.relevance
             valid_judgements += 1
+
         except Exception as e:
             print(e)
-            pass
 
     # ---- moyennes ----
     avg_retrieval = RetrievalEvaluationBase(
@@ -96,7 +101,7 @@ async def evaluate_rag(config: dict) -> EvaluatorResponseBase:
 
     div_q = valid_judgements if valid_judgements > 0 else 1
 
-    avg_quality = AnswerEvaluationBase(
+    avg_answer_quality = AnswerEvaluationBase(
         feedback="Moyenne Globale du Dataset",
         accuracy=round(acc_quality["accuracy"] / div_q, 2),
         completeness=round(acc_quality["completeness"] / div_q, 2),
@@ -105,7 +110,7 @@ async def evaluate_rag(config: dict) -> EvaluatorResponseBase:
 
     return EvaluatorResponseBase(
         average_retrieval=avg_retrieval,
-        average_quality=avg_quality,
+        average_answer_quality=avg_answer_quality,
         total_duration="00:00",
         total_questions=nb_questions,
     )

@@ -23,7 +23,7 @@ async def ask_question_route(
     
     return EvaluatorResponseBase(
         average_retrieval=result.average_retrieval,
-        average_quality=result.average_quality,
+        average_answer_quality=result.average_answer_quality,
         total_duration=duration,
         total_questions=result.total_questions,
     )

@@ -14,7 +14,7 @@ def extract_retrieved_texts(raw_chunks: list[Any]) -> List[str]:
     out: list[str] = []
     for chunk in raw_chunks:
         if isinstance(chunk, dict):
-            txt = chunk.get("document") or chunk.get("text") or ""
+            txt = chunk.get("document")
             if txt:
                 out.append(str(txt))
         else:
@@ -35,11 +35,11 @@ def evaluate_retrieval(keywords: List[str], retrieved_chunks: list[Any], k: int)
     ndcg_score:float = calculate_ndcg(keywords, retrieved_texts, k)
 
     recall_score:float = calculate_recall(keywords, retrieved_texts)
-    precision_score:float = calculate_precision(keywords,retrieved_chunks,k)
+    precision_score:float = calculate_precision(keywords,retrieved_texts,k)
 
     return RetrievalEvaluationBase(
         mrr=mrr_score,
         ndcg=ndcg_score,
         recall=recall_score,
-        precision_score=precision_score
+        precision=precision_score
     )

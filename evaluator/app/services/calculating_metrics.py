@@ -166,7 +166,7 @@ def calculate_precision(keywords: List[str], retrieved_chunks: List[str], k) -> 
         return 0.0
 
     keywords_lower = [keyword.lower() for keyword in keywords]
-    retrieved_chunks_lower = [text.lower() for text in retrieved_chunks]
+    retrieved_chunks_lower = [chunk.lower() for chunk in retrieved_chunks]
 
     considered_chunks = retrieved_chunks_lower[:k]
     relevant_chunks_count = 0
