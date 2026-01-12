@@ -4,4 +4,4 @@ version = "0.1.0"
 dependencies = []
 
 [tool.uv]
-workspace = { members = ["backend", "frontend","evaluator"] }
+workspace = { members = ["rag_api", "rag_embedder","rag_evaluator","rag_ihm","rag_retriever"] }

@@ -2,22 +2,50 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Attach rag_api (Docker)",
+      "name": "Attach rag_api",
       "type": "debugpy",
       "request": "attach",
-      "connect": { "host": "localhost", "port": 5678 },
+      "connect": { "host": "localhost", "port": 5680 },
       "pathMappings": [
-        { "localRoot": "${workspaceFolder}/backend", "remoteRoot": "/app" }
+        { "localRoot": "${workspaceFolder}/rag_api", "remoteRoot": "/app" }
       ]
     },
-     {
-      "name": "Attach evaluator (Docker)",
+    {
+      "name": "Attach rag_embedder",
       "type": "debugpy",
       "request": "attach",
       "connect": { "host": "localhost", "port": 5679 },
       "pathMappings": [
-        { "localRoot": "${workspaceFolder}/evaluator", "remoteRoot": "/app" }
+        { "localRoot": "${workspaceFolder}/rag_embedder", "remoteRoot": "/app" }
       ]
-    }
+    },
+    {
+      "name": "Attach rag_evaluator",
+      "type": "debugpy",
+      "request": "attach",
+      "connect": { "host": "localhost", "port": 5681 },
+      "pathMappings": [
+        { "localRoot": "${workspaceFolder}/rag_evaluator", "remoteRoot": "/app" }
+      ]
+    },
+    {
+      "name": "Attach rag_ihm",
+      "type": "debugpy",
+      "request": "attach",
+      "connect": { "host": "localhost", "port": 5682 },
+      "pathMappings": [
+        { "localRoot": "${workspaceFolder}/rag_ihm", "remoteRoot": "/app" }
+      ]
+    },
+    {
+      "name": "Attach rag_retriever",
+      "type": "debugpy",
+      "request": "attach",
+      "connect": { "host": "localhost", "port": 5678 },
+      "pathMappings": [
+        { "localRoot": "${workspaceFolder}/rag_retriever", "remoteRoot": "/app" }
+      ]
+    },
+
   ]
 }

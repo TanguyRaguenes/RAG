@@ -1,0 +1,11 @@
+{
+    "llm":{
+        "provider" : "ollama",
+        "url_provider": "http://ollama:11434",
+        "model": "qwen2.5-coder:3b",
+        "temperature": 0.0,
+        "max_tokens": 1024,
+        "timeout_seconds": 180,
+        "stream":false
+    }
+}

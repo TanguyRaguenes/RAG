@@ -1,0 +1,5 @@
+{
+    "retriever":{
+        "top_k": 5
+    }
+}

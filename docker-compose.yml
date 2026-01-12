@@ -1,76 +1,120 @@
 services:
-  api:
-    build:
-      context: ./backend
-      dockerfile: dockerfile
-    container_name: rag_api
-    ports:
-      - "8000:8000"
-      - "5678:5678" #Port utilisé par debugpy
-    environment:
-      - DEBUG=1
-    volumes:
-      - ./backend:/app # Montage du code source pour que les modifs soient prises en compte sans rebuild
-      - ../RAG.wiki:/app/RAG.wiki:ro # Ici on charge dans le container en lecture seule le clone des wikis
-    depends_on:
-      - ollama
-      - chroma
 
-  frontend:
-    build:
-      context: ./frontend
-      dockerfile: dockerfile
-    container_name: rag_frontend
-    ports:
-      - "8501:8501" # Port par défaut utilisé par Streamlit.
-    environment:
-      - DEBUG=1
-      - RAG_API_URL=http://api:8000 # Définition de l'url à laquelle le frontend doit s'adresser pour envoyer des requêtes au RAG.
-      - EVALUATOR_URL=http://evaluator:8000 # Définition de l'url à laquelle le frontend doit s'adresser pour envoyer des requêtes à l'evaluator.
-    volumes:
-      - ./frontend:/app # Montage du code source pour que les modifs soient prises en compte sans rebuild
-    depends_on:
-      - api
-      - evaluator
-
-  evaluator:
-    build:
-      context: ./evaluator
-      dockerfile: dockerfile
-    container_name: rag_evaluator
-    ports:
-      - "8002:8000"   # evaluator expose 8000 en interne, publié sur 8002 host
-      - "5679:5678"   # port debug côté host (évite conflit avec api:5678)
-    environment:
-      - DEBUG=1
-      - RAG_API_URL=http://api:8000/ask_question
-      - DATASET_PATH=/app/data/dataset.json
-    volumes:
-      - ./evaluator:/app
-      - ./evaluator/dataset.json:/app/data/dataset.json:ro
-    depends_on:
-      - api
-      - ollama
-
+  # 1° Service qui permet d'installer OnPremise les models
   ollama:
     image: ollama/ollama:latest
-    container_name: rag_ollama
+    container_name: ollama_container
     ports:
       - "11434:11434"
     volumes:
       - ollama_data:/root/.ollama  # stocke les modèles téléchargés
   
+  # 2° Service qui permet de stocker des données vectorielles puis de les récupérer (retriever)
   chroma:
     image: chromadb/chroma:latest
-    container_name: rag_chroma
+    container_name: chroma_container
     ports:
-    - "8001:8000"
+    - "8000:8000"
     volumes:
       - chroma_data:/chroma/chroma
     environment:
       - IS_PERSISTENT=TRUE
       - PERSIST_DIRECTORY=/chroma/chroma
     restart: unless-stopped
+
+  # 3° Service en charge de faire le crud avec la bdd vectorielle
+  rag_retriever:
+    build:
+      context: ./rag_retriever
+      dockerfile: dockerfile
+    container_name: rag_retriever_container
+    ports:
+      - "8001:8000"
+      - "5678:5678" # Port par defaut utilisé par debugpy (library de débogage)
+    environment:
+      - DEBUG=1
+    volumes:
+      - ./rag_retriever:/app # HotReload : Montage du code source pour que les modifs soient prises en compte sans rebuild
+    depends_on:
+      - chroma
+  
+
+  # 4° Service en charge de convertir en vecteur les wikis et les questions des utilisateurs
+  rag_embedder:
+    build:
+      context: ./rag_embedder
+      dockerfile: dockerfile
+    container_name: rag_embedder_container
+    ports:
+      - "8002:8000"
+      - "5679:5678" # Port par defaut utilisé par debugpy (library de débogage)
+    environment:
+      - DEBUG=1
+      - RAG_RETRIEVER_INGEST_DOCUMENTS_URL=http://rag_retriever:8000/save_items
+    volumes:
+      - ./rag_embedder:/app # HotReload : Montage du code source pour que les modifs soient prises en compte sans rebuild
+      - ../wikis:/app/wikis:ro # On charge dans le container en lecture seule "ro=ReadOnly" les wikis
+    depends_on:
+      - ollama
+  
+  # 5° Service en charge d'orchestrer l'appel aux différents services du RAG
+  rag_api:
+    build:
+      context: ./rag_api
+      dockerfile: dockerfile
+    container_name: rag_api_container
+    ports:
+      - "8003:8000"
+      - "5680:5678" # port debug côté host (évite conflit avec rag_embedder:5678)
+    environment:
+      - DEBUG=1
+      - RAG_EMBEDDER_EMBED_QUESTION_URL=http://rag_embedder:8000/embed_text
+      - RAG_RETRIEVER_RETRIEVE_CHUNKS_URL=http://rag_retriever:8000/retrieve_chunks
+    volumes:
+      - ./rag_api:/app # HotReload : Montage du code source pour que les modifs soient prises en compte sans rebuild
+    depends_on:
+      - ollama
+      - rag_embedder
+
+   # 6° Service en charge d'évaluer la qualité du RAG
+  rag_evaluator:
+    build:
+      context: ./rag_evaluator
+      dockerfile: dockerfile
+    container_name: rag_evaluator_container
+    ports:
+      - "8004:8000"   # evaluator expose 8000 en interne (au sein du container), publié sur 8003 host (host= ma machine = pc/serveur)
+      - "5681:5678"   # port debug côté host (évite conflit avec rag_embedder:5678)
+    environment:
+      - DEBUG=1
+      - RAG_API_ASK_QUESTION_URL=http://rag_api:8000/ask_question
+      - DATASET_PATH=/app/data/dataset.json
+    volumes:
+      - ./rag_evaluator:/app
+      - ./rag_evaluator/dataset.json:/app/data/dataset.json:ro # On charge dans le container en lecture seule "ro=ReadOnly" le dataset
+    depends_on:
+      - rag_api
+
+  # 7° Service en charge de l'affichage de l'interface utilisateur (basé sur la bibliothèque streamlit)
+  rag_ihm:
+    build:
+      context: ./rag_ihm
+      dockerfile: dockerfile
+    container_name: rag_ihm_container
+    ports:
+      - "8501:8501" # Port par défaut utilisé par Streamlit.
+      - "5682:5678"   # port debug côté host (évite conflit avec rag_embedder:5678)
+    environment:
+      - DEBUG=1
+      - RAG_API_TEST_CONNEXION_URL=http://rag_api:8000
+      - RAG_EVALUATOR_TEST_CONNEXION_URL=http://rag_evaluator:8000
+      - RAG_API_ASK_QUESTION_URL=http://rag_api:8000/ask_question
+      - RAG_EVALUATOR_EVALUATE_RAG_URL=http://rag_evaluator:8000/evaluate_rag
+    volumes:
+      - ./rag_ihm:/app # HotReload : Montage du code source pour que les modifs soient prises en compte sans rebuild
+    depends_on:
+      - rag_api
+      - rag_evaluator
 
 volumes:
   ollama_data:

@@ -1,0 +1,12 @@
+{
+    "embedding":{
+        "provider" : "ollama",
+        "url": "http://ollama:11434/api/embed",
+        "model": "nomic-embed-text:v1.5"
+    },
+    "chunking":{
+        "size": 1000, 
+        "overlap": 200
+    }
+
+}
