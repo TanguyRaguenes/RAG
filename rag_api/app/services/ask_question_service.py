@@ -15,6 +15,8 @@ async def ask_question(question: str, config: dict) -> AskQuestionResponseBase:
     stream: bool = config["llm"]["stream"]
     max_tokens: int = config["llm"]["max_tokens"]
 
+    num_ctx: int = config["llm"]["num_ctx"]
+
     embeded_question: list[float] = await embed_question(question)
     retrieved_chunks: list[dict[str, Any]] = await retrieve_chunks(embeded_question)
 
@@ -26,9 +28,12 @@ async def ask_question(question: str, config: dict) -> AskQuestionResponseBase:
     payload: dict[str, Any] = {
         "model": model,
         "messages": message,
-        "temperature": temperature,
         "stream": stream,
-        "max_tokens": max_tokens,
+        "options": {
+            "temperature": temperature,
+            "num_ctx": num_ctx,
+            "num_predict": max_tokens,
+        },
     }
 
     llm_response = await ask_question_to_llm(payload, timeout_seconds, base_url)

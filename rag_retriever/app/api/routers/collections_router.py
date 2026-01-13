@@ -40,11 +40,12 @@ async def retrieve_chunk_route(
 
 
 @router.post("/delete_collection")
-async def clear_collection_route(
+async def delete_collection_route(
     vector_store_repository=Depends(get_vector_store_repository),
-    wikis_collection=Depends(get_wikis_collection),
+    config=Depends(get_config),
 ) -> str:
-    vector_store_repository.delete_collection_by_name(wikis_collection.name)
-    vector_store_repository.get_or_create_collection(wikis_collection.name)
+    collection_name: str = config["collection"]["name"]
+    vector_store_repository.delete_collection_by_name(collection_name)
+    vector_store_repository.get_or_create_collection(collection_name)
 
-    return f"Collection : {wikis_collection.name} bien supprimée."
+    return f"Collection : {collection_name} bien supprimée."

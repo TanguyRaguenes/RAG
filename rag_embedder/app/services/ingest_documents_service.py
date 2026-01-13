@@ -1,3 +1,5 @@
+from urllib.parse import unquote
+
 from app.dal.clients.embedding_client import embed_text as client_embed_text
 from app.dal.clients.retriever_client import save_items as client_save_items
 from app.domain.models.document_model import DocumentBase, DocumentsBase
@@ -59,6 +61,14 @@ def convert_to_chroma_format(
     )
 
 
+def clean_title(title: str) -> str:
+    decoded_title = unquote(title)
+
+    clean_title = decoded_title.replace(".md", "").replace("-", " ").replace("_", " ")
+
+    return " ".join(clean_title.split())
+
+
 async def prepare_document_to_ingest(
     document: DocumentBase, config: dict
 ) -> DocumentToIngest:
@@ -66,14 +76,19 @@ async def prepare_document_to_ingest(
 
     # on découpe le fichier en chunks
     chunks: list[str] = chunk_text(document.content, config)
+    document_context: str = clean_title(document.path.split("/")[-1])
 
     for i, chunk in enumerate(chunks):
+        # on prépare le contexte global du document (à partir du nom de fichier)
+        # -> découplage (Decoupling) entre la sémantique (le sens) et le contenu (le texte)
+        text_to_embed = f"Contexte du document : {document_context}\nContenu : {chunk}"
+
         # on convertit les chunks en float
-        embed_text: list[float] = await client_embed_text(chunk, config)
+        embed_text: list[float] = await client_embed_text(text_to_embed, config, False)
 
         # On génère le formalisme attendu par ChromaDB
         chunk_to_ingest: ChunkToIngest = ChunkToIngest(
-            id=f"{document.path}#chunk_{i}",
+            id=f"{document_context}#chunk_{i}",
             chunk=chunk,
             embeded_text=embed_text,
             metadatas={"path": document.path, "chunk": i},

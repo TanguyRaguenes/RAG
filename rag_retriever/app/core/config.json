@@ -1,5 +1,8 @@
 {
     "retriever":{
-        "top_k": 5
+        "top_k": 3
+    },
+    "collection":{
+        "name":"wiki_chunks"
     }
 }
