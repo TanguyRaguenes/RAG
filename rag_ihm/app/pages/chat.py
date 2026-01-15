@@ -22,32 +22,64 @@ st.markdown(
 RAG_API_TEST_CONNEXION_URL = os.getenv("RAG_API_TEST_CONNEXION_URL")
 RAG_API_ASK_QUESTION_URL = os.getenv("RAG_API_ASK_QUESTION_URL")
 
+
+def _ensure_env(name: str, value: str | None) -> None:
+    if not value:
+        st.error(f"Variable d'environnement manquante : {name}")
+        st.stop()
+
+
+_ensure_env("RAG_API_TEST_CONNEXION_URL", RAG_API_TEST_CONNEXION_URL)
+_ensure_env("RAG_API_ASK_QUESTION_URL", RAG_API_ASK_QUESTION_URL)
+
+
 # --- FONCTIONS UTILITAIRES ---
-
-
-def afficher_message(role, content, sources=None, chunks=None, duration=None):
-    """Fonction pour afficher un message et ses métadonnées"""
+def afficher_message(
+    role: str,
+    llm_response: str,
+    retrieved_documents: list[str] | None = None,
+    retrieved_chunks: list[dict] | None = None,
+    duration: str | None = None,
+    model: str | None = None,
+    generated_prompt: list[dict] | None = None,
+):
+    """Affiche un message + métadonnées assistant."""
     with st.chat_message(role):
-        st.markdown(content)
+        st.markdown(llm_response)
 
-        # Affichage des métadonnées (seulement pour l'assistant)
         if role == "assistant":
+            # infos compactes
+            infos = []
+            if model:
+                infos.append(f"🤖 {model}")
             if duration:
-                st.caption(f"⏱️ Généré en : {duration}")
+                infos.append(f"⏱️ {duration}")
+            if infos:
+                st.caption(" — ".join(infos))
 
-            if sources:
+            if retrieved_documents:
                 with st.expander("📚 Wikis consultés"):
-                    unique_sources = sorted(list(set(sources)))
-                    for source in unique_sources:
-                        st.markdown(f"- `{source}`")
+                    for document in sorted(set(retrieved_documents)):
+                        st.markdown(f"- `{document}`")
 
-            if chunks:
+            if retrieved_chunks:
                 with st.expander("🔍 Extraits pertinents"):
-                    for i, chunk in enumerate(chunks):
+                    for i, chunk in enumerate(retrieved_chunks, start=1):
                         path = chunk.get("metadata", {}).get("path", "Source inconnue")
                         text_content = chunk.get("document", "Contenu vide")
-                        st.caption(f"**Extrait {i + 1}** — *{path}*")
-                        st.info(text_content)
+                        similarity = chunk.get("similarity")
+                        if similarity is not None:
+                            st.caption(
+                                f"**Extrait {i}** — *{path}* — "
+                                f"Similarité : **{similarity:.2f}**"
+                            )
+                        else:
+                            st.caption(f"**Extrait {i}** — *{path}*")
+                            st.info(text_content)
+
+            if generated_prompt:
+                with st.expander("🧩 Prompt généré"):
+                    st.json(generated_prompt)
 
 
 # --- BARRE LATÉRALE ---
@@ -56,12 +88,11 @@ with st.sidebar:
     if os.path.exists(image_path):
         st.image(image_path, use_container_width=True)
     else:
-        st.title("🤖 IsiDore")  # Fallback si l'image manque
+        st.title("🤖 IsiDore")
 
     st.caption("LLM basé sur la documentation interne ISILOG.")
     st.divider()
 
-    # État du serveur
     if st.button("🔍 État API", use_container_width=True):
         with st.status("Ping API...", expanded=False) as status:
             try:
@@ -75,7 +106,6 @@ with st.sidebar:
             except Exception:
                 status.update(label="Serveur injoignable ❌", state="error")
 
-    # Reset
     if st.button("🗑️ Effacer la discussion", use_container_width=True):
         st.session_state.messages = []
         st.rerun()
@@ -89,24 +119,23 @@ if "messages" not in st.session_state:
     st.session_state.messages = []
 
 # --- AFFICHAGE DE L'HISTORIQUE ---
-# On réaffiche tout l'historique au rechargement de la page
 for message in st.session_state.messages:
     afficher_message(
         role=message["role"],
-        content=message["content"],
-        sources=message.get("sources"),
-        chunks=message.get("chunks"),
+        llm_response=message["content"],
+        retrieved_documents=message.get("retrieved_documents"),
+        retrieved_chunks=message.get("retrieved_chunks"),
         duration=message.get("duration"),
+        model=message.get("model"),
+        generated_prompt=message.get("generated_prompt"),
     )
 
 # --- ZONE DE CHAT ---
 if prompt := st.chat_input("Ex : C'est quoi les Microservices New Way ?"):
-    # 1. Sauvegarde et affichage immédiat de la question utilisateur
     user_msg = {"role": "user", "content": prompt}
     st.session_state.messages.append(user_msg)
     afficher_message("user", prompt)
 
-    # 2. Traitement de la réponse
     with st.spinner("IsiDore réfléchit..."):
         try:
             payload = {"question": prompt}
@@ -114,37 +143,46 @@ if prompt := st.chat_input("Ex : C'est quoi les Microservices New Way ?"):
                 RAG_API_ASK_QUESTION_URL, json=payload, timeout=180
             )
 
-            if response.status_code == 200:
-                full_response = response.json()
-
-                # Extraction des données
-                data = full_response.get("answer", {})
-                llm_answer = data.get("llm_answer", "Pas de réponse générée.")
-                sources = data.get("sources", [])
-                chunks = data.get(
-                    "chunks", []
-                )  # Note: vérifiez si votre API renvoie "chunks" ou "chunks"
-                duration = full_response.get("duration", "N/A")
-
-                # Sauvegarde complète dans le state (Texte + Métadonnées)
-                assistant_msg = {
-                    "role": "assistant",
-                    "content": llm_answer,
-                    "sources": sources,
-                    "chunks": chunks,
-                    "duration": duration,
-                }
-                st.session_state.messages.append(assistant_msg)
-
-                # Affichage de la réponse
-                afficher_message("assistant", llm_answer, sources, chunks, duration)
-
-            else:
+            if response.status_code != 200:
                 st.error(f"Erreur API : {response.status_code}")
+                st.stop()
+
+            # ✅ Aligné avec AskQuestionResponseBase
+            full_response = response.json()
+
+            llm_answer = full_response.get("llm_response", "Pas de réponse générée.")
+            retrieved_documents = full_response.get("retrieved_documents", [])
+            retrieved_chunks = full_response.get("retrieved_chunks", [])
+            model = full_response.get("model")
+            generated_prompt = full_response.get("generated_prompt")
+            duration = full_response.get("duration", "N/A")
+
+            assistant_msg = {
+                "role": "assistant",
+                "content": llm_answer,
+                "retrieved_documents": retrieved_documents,
+                "retrieved_chunks": retrieved_chunks,
+                "model": model,
+                "generated_prompt": generated_prompt,
+                "duration": duration,
+            }
+            st.session_state.messages.append(assistant_msg)
+
+            afficher_message(
+                "assistant",
+                llm_answer,
+                retrieved_documents=retrieved_documents,
+                retrieved_chunks=retrieved_chunks,
+                duration=duration,
+                model=model,
+                generated_prompt=generated_prompt,
+            )
 
         except requests.exceptions.Timeout:
             st.error("⏳ Le serveur met trop de temps à répondre.")
         except requests.exceptions.ConnectionError:
             st.error("🔌 Impossible de contacter le serveur.")
+        except ValueError:
+            st.error("Réponse API invalide (JSON non parsable).")
         except Exception as e:
             st.error(f"Une erreur est survenue : {e}")

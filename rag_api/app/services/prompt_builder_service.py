@@ -26,7 +26,7 @@ def build_context(chunks: list[dict[str, Any]], config: dict) -> str:
     return "\n\n".join(parts)
 
 
-def build_message(
+def build_prompt(
     question: str, retrieve_chunks: list[dict[str, Any]], config: dict
 ) -> list[dict[str, str]]:
     context = build_context(retrieve_chunks, config)

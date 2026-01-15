@@ -7,6 +7,7 @@ class ChunkModelBase(BaseModel):
     id: str
     document: str
     metadata: dict[str, Any]
+    similarity: float
 
 
 class RetrievedChunksModelBase(BaseModel):

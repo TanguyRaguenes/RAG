@@ -13,7 +13,10 @@ class VectorStoreRepository:
         self.config = config
 
     def get_or_create_collection(self, collection_name: str) -> Collection:
-        return self.client.get_or_create_collection(name=collection_name)
+        return self.client.get_or_create_collection(
+            name=collection_name,
+            metadata={"hnsw:space": "cosine"},
+        )
 
     def insert_or_update_items_in_collection(
         self, collection: Collection, items: VectorStoreItemsBase
@@ -70,3 +73,56 @@ class VectorStoreRepository:
         )
 
         return response
+
+    # Récupère les top_k chunks depuis Chroma, calcule la similarité cosinus,
+    # filtre selon un seuil minimum et garantit un nombre minimum de résultats.
+
+    def retrieve_chunks_filtered(
+        self,
+        collection: Collection,
+        query_embedding: list[float],
+        top_k: int,
+        minimum_similarity: float,
+        minimum_number_of_chunks: int,
+    ) -> list[dict[str, Any]]:
+        # 1° Récupération des chunks bruts depuis Chroma
+        retrieved_chunks: QueryResult = collection.query(
+            query_embeddings=[query_embedding],
+            n_results=top_k,
+            include=["documents", "metadatas", "distances"],
+        )
+
+        # 2° Extraction des résultats (une seule requête → index 0)
+        documents = retrieved_chunks.get("documents", [[]])[0] or []
+        metadatas = retrieved_chunks.get("metadatas", [[]])[0] or []
+        distances = retrieved_chunks.get("distances", [[]])[0] or []
+
+        # 3° Enrichissement des chunks avec distance et similarité
+        enriched_chunks = []
+        for document, metadata, distance in zip(documents, metadatas, distances):
+            # En cosinus (cosine en anglais) : similarité ≈ 1 - distance
+
+            enriched_chunks.append(
+                {
+                    "document": document,
+                    "metadata": metadata,
+                    "distance": float(distance),
+                    "similarity": 1.0 - float(distance),
+                }
+            )
+
+        # 4° Tri par similarité décroissante (meilleurs chunks en premier)
+        enriched_chunks.sort(key=lambda chunk: chunk["similarity"], reverse=True)
+
+        # 5° Filtrage : on conserve uniquement les chunks suffisamment pertinents
+        kept_chunks: list[dict[str, Any]] = [
+            chunk
+            for chunk in enriched_chunks
+            if chunk["similarity"] >= minimum_similarity
+        ]
+
+        # 6° Sécurité : garantir un nombre minimum de chunks retournés
+        if len(kept_chunks) < minimum_number_of_chunks:
+            kept_chunks = enriched_chunks[:minimum_number_of_chunks]
+
+        return kept_chunks

@@ -3,8 +3,8 @@ from typing import Any
 from app.dal.clients.embedder_client import embed_question
 from app.dal.clients.llm_client import ask_question_to_llm
 from app.dal.clients.retriever_client import retrieve_chunks
-from app.domain.models.ask_question_response_model import AskQuestionResponseBase
-from app.services.prompt_builder_service import build_message
+from app.schemas.ask_question_response_schema import AskQuestionResponseBase
+from app.services.prompt_builder_service import build_prompt
 
 
 async def ask_question(question: str, config: dict) -> AskQuestionResponseBase:
@@ -23,11 +23,11 @@ async def ask_question(question: str, config: dict) -> AskQuestionResponseBase:
     if not retrieved_chunks:
         return "Je ne sais pas."
 
-    message: list[dict[str, str]] = build_message(question, retrieved_chunks, config)
+    prompt: list[dict[str, str]] = build_prompt(question, retrieved_chunks, config)
 
     payload: dict[str, Any] = {
         "model": model,
-        "messages": message,
+        "messages": prompt,
         "stream": stream,
         "options": {
             "temperature": temperature,
@@ -44,10 +44,11 @@ async def ask_question(question: str, config: dict) -> AskQuestionResponseBase:
 
     sources = list(set(sources))
 
-    response: AskQuestionResponseBase = {
-        "llm_answer": llm_response["choices"][0]["message"]["content"],
-        "sources": sources,
-        "chunks": retrieved_chunks,
-    }
-
-    return response
+    return AskQuestionResponseBase(
+        llm_response=llm_response["choices"][0]["message"]["content"],
+        retrieved_chunks=retrieved_chunks,
+        retrieved_documents=sources,
+        model=model,
+        generated_prompt=prompt,
+        duration="",
+    )
