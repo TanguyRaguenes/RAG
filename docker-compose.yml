@@ -8,7 +8,21 @@ services:
       - "11434:11434"
     volumes:
       - ollama_data:/root/.ollama  # stocke les modèles téléchargés
-  
+    entrypoint: ["/bin/sh", "-lc"]
+    command: >
+      "
+      ollama serve &
+      until ollama list >/dev/null 2>&1; do
+        echo 'Waiting for ollama...'; sleep 1;
+      done;
+      ollama pull bge-m3:567m;
+      ollama pull qwen2.5:1.5b;
+      ollama pull qwen2.5:3b;
+      ollama pull qwen2.5:7b;
+      echo 'Models pulled.';
+      wait
+      "
+
   # 2° Service qui permet de stocker des données vectorielles puis de les récupérer (retriever)
   chroma:
     image: chromadb/chroma:latest
@@ -56,6 +70,7 @@ services:
       - ../wikis:/app/wikis:ro # On charge dans le container en lecture seule "ro=ReadOnly" les wikis
     depends_on:
       - ollama
+      - rag_retriever
   
   # 5° Service en charge d'orchestrer l'appel aux différents services du RAG
   rag_api:
@@ -75,6 +90,7 @@ services:
     depends_on:
       - ollama
       - rag_embedder
+      - rag_retriever
 
    # 6° Service en charge d'évaluer la qualité du RAG
   rag_evaluator:

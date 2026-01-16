@@ -37,7 +37,7 @@ _ensure_env("RAG_API_ASK_QUESTION_URL", RAG_API_ASK_QUESTION_URL)
 def afficher_message(
     role: str,
     llm_response: str,
-    retrieved_documents: list[str] | None = None,
+    retrieved_documents: dict | None = None,
     retrieved_chunks: list[dict] | None = None,
     duration: str | None = None,
     model: str | None = None,
@@ -59,23 +59,26 @@ def afficher_message(
 
             if retrieved_documents:
                 with st.expander("📚 Wikis consultés"):
-                    for document in sorted(set(retrieved_documents)):
-                        st.markdown(f"- `{document}`")
+                    for title, count in retrieved_documents.items():
+                        st.markdown(f"- `{title}` — **{count}** extrait(s)")
 
             if retrieved_chunks:
                 with st.expander("🔍 Extraits pertinents"):
                     for i, chunk in enumerate(retrieved_chunks, start=1):
-                        path = chunk.get("metadata", {}).get("path", "Source inconnue")
-                        text_content = chunk.get("document", "Contenu vide")
+                        meta = chunk.get("metadata", {})
+                        path = meta.get("path", "Source inconnue")
+                        chunk_index = meta.get("chunk_index")
                         similarity = chunk.get("similarity")
+                        text_content = chunk.get("document", "Contenu vide")
+
+                        header = f"Extrait {i} — {path}"
+                        if chunk_index is not None:
+                            header += f" (chunk {chunk_index})"
                         if similarity is not None:
-                            st.caption(
-                                f"**Extrait {i}** — *{path}* — "
-                                f"Similarité : **{similarity:.2f}**"
-                            )
-                        else:
-                            st.caption(f"**Extrait {i}** — *{path}*")
-                            st.info(text_content)
+                            header += f" — sim={similarity:.2f}"
+
+                        with st.expander(header, expanded=(i == 1)):
+                            st.markdown(text_content)
 
             if generated_prompt:
                 with st.expander("🧩 Prompt généré"):
@@ -140,7 +143,7 @@ if prompt := st.chat_input("Ex : C'est quoi les Microservices New Way ?"):
         try:
             payload = {"question": prompt}
             response = requests.post(
-                RAG_API_ASK_QUESTION_URL, json=payload, timeout=180
+                RAG_API_ASK_QUESTION_URL, json=payload, timeout=360
             )
 
             if response.status_code != 200:

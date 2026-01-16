@@ -14,8 +14,13 @@ def build_context(chunks: list[dict[str, Any]], config: dict) -> str:
 
     for chunk in chunks:
         meta = chunk.get("metadata") or {}
-        header = f"[{meta.get('path')} | chunk {meta.get('chunk')}]"
-        block = f"{header}\n{chunk.get('document', '')}".strip()
+
+        block = (
+            f"SOURCE: {meta.get('title')}\n"
+            f"PATH: {meta.get('path')}\n"
+            f"CHUNK: {meta.get('chunk_index')}\n"
+            f"CONTENU:\n{chunk.get('document', '')}"
+        ).strip()
 
         if total + len(block) > max_chars:
             break

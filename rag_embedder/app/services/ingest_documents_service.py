@@ -81,7 +81,8 @@ async def prepare_document_to_ingest(
     for i, chunk in enumerate(chunks):
         # on prépare le contexte global du document (à partir du nom de fichier)
         # -> découplage (Decoupling) entre la sémantique (le sens) et le contenu (le texte)
-        text_to_embed = f"Contexte du document : {document_context}\nContenu : {chunk}"
+        # text_to_embed = f"Contexte du document : {document_context}\nContenu : {chunk}"
+        text_to_embed = f"TITLE={document_context} | PATH={document.path}\n{chunk}"
 
         # on convertit les chunks en float
         embed_text: list[float] = await client_embed_text(text_to_embed, config, False)
@@ -91,7 +92,11 @@ async def prepare_document_to_ingest(
             id=f"{document_context}#chunk_{i}",
             chunk=chunk,
             embeded_text=embed_text,
-            metadatas={"path": document.path, "chunk": i},
+            metadatas={
+                "path": document.path,
+                "title": document_context,
+                "chunk_index": i,
+            },
         )
 
         document_to_ingest.chunks.append(chunk_to_ingest)

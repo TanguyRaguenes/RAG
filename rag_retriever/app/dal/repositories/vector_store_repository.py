@@ -13,10 +13,11 @@ class VectorStoreRepository:
         self.config = config
 
     def get_or_create_collection(self, collection_name: str) -> Collection:
-        return self.client.get_or_create_collection(
+        collection = self.client.get_or_create_collection(
             name=collection_name,
-            metadata={"hnsw:space": "cosine"},
+            configuration={"hnsw": {"space": "cosine"}},
         )
+        return collection
 
     def insert_or_update_items_in_collection(
         self, collection: Collection, items: VectorStoreItemsBase

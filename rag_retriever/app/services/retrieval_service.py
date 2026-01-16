@@ -27,7 +27,7 @@ def retrieve_chunks(
 
     for chunk in retrieved_chunks:
         formatted_chunk = ChunkModelBase(
-            id=f"{chunk['metadata']['chunk']} | {chunk['metadata']['path']}",
+            id=f"{chunk['metadata']['title']} | {chunk['metadata']['path']} | {chunk['metadata']['chunk_index']}",
             document=chunk["document"],
             metadata=chunk["metadata"],
             similarity=round(chunk["similarity"], 3),

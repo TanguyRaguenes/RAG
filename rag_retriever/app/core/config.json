@@ -1,7 +1,7 @@
 {
     "retriever":{
-        "top_k": 2,
-        "minimum_similarity":0.7,
+        "top_k": 20,
+        "minimum_similarity":0.51,
         "minimum_number_of_chunks":1
     },
     "collection":{

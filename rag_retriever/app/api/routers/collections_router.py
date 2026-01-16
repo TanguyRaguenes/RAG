@@ -9,6 +9,7 @@ from app.domain.models.retrieve_chunks_request_model import RetrieveChunksReques
 from app.domain.models.vector_store_item_model import VectorStoreItemsBase
 from app.schemas.retrieve_chunks_response_schema import RetrievedChunksModelBase
 from app.schemas.save_items_response_schema import SaveItemsResponseBase
+from app.services.manage_collection_service import delete_collection
 from app.services.retrieval_service import retrieve_chunks
 from app.services.saving_service import save_items
 
@@ -44,8 +45,6 @@ async def delete_collection_route(
     vector_store_repository=Depends(get_vector_store_repository),
     config=Depends(get_config),
 ) -> str:
-    collection_name: str = config["collection"]["name"]
-    vector_store_repository.delete_collection_by_name(collection_name)
-    vector_store_repository.get_or_create_collection(collection_name)
+    delete_collection(config, vector_store_repository)
 
-    return f"Collection : {collection_name} bien supprimée."
+    return "Collection : bien supprimée."

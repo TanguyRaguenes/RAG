@@ -18,10 +18,8 @@ async def ask_question(question: str, config: dict) -> AskQuestionResponseBase:
     num_ctx: int = config["llm"]["num_ctx"]
 
     embeded_question: list[float] = await embed_question(question)
-    retrieved_chunks: list[dict[str, Any]] = await retrieve_chunks(embeded_question)
 
-    if not retrieved_chunks:
-        return "Je ne sais pas."
+    retrieved_chunks: list[dict[str, Any]] = await retrieve_chunks(embeded_question)
 
     prompt: list[dict[str, str]] = build_prompt(question, retrieved_chunks, config)
 
@@ -38,11 +36,7 @@ async def ask_question(question: str, config: dict) -> AskQuestionResponseBase:
 
     llm_response = await ask_question_to_llm(payload, timeout_seconds, base_url)
 
-    sources: list[str] = []
-    for chunk in retrieved_chunks:
-        sources.append(chunk["metadata"]["path"])
-
-    sources = list(set(sources))
+    sources: dict[str, int] = design_source(retrieved_chunks)
 
     return AskQuestionResponseBase(
         llm_response=llm_response["choices"][0]["message"]["content"],
@@ -52,3 +46,21 @@ async def ask_question(question: str, config: dict) -> AskQuestionResponseBase:
         generated_prompt=prompt,
         duration="",
     )
+
+
+def design_source(retrieved_chunks: list[dict[str, Any]]) -> dict[str, int]:
+    sources: dict[str, int] = {}
+
+    for chunk in retrieved_chunks:
+        title = chunk["metadata"]["title"]
+
+        if title in sources:
+            sources[title] += 1
+        else:
+            sources[title] = 1
+
+    sources_sorted = dict(
+        sorted(sources.items(), key=lambda item: item[1], reverse=True)
+    )
+
+    return sources_sorted
