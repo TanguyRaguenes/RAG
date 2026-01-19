@@ -19,11 +19,81 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
+tooltips = {
+    "MRR": "MRR (Mean Reciprocal Rank) : \n \n"
+    "On regarde la position du tout premier chunk pertinent. Puis on calule l'inverse. \n"
+    "rappel : L'inverse d'une fraction consiste à échanger le numérateur (le chiffre du haut) et le dénominateur (le chiffre du bas) \n"
+    "tout en conservant le même signe. Mathématiquement, si nous avons une fraction 'a/b', son inverse est 'b/a'. \n \n"
+    "Exemple : \n"
+    "Si le bon chunk est en 1ère position : score = 1/1 = 1.0 \n"
+    "Si le bon chunk est en 2ème position : score = 1/2 = 0.5 \n"
+    "Si le bon chunk est en 10ème position : score = 1/10 = 0.1 \n"
+    "Pas de chunk pertinent ? Score = 0.  \n \n",
+    "nDCG": "nDCG (Normalized Discounted Cumulative Gain) : \n \n"
+    "On vérifie si les meilleurs chunks sont bien placés tout en haut de la liste. \n"
+    "On compare le score du classement du retriever avec le score d'un classement 'Idéal' (parfait). \n"
+    "rappel : Le logarithme (log2) sert ici d'amortisseur. Contrairement à une division simple qui tue le score trop vite \n"
+    "(diviser par 2 fait perdre 50%), le log réduit le score plus doucement à mesure qu'on descend dans la liste (pour plus de détails voir plus bas). \n"
+    "C'est une 'punition' progressive pour les bons chunks mal classés. \n \n"
+    "Exemple (Question : 'Différence Kelio/Moffi') : \n"
+    "- Chunk A (Parfait) et Chunk B (Moyen) sont pertinents. Chunk C (Inutile) est du bruit. \n"
+    "- Classement [A, B, C] (Idéal) : Le meilleur est en 1er -> Score = 1.0 (100%) \n"
+    "- Classement [B, A, C] (Moyen) : Le meilleur est tombé en 2ème -> Score < 1.0 (ex: 0.85) \n"
+    "- Classement [C, B, A] (Mauvais): Les bons chunks sont à la fin -> Score très faible. \n \n",
+    "Recall": "Recall@K (Rappel - Couverture de Mots-clés) : \n \n"
+    "On regarde si on a trouvé TOUS les mots-clés demandés par l'utilisateur. \n"
+    "On divise le nombre de mots trouvés par le nombre total de mots-clés cherchés. \n"
+    "rappel : Dans un contexte académique, le Rappel mesure le % de documents trouvés par rapport à la base totale. \n"
+    "Ici, faute de connaitre la base par cœur, on utilise une approximation : 'ai-je trouvé tous les mots-clefs ?'. \n \n"
+    "Exemple (Keywords cherchés : 'Kelio', 'Moffi', 'Badgeage') : \n"
+    "- Si les chunks contiennent 'Kelio' et 'Moffi' mais pas 'Badgeage' : \n"
+    "- Trouvés = 2. Total attendu = 3. \n"
+    "- Score = 2/3 = 0.66 (66% de couverture). \n \n",
+    "Precision": "# Precision@K (accuracy) : \n \n"
+    "On regarde la 'pureté' de la liste des chunks: y a-t-il des déchets (chunks inutiles) parmi les chunks affichés ? \n"
+    "On divise le nombre de chunks pertinents par le nombre de chunks affichés (K). \n"
+    "rappel : L'ordre n'a aucune importance ici. Que le déchet soit en 1ère ou en 3ème position, \n"
+    "il compte de la même façon comme une erreur de accuracy. \n \n"
+    "Exemple (Question : 'Frais Cleemy', on affiche 3 chunks) : \n"
+    "- Chunk 1 : Pertinent (Parle de Cleemy) \n"
+    "- Chunk 2 : Bruit (Menu Cantine) \n"
+    "- Chunk 3 : Pertinent (Parle de Frais) \n"
+    "- Score : 2 pertinents sur 3 affichés = 2/3 = 0.66 (66%).",
+    "accuracy": "accuracy : \n \n"
+    "Exactitude factuelle de la réponse par rapport à la réponse de référence. \n"
+    "Note de 1 à 5 : \n"
+    "1 : incorrecte (toute réponse erronée doit recevoir 1) \n"
+    "5 : idéale — parfaitement exacte \n"
+    "Une réponse acceptable obtiendrait généralement 3. \n \n",
+    "completeness": "completeness : \n \n"
+    "Degré de completeness de la réponse, c’est-à-dire sa capacité à couvrir tous les aspects de la question. \n"
+    "Note de 1 à 5 : \n"
+    "1 : très insuffisante — informations clés manquantes \n"
+    "5 : idéale — toutes les informations de la réponse de référence sont présentes \n"
+    "N’attribuer 5 que si l’intégralité des informations attendues est fournie. \n \n",
+    "relevance": "relevance : \n \n"
+    "1 : très faible — hors sujet \n"
+    "5 : idéale — répond directement à la question sans information superflue \n"
+    "N’attribuer 5 que si la réponse est strictement pertinente et ne contient aucun ajout inutile. \n \n",
+}
+
+
+def html_escape(text: str) -> str:
+    return (
+        text.replace("&", "&amp;")
+        .replace('"', "&quot;")
+        .replace("'", "&apos;")
+        .replace("\n", "&#10;")
+    )
+
 
 # --- FONCTION 1 : BARRE DE PROGRESSION LINEAIRE ---
 def display_progress_metric(label, value, scale_max=1.0):
     progress = min(max(value / scale_max, 0.0), 1.0)
-    st.markdown(f"**{label}**")
+    st.markdown(
+        f'<span title="Information sur la métrique {html_escape(tooltips[label])}"><b>{label}</b></span>',
+        unsafe_allow_html=True,
+    )
     cols = st.columns([1, 3])
     with cols[0]:
         if scale_max == 1.0:
@@ -125,10 +195,8 @@ st.caption("Évaluez la qualité de la récupération et des réponses du RAG.")
 st.divider()
 
 # --- BOUTON D'ACTION ---
-if st.button(
-    "🚀 Lancer l'évaluation (Run Evaluation)", use_container_width=True, type="primary"
-):
-    with st.spinner("Appel de l'API et calcul des métriques en cours..."):
+if st.button("🚀 Lancer l'évaluation", use_container_width=True, type="primary"):
+    with st.spinner("Evaluation en cours..."):
         try:
             # 1. APPEL API
             resp = requests.post(RAG_EVALUATOR_EVALUATE_RAG_URL, timeout=300)
@@ -186,25 +254,37 @@ if st.session_state.get("evaluation_done"):
         # 2. Camemberts (Donuts)
         d1, d2, d3, d4 = st.columns(4)
         with d1:
-            st.write("**MRR**")
+            st.markdown(
+                f'<span title="{html_escape(tooltips["MRR"])}"><b>MRR</b></span>',
+                unsafe_allow_html=True,
+            )
             st.altair_chart(
                 make_donut(st.session_state.mrr, "MRR", "#29b5e8"),
                 use_container_width=True,
             )
         with d2:
-            st.write("**nDCG**")
+            st.markdown(
+                f'<span title="{html_escape(tooltips["nDCG"])}"><b>nDCG</b></span>',
+                unsafe_allow_html=True,
+            )
             st.altair_chart(
                 make_donut(st.session_state.ndcg, "nDCG", "#117070"),
                 use_container_width=True,
             )
         with d3:
-            st.write("**Recall**")
+            st.markdown(
+                f'<span title="{html_escape(tooltips["Recall"])}"><b>Recall</b></span>',
+                unsafe_allow_html=True,
+            )
             st.altair_chart(
                 make_donut(st.session_state.recall, "Recall", "#FF6B6B"),
                 use_container_width=True,
             )
         with d4:
-            st.write("**Precision**")
+            st.markdown(
+                f'<span title="{html_escape(tooltips["Precision"])}"><b>Precision</b></span>',
+                unsafe_allow_html=True,
+            )
             st.altair_chart(
                 make_donut(st.session_state.precision, "Precision", "#FCA311"),
                 use_container_width=True,
@@ -233,15 +313,15 @@ if st.session_state.get("evaluation_done"):
         c1, c2, c3 = st.columns(3)
         with c1:
             display_progress_metric(
-                "Précision", st.session_state.accuracy, scale_max=5.0
+                "accuracy", st.session_state.accuracy, scale_max=5.0
             )
         with c2:
             display_progress_metric(
-                "Complétude", st.session_state.completeness, scale_max=5.0
+                "completeness", st.session_state.completeness, scale_max=5.0
             )
         with c3:
             display_progress_metric(
-                "Pertinence", st.session_state.relevance, scale_max=5.0
+                "relevance", st.session_state.relevance, scale_max=5.0
             )
 
         st.divider()
@@ -250,6 +330,10 @@ if st.session_state.get("evaluation_done"):
         # Camemberts pour les notes sur 5
         g1, g2, g3 = st.columns(3)
         with g1:
+            st.markdown(
+                f'<span title="{html_escape(tooltips["accuracy"])}"><b>accuracy</b></span>',
+                unsafe_allow_html=True,
+            )
             st.altair_chart(
                 make_donut(
                     st.session_state.accuracy, "Accuracy", "#27AE60", scale_max=5.0
@@ -257,6 +341,10 @@ if st.session_state.get("evaluation_done"):
                 use_container_width=True,
             )
         with g2:
+            st.markdown(
+                f'<span title="{html_escape(tooltips["completeness"])}"><b>completeness</b></span>',
+                unsafe_allow_html=True,
+            )
             st.altair_chart(
                 make_donut(
                     st.session_state.completeness,
@@ -267,6 +355,10 @@ if st.session_state.get("evaluation_done"):
                 use_container_width=True,
             )
         with g3:
+            st.markdown(
+                f'<span title="{html_escape(tooltips["relevance"])}"><b>relevance</b></span>',
+                unsafe_allow_html=True,
+            )
             st.altair_chart(
                 make_donut(
                     st.session_state.relevance, "Relevance", "#E67E22", scale_max=5.0
