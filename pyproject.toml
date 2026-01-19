@@ -1,7 +1,10 @@
 [project]
 name = "rag-monorepo"
 version = "0.1.0"
-dependencies = []
+dependencies = [
+    "httpx>=0.28.1",
+    "mcp>=1.25.0",
+]
 
 [tool.uv]
 workspace = { members = ["rag_api", "rag_embedder","rag_evaluator","rag_ihm","rag_retriever"] }
