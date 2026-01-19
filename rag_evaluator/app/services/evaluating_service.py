@@ -3,12 +3,13 @@ import os
 from typing import Any
 
 from app.dal.client.rag_api_client import ask_question
-from app.domain.models.rag_response_model import RagResponseBase
+from app.domain.models.ask_question_response_model import AskQuestionResponseBase
 from app.schemas.Answer_evaluation_schema import AnswerEvaluationBase
 from app.schemas.evaluator_response_schema import EvaluatorResponseBase
 from app.schemas.retrieval_evaluation_schema import RetrievalEvaluationBase
-from app.services.evaluating_answer import evaluate_answer
-from app.services.evaluating_retrieval import evaluate_retrieval
+from app.services.evaluating_answer_service import evaluate_answer
+from app.services.evaluating_retrieval_service import evaluate_retrieval
+from app.domain.models.chunk_model import ChunkBase
 
 
 def load_dataset() -> list[dict[str, Any]]:
@@ -46,17 +47,16 @@ async def evaluate_rag(config: dict) -> EvaluatorResponseBase:
         keywords = test.get("keywords")
         ref_answer = test["reference_answer"]
 
-        rag_answer = ""
+        rag_answer:str = ""
         retrieved_chunks: list[dict[str, Any]] = []
 
         try:
             # 1° On pose la question à notre RAG
             raw_data: dict = await ask_question(question)
-            data: RagResponseBase = RagResponseBase(**raw_data)
+            data = AskQuestionResponseBase(**raw_data)
 
-            rag_api_response = data.answer
-            rag_answer = rag_api_response.llm_answer
-            retrieved_chunks = rag_api_response.chunks
+            rag_answer = data.llm_response
+            retrieved_chunks: list[ChunkBase] = data.retrieved_chunks
 
         except Exception as e:
             print(e)

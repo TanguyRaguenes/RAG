@@ -102,7 +102,7 @@ RAG_EVALUATOR_EVALUATE_RAG_URL = os.getenv("RAG_EVALUATOR_EVALUATE_RAG_URL")
 # --- SIDEBAR ---
 with st.sidebar:
     st.title("📊 Dashboard")
-    st.info("Ce tableau de bord évalue la qualité du système RAG.")
+    st.info("Ce tableau de bord évalue la qualité du RAG.")
 
     if st.button("🔍 État API", use_container_width=True):
         with st.status("Ping API...", expanded=False) as status:
@@ -121,7 +121,7 @@ with st.sidebar:
 
 # --- HEADER ---
 st.title("Evaluation du RAG")
-st.caption("Évaluez la qualité de la récupération et des réponses du système.")
+st.caption("Évaluez la qualité de la récupération et des réponses du RAG.")
 st.divider()
 
 # --- BOUTON D'ACTION ---
@@ -167,7 +167,7 @@ if st.session_state.get("evaluation_done"):
 
     # --- ONGLET 1 : RETRIEVAL ---
     with tab1:
-        st.subheader("Performance du Moteur de Recherche")
+        st.subheader("Performance du retriever")
 
         # 1. Barres linéaires
         col1, col2 = st.columns(2, gap="large")
@@ -227,7 +227,7 @@ if st.session_state.get("evaluation_done"):
 
     # --- ONGLET 2 : GENERATION ---
     with tab2:
-        st.subheader("Performance du LLM (Juge IA)")
+        st.subheader("Performance du LLM")
 
         # CORRECTION : st.columns(3) est bien là
         c1, c2, c3 = st.columns(3)

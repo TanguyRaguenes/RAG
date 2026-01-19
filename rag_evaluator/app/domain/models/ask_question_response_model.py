@@ -1,8 +1,10 @@
-from pydantic import BaseModel
 from typing import Any
+from pydantic import BaseModel
 
-class AskQuestionResponseModel(BaseModel):
-    llm_answer: str
-    chunks:list[dict[str, Any]] 
-    sources:list[str]
-    
+class AskQuestionResponseBase(BaseModel):
+    llm_response: str
+    retrieved_chunks: list[dict[str, Any]]
+    retrieved_documents: dict[str, int]
+    model: str
+    generated_prompt: list[dict[str, Any]]
+    duration: str

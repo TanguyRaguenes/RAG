@@ -1,8 +1,8 @@
 [
   {
-    "question": "Quelle est la différence d'usage entre Kelio et Moffi ?",
-    "keywords": ["Kelio", "Moffi", "badgeage", "réservation"],
-    "reference_answer": "Kelio gère le badgeage et les absences. Moffi sert à la réservation de postes de travail en présentiel.",
+    "question": "Comment accéder à Kelio lorsque l’on est en télétravail ?",
+    "keywords": ["Kelio", "télétravail", "accès", "Windows"],
+    "reference_answer": "En télétravail, l’accès à Kelio se fait uniquement via l’application Kelio disponible depuis le menu Windows, et non via le navigateur web.",
     "category": "tools_usage"
   },
   {

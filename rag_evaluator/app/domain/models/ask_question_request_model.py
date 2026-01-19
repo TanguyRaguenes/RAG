@@ -1,5 +1,5 @@
 
 from pydantic import BaseModel
 
-class RagRequestBase(BaseModel):
+class AskQuestionRequestBase(BaseModel):
     question: str

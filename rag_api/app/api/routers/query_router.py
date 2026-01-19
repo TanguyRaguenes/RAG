@@ -3,7 +3,7 @@ import time
 from fastapi import APIRouter, Depends
 
 from app.api.dependencies import get_config
-from app.schemas.ask_question_request_schema import LlmRequestBase
+from app.schemas.ask_question_request_schema import AskQuestionRequestBase
 from app.schemas.ask_question_response_schema import AskQuestionResponseBase
 from app.services.ask_question_service import ask_question
 
@@ -12,7 +12,7 @@ router = APIRouter()
 
 @router.post("/ask_question", response_model=AskQuestionResponseBase)
 async def ask_question_route(
-    body: LlmRequestBase,
+    body: AskQuestionRequestBase,
     config=Depends(get_config),
 ) -> AskQuestionResponseBase:
     start = time.perf_counter()

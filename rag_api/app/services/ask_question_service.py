@@ -14,7 +14,6 @@ async def ask_question(question: str, config: dict) -> AskQuestionResponseBase:
     temperature: float = config["llm"]["temperature"]
     stream: bool = config["llm"]["stream"]
     max_tokens: int = config["llm"]["max_tokens"]
-
     num_ctx: int = config["llm"]["num_ctx"]
 
     embeded_question: list[float] = await embed_question(question)

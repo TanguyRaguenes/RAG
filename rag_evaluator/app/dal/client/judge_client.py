@@ -9,14 +9,18 @@ async def judge_client(config:dict,messages: list[dict[str, str]]) -> dict[str, 
     temperature = config["llm"]["temperature"]
     stream = config["llm"]["stream"]
     max_tokens = config["llm"]["max_tokens"]
+    num_ctx: int = config["llm"]["num_ctx"]
 
 
     payload: dict[str, Any] = {
         "model": model,
         "messages": messages,
-        "temperature": temperature,
         "stream": stream,
-        "max_tokens":max_tokens
+        "options": {
+            "temperature": temperature,
+            "num_ctx": num_ctx,
+            "num_predict": max_tokens,
+        },
     }
 
     async with httpx.AsyncClient(timeout=timeout_seconds) as client:

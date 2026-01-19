@@ -1,7 +1,5 @@
 from typing import Any
-
 from pydantic import BaseModel
-
 
 class AskQuestionResponseBase(BaseModel):
     llm_response: str

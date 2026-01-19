@@ -1,7 +1,7 @@
 from typing import Any, List
 
 from app.schemas.retrieval_evaluation_schema import RetrievalEvaluationBase
-from app.services.calculating_metrics import (
+from app.services.calculating_metrics_service import (
     calculate_mrr,
     calculate_ndcg,
     calculate_recall,

@@ -1,6 +1,6 @@
 from typing import Any
-from app.domain.models.judge_response_domain import JudgeOutput
-from app.domain.models.judge_response_domain import judge_parser
+from app.domain.models.judge_response_model import JudgeOutput
+from app.domain.models.judge_response_model import judge_parser
 
 def build_context(chunks: list[dict[str, Any]], max_chars: int) -> str:
     parts: list[str] = []

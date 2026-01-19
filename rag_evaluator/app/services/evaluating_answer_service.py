@@ -1,6 +1,6 @@
 from typing import Any
 
-from app.domain.models.judge_response_domain import judge_parser
+from app.domain.models.judge_response_model import judge_parser
 from app.schemas.Answer_evaluation_schema import AnswerEvaluationBase
 from app.dal.client.judge_client import judge_client
 from app.services.prompt_builder_service import build_judge_messages
