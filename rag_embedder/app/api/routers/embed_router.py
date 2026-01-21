@@ -41,4 +41,4 @@ async def ingest_bulk_route(config=Depends(get_config)) -> IngestBulkResponseBas
     minutes, seconds = divmod(int(elapsed), 60)
     duration: str = f"{minutes:02d}:{seconds:02d}"
 
-    return IngestBulkResponseBase(savedItems=ingested_documents, duration=duration)
+    return IngestBulkResponseBase(duration=duration, savedItems=ingested_documents)

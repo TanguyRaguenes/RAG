@@ -16,7 +16,7 @@ Cloner le dépôt Git qui contient les wikis.
 ---
 
 ## 4. Copier les wikis
-Copier l’ensemble des fichiers wiki dans le dossier `wikis` créé précédemment.
+Copier le <u>contenu</u> du dossier IWS.wiki (que vous venez de cloner) dans le dossier `wikis` créé précédemment.
 
 ---
 

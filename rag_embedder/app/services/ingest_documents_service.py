@@ -1,3 +1,4 @@
+import re
 from urllib.parse import unquote
 
 from app.dal.clients.embedding_client import embed_text as client_embed_text
@@ -79,6 +80,22 @@ async def prepare_document_to_ingest(
     document_context: str = clean_title(document.path.split("/")[-1])
 
     for i, chunk in enumerate(chunks):
+        # 1. EXTRACTION DES LIENS
+        # La regex capture ce qui est entre parenthèses (...) juste après des crochets [...]
+        raw_links = re.findall(r"\[.*?\]\((.*?)\)", chunk)
+
+        clean_links = []
+        for link in raw_links:
+            # A. On décode les caractères URL (ex: "%2D" devient "-")
+            # decoded_link = unquote(link)
+
+            # B. On retire les espaces autour au cas où
+            clean_link = link.strip()
+            clean_links.append(f"{clean_link[1:]}.md")
+
+        # On transforme la liste en string pour le stockage simple dans ChromaDB
+        links_metadata = ",".join(clean_links)
+
         # on prépare le contexte global du document (à partir du nom de fichier)
         # -> découplage (Decoupling) entre la sémantique (le sens) et le contenu (le texte)
         # text_to_embed = f"Contexte du document : {document_context}\nContenu : {chunk}"
@@ -89,13 +106,15 @@ async def prepare_document_to_ingest(
 
         # On génère le formalisme attendu par ChromaDB
         chunk_to_ingest: ChunkToIngest = ChunkToIngest(
-            id=f"{document_context}#chunk_{i}",
+            id=f"{document_context}#chunk_{i}#{document.path}",
             chunk=chunk,
             embeded_text=embed_text,
             metadatas={
                 "path": document.path,
                 "title": document_context,
                 "chunk_index": i,
+                "related_links": links_metadata,
+                "has_links": len(raw_links) > 0,
             },
         )
 

@@ -3,9 +3,8 @@ from pydantic import BaseModel
 
 class SavedItemBase(BaseModel):
     id: str
-    path: str
     chunk: str
-    text_preview: str
+    metadatas: dict
 
 
 class SaveItemsResponseBase(BaseModel):

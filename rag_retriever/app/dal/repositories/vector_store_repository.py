@@ -39,12 +39,10 @@ class VectorStoreRepository:
         for id, document, metadata in zip(
             data["ids"], data["documents"], data["metadatas"]
         ):
-            metadata = metadata
             item = SavedItemBase(
                 id=id,
-                path=metadata.get("path"),
                 chunk=document,
-                text_preview=document[:200],
+                metadatas=metadata,
             )
             items.append(item)
 
@@ -112,18 +110,89 @@ class VectorStoreRepository:
                 }
             )
 
-        # 4° Tri par similarité décroissante (meilleurs chunks en premier)
-        enriched_chunks.sort(key=lambda chunk: chunk["similarity"], reverse=True)
+        # 4° Filtre les chunks par similarité
+        kept_chunks = self.filter_by_similarity(enriched_chunks, minimum_similarity)
 
-        # 5° Filtrage : on conserve uniquement les chunks suffisamment pertinents
-        kept_chunks: list[dict[str, Any]] = [
-            chunk
-            for chunk in enriched_chunks
-            if chunk["similarity"] >= minimum_similarity
-        ]
-
-        # 6° Sécurité : garantir un nombre minimum de chunks retournés
+        # 5° Sécurité : garantir un nombre minimum de chunks retournés
         if len(kept_chunks) < minimum_number_of_chunks:
+            enriched_chunks.sort(key=lambda x: x["similarity"], reverse=True)
             kept_chunks = enriched_chunks[:minimum_number_of_chunks]
 
+        # 6° On va chercher les chunks liés
+        enriched_kept_chunks = self.retrieve_related_chunks(kept_chunks, collection)
+        enriched_kept_chunks.sort(key=lambda x: x["similarity"], reverse=True)
+
+        return enriched_kept_chunks
+
+    def filter_by_similarity(
+        self, chunks: list, minimum_similarity: float
+    ) -> list[dict[str, Any]]:
+        # 1° Tri par similarité décroissante (meilleurs chunks en premier)
+        chunks.sort(key=lambda chunk: chunk["similarity"], reverse=True)
+
+        # 4° Filtrage : on conserve uniquement les chunks suffisamment pertinents
+        kept_chunks: list[dict[str, Any]] = [
+            chunk for chunk in chunks if chunk["similarity"] >= minimum_similarity
+        ]
+
         return kept_chunks
+
+    def retrieve_related_chunks(
+        self, chunks: list, collection: Collection
+    ) -> list[dict[str, Any]]:
+        # Dictionnaire : chemin -> score max hérité
+        paths_with_scores = {}
+
+        # 1° Extraction des liens et calcul du score
+        for chunk in chunks:
+            metadata = chunk["metadata"]
+            parent_score = chunk["similarity"]
+
+            if metadata["has_links"]:
+                links_str = metadata["related_links"]
+                if links_str:
+                    links = links_str.split(",")
+                    for link in links:
+                        clean_link = link.strip()
+                        if clean_link:
+                            # Si le lien existe déjà, on garde le meilleur score des parents
+                            if clean_link in paths_with_scores:
+                                paths_with_scores[clean_link] = max(
+                                    paths_with_scores[clean_link], parent_score
+                                )
+                            else:
+                                paths_with_scores[clean_link] = parent_score
+
+        # 2° Récupération Chroma
+        target_paths = list(paths_with_scores.keys())
+
+        if target_paths:
+            related_chunks = collection.get(
+                where={"path": {"$in": target_paths}},
+                include=["documents", "metadatas"],
+            )
+
+            # 3° Ajout aux résultats
+            if related_chunks and related_chunks["documents"]:
+                for document, metadata in zip(
+                    related_chunks["documents"], related_chunks["metadatas"]
+                ):
+                    inherited_score = paths_with_scores[metadata["path"]]
+
+                    related_chunk = {
+                        "document": f"CONTEXTE : DOCUMENT LIÉ (Détail)\n{document}",
+                        "metadata": metadata,
+                        "distance": 0.0,
+                        "similarity": inherited_score,
+                    }
+
+                    # 4° Anti-doublon
+                    is_duplicate = any(
+                        chunk["document"] == related_chunk["document"]
+                        for chunk in chunks
+                    )
+
+                    if not is_duplicate:
+                        chunks.append(related_chunk)
+
+        return chunks
