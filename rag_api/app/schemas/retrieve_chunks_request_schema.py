@@ -1,5 +1,5 @@
 from pydantic import BaseModel
 
 
-class AskQuestionRequestBase(BaseModel):
+class RetrieveChunksRequestBase(BaseModel):
     question: str

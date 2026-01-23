@@ -26,8 +26,8 @@ CMD ["sh", "-lc", "\
   if [ \"$DEBUG\" = \"1\" ]; then \
     exec uv run python -Xfrozen_modules=off -m debugpy \
       --listen 0.0.0.0:5679 \
-      -m streamlit run app/main.py --server.port=8501 --server.address=0.0.0.0; \
+      -m streamlit run app/main.py --server.port=8501 --server.address=0.0.0.0 --server.enableCORS=false --server.enableXsrfProtection=false; \
   else \
-    exec uv run streamlit run app/main.py --server.port=8501 --server.address=0.0.0.0; \
+    exec uv run streamlit run app/main.py --server.port=8501 --server.address=0.0.0.0 --server.enableCORS=false --server.enableXsrfProtection=false; \
   fi \
 "]

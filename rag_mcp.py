@@ -1,3 +1,5 @@
+from typing import Any
+
 import httpx
 from mcp.server.fastmcp import FastMCP
 
@@ -5,12 +7,12 @@ from mcp.server.fastmcp import FastMCP
 mcp = FastMCP("RAG Entreprise")
 
 # 2. Configuration de l'URL pour poser une question au RAG
-RAG_API_URL = "http://localhost:8003/ask_question"
+RAG_API_URL = "http://localhost:8003/retrieve_chunks"
 
 
 # 3. Définition de l'outil pour l'Agent
 @mcp.tool()
-async def interroger_documentation_interne(question: str) -> str:
+async def interroger_documentation_interne(question: str) -> list[dict[str, Any]]:
     """
     Pose une question à la documentation interne de l'entreprise via le RAG.
     Utilise cet outil dès que l'utilisateur pose une question sur :
@@ -31,7 +33,7 @@ async def interroger_documentation_interne(question: str) -> str:
 
             data = response.json()
 
-            return data["llm_response"]
+            return data["retrieved_chunks"]
 
         except httpx.ConnectError:
             return "Erreur : Impossible de joindre le RAG. Vérifiez que le conteneur 'rag_api' tourne bien et expose le port 8003."
