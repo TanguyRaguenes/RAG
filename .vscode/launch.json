@@ -46,6 +46,14 @@
         { "localRoot": "${workspaceFolder}/rag_retriever", "remoteRoot": "/app" }
       ]
     },
-
+    {
+      "name": "Attach rag_mcp",
+      "type": "debugpy",
+      "request": "attach",
+      "connect": { "host": "localhost", "port": 5683 },
+      "pathMappings": [
+        { "localRoot": "${workspaceFolder}/rag_mcp", "remoteRoot": "/app" }
+      ]
+    }
   ]
 }

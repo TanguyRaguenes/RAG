@@ -132,6 +132,23 @@ services:
       - rag_api
       - rag_evaluator
 
+  # 8° Service MCP pour l'IA dans VS Code
+  rag_mcp:
+    build:
+      context: ./rag_mcp
+      dockerfile: Dockerfile
+    container_name: rag_mcp_container
+    ports:
+      - "8005:8000"
+      - "5683:5678"   # port debug côté host (évite conflit avec rag_embedder:5678)
+    environment:
+      - DEBUG=1
+      - FORWARDED_ALLOW_IPS=*
+    volumes:
+      - ./rag_mcp:/app
+    depends_on:
+      - rag_api
+
 volumes:
   ollama_data:
   chroma_data:

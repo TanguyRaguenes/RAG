@@ -1,0 +1,6 @@
+{"mcpServers":{
+     "isidore_rag": {
+      "url": "https://trag.isilog.fr/mcp/sse",
+      "transport": "sse"
+    }
+}}

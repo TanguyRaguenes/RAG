@@ -7,4 +7,4 @@ dependencies = [
 ]
 
 [tool.uv]
-workspace = { members = ["rag_api", "rag_embedder","rag_evaluator","rag_ihm","rag_retriever"] }
+workspace = { members = ["rag_api", "rag_embedder","rag_evaluator","rag_ihm","rag_retriever","rag_mcp"] }
