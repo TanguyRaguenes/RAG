@@ -83,6 +83,7 @@ class VectorStoreRepository:
         top_k: int,
         minimum_similarity: float,
         minimum_number_of_chunks: int,
+        max_related_links: int,
     ) -> list[dict[str, Any]]:
         # 1° Récupération des chunks bruts depuis Chroma
         retrieved_chunks: QueryResult = collection.query(
@@ -119,7 +120,9 @@ class VectorStoreRepository:
             kept_chunks = enriched_chunks[:minimum_number_of_chunks]
 
         # 6° On va chercher les chunks liés
-        enriched_kept_chunks = self.retrieve_related_chunks(kept_chunks, collection)
+        enriched_kept_chunks = self.retrieve_related_chunks(
+            kept_chunks, collection, max_related_links
+        )
         enriched_kept_chunks.sort(key=lambda x: x["similarity"], reverse=True)
 
         return enriched_kept_chunks
@@ -138,7 +141,7 @@ class VectorStoreRepository:
         return kept_chunks
 
     def retrieve_related_chunks(
-        self, chunks: list, collection: Collection
+        self, chunks: list, collection: Collection, max_related_links: int
     ) -> list[dict[str, Any]]:
         # Dictionnaire : chemin -> score max hérité
         paths_with_scores = {}
@@ -164,7 +167,9 @@ class VectorStoreRepository:
                                 paths_with_scores[clean_link] = parent_score
 
         # 2° Récupération Chroma
-        target_paths = list(paths_with_scores.keys())
+        target_paths = sorted(
+            paths_with_scores.keys(), key=lambda k: paths_with_scores[k], reverse=True
+        )[:max_related_links]
 
         if target_paths:
             related_chunks = collection.get(

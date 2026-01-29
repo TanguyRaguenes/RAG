@@ -1,8 +1,14 @@
 [
   {
-    "question": "Quelles sont les règles de durée et de contenu à respecter pour un PCQ ?",
-    "keywords": ["PCQ", "10 minutes", "résolution"],
-    "reference_answer": "Max 10 minutes. Chaque membre donne avancement et objectifs. Pas de résolution de problèmes pendant le point.",
-    "category": "organization"
+    "question": "C'est quoi Kelio ?",
+    "keywords": ["outil de gestion RH", "badgeage", "temps de travail", "absences"],
+    "reference_answer": "Kelio est l'outil de gestion RH d'Isilog utilisé pour le badgeage (temps de travail) et la gestion des demandes d'absence (congés payés, RTT, maladie, etc.).",
+    "category": "RH"
+  },
+  {
+    "question": "Quels sont les évènements d'équipe ?",
+    "keywords": ["PCQ", "PCM", "Audits qualité", "Séminaire", "Soirée annuelle"],
+    "reference_answer": "Les événements d'équipe incluent : le PCQ (quotidien, 10 min max), le PCM (mensuel avec toutes les équipes), les audits qualité (tout au long de l'année), le séminaire annuel (une journée à l'extérieur pour présenter les résultats) et la soirée annuelle du Groupe.",
+    "category": "organisation"
   }
 ]

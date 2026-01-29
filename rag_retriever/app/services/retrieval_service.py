@@ -12,6 +12,7 @@ def retrieve_chunks(
     top_k: int = config["retriever"]["top_k"]
     minimum_similarity: float = config["retriever"]["minimum_similarity"]
     minimum_number_of_chunks: int = config["retriever"]["minimum_number_of_chunks"]
+    max_related_links: int = config["retriever"]["max_related_links"]
 
     retrieved_chunks: list[dict[str, Any]] = (
         vector_store_repository.retrieve_chunks_filtered(
@@ -20,6 +21,7 @@ def retrieve_chunks(
             top_k,
             minimum_similarity,
             minimum_number_of_chunks,
+            max_related_links,
         )
     )
 

@@ -1,8 +1,9 @@
 {
     "retriever":{
         "top_k": 20,
-        "minimum_similarity":0.51,
-        "minimum_number_of_chunks":1
+        "minimum_similarity":0.55,
+        "minimum_number_of_chunks":1,
+        "max_related_links":15
     },
     "collection":{
         "name":"wiki_chunks"

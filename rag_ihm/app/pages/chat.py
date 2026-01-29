@@ -21,6 +21,7 @@ st.markdown(
 # --- VARIABLES D'ENVIRONNEMENT ---
 RAG_API_TEST_CONNEXION_URL = os.getenv("RAG_API_TEST_CONNEXION_URL")
 RAG_API_ASK_QUESTION_URL = os.getenv("RAG_API_ASK_QUESTION_URL")
+RAG_API_ASK_QUESTION_API_OPENAI_URL = os.getenv("RAG_API_ASK_QUESTION_API_OPENAI_URL")
 
 
 def _ensure_env(name: str, value: str | None) -> None:
@@ -31,6 +32,7 @@ def _ensure_env(name: str, value: str | None) -> None:
 
 _ensure_env("RAG_API_TEST_CONNEXION_URL", RAG_API_TEST_CONNEXION_URL)
 _ensure_env("RAG_API_ASK_QUESTION_URL", RAG_API_ASK_QUESTION_URL)
+_ensure_env("RAG_API_ASK_QUESTION_API_OPENAI_URL", RAG_API_ASK_QUESTION_API_OPENAI_URL)
 
 
 # --- FONCTIONS UTILITAIRES ---
@@ -96,6 +98,24 @@ with st.sidebar:
     st.caption("LLM basé sur la documentation interne ISILOG.")
     st.divider()
 
+    # --- SÉLECTEUR DE LLM ---
+    st.subheader("⚙️ Configuration")
+    llm_type = st.radio(
+        "Moteur d'intelligence :",
+        ["Cloud (OpenAI)", "Local (Ollama)"],
+        index=0,
+        help="Choisissez entre l'exécution locale ou via l'API OpenAI.",
+    )
+
+    # Choix de l'URL dynamiquement
+    current_ask_url = (
+        RAG_API_ASK_QUESTION_API_OPENAI_URL
+        if llm_type == "Cloud (OpenAI)"
+        else RAG_API_ASK_QUESTION_URL
+    )
+
+    st.divider()
+
     if st.button("🔍 État API", use_container_width=True):
         with st.status("Ping API...", expanded=False) as status:
             try:
@@ -139,12 +159,11 @@ if prompt := st.chat_input("Ex : C'est quoi les Microservices New Way ?"):
     st.session_state.messages.append(user_msg)
     afficher_message("user", prompt)
 
-    with st.spinner("IsiDore réfléchit..."):
+    with st.spinner(f"IsiDore ({llm_type}) réfléchit..."):
         try:
             payload = {"question": prompt}
-            response = requests.post(
-                RAG_API_ASK_QUESTION_URL, json=payload, timeout=360
-            )
+            # Utilisation de l'URL dynamique choisie dans la barre latérale
+            response = requests.post(current_ask_url, json=payload, timeout=360)
 
             if response.status_code != 200:
                 st.error(f"Erreur API : {response.status_code}")

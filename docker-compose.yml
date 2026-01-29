@@ -78,6 +78,8 @@ services:
       context: ./rag_api
       dockerfile: dockerfile
     container_name: rag_api_container
+    env_file:
+      - ./rag_api/.env
     ports:
       - "8003:8000"
       - "5680:5678" # port debug côté host (évite conflit avec rag_embedder:5678)
@@ -98,6 +100,8 @@ services:
       context: ./rag_evaluator
       dockerfile: dockerfile
     container_name: rag_evaluator_container
+    env_file:
+      - ./rag_api/.env
     ports:
       - "8004:8000"   # evaluator expose 8000 en interne (au sein du container), publié sur 8003 host (host= ma machine = pc/serveur)
       - "5681:5678"   # port debug côté host (évite conflit avec rag_embedder:5678)
@@ -125,6 +129,7 @@ services:
       - RAG_API_TEST_CONNEXION_URL=http://rag_api:8000
       - RAG_EVALUATOR_TEST_CONNEXION_URL=http://rag_evaluator:8000
       - RAG_API_ASK_QUESTION_URL=http://rag_api:8000/ask_question
+      - RAG_API_ASK_QUESTION_API_OPENAI_URL=http://rag_api:8000/ask_question_api_openai
       - RAG_EVALUATOR_EVALUATE_RAG_URL=http://rag_evaluator:8000/evaluate_rag
     volumes:
       - ./rag_ihm:/app # HotReload : Montage du code source pour que les modifs soient prises en compte sans rebuild

@@ -8,5 +8,8 @@
         "max_tokens": 2048,
         "timeout_seconds": 360,
         "stream":false
+    },
+    "evaluation_method":{
+        "use_api_openai":true
     }
 }

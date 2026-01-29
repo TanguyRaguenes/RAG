@@ -10,3 +10,7 @@ wheels/
 
 # Virtual environments
 .venv
+
+# Exclure tous les fichiers .env dans n'importe quel dossier
+**/.env
+**/.env.*
