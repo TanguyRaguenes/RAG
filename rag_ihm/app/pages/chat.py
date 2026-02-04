@@ -22,6 +22,7 @@ st.markdown(
 RAG_API_TEST_CONNEXION_URL = os.getenv("RAG_API_TEST_CONNEXION_URL")
 RAG_API_ASK_QUESTION_URL = os.getenv("RAG_API_ASK_QUESTION_URL")
 RAG_API_ASK_QUESTION_API_OPENAI_URL = os.getenv("RAG_API_ASK_QUESTION_API_OPENAI_URL")
+ROLE_ASSISTANT = "assistant"
 
 
 def _ensure_env(name: str, value: str | None) -> None:
@@ -33,6 +34,29 @@ def _ensure_env(name: str, value: str | None) -> None:
 _ensure_env("RAG_API_TEST_CONNEXION_URL", RAG_API_TEST_CONNEXION_URL)
 _ensure_env("RAG_API_ASK_QUESTION_URL", RAG_API_ASK_QUESTION_URL)
 _ensure_env("RAG_API_ASK_QUESTION_API_OPENAI_URL", RAG_API_ASK_QUESTION_API_OPENAI_URL)
+
+
+def _build_chunk_header(i: int, path: str, chunk_index, similarity) -> str:
+    header = f"Extrait {i} — {path}"
+    if chunk_index is not None:
+        header += f" (chunk {chunk_index})"
+    if similarity is not None:
+        header += f" — sim={similarity:.2f}"
+    return header
+
+
+def _render_chunks(retrieved_chunks: list[dict]) -> None:
+    with st.expander("🔍 Extraits pertinents"):
+        for i, chunk in enumerate(retrieved_chunks, start=1):
+            meta = chunk.get("metadata", {})
+            path = meta.get("path", "Source inconnue")
+            chunk_index = meta.get("chunk_index")
+            similarity = chunk.get("similarity")
+            text_content = chunk.get("document", "Contenu vide")
+
+            header = _build_chunk_header(i, path, chunk_index, similarity)
+            with st.expander(header, expanded=(i == 1)):
+                st.markdown(text_content)
 
 
 # --- FONCTIONS UTILITAIRES ---
@@ -49,42 +73,30 @@ def afficher_message(
     with st.chat_message(role):
         st.markdown(llm_response)
 
-        if role == "assistant":
-            # infos compactes
-            infos = []
-            if model:
-                infos.append(f"🤖 {model}")
-            if duration:
-                infos.append(f"⏱️ {duration}")
-            if infos:
-                st.caption(" — ".join(infos))
+        # ⬇️ early-return : supprime un gros niveau d'imbrication
+        if role != ROLE_ASSISTANT:
+            return
 
-            if retrieved_documents:
-                with st.expander("📚 Wikis consultés"):
-                    for title, count in retrieved_documents.items():
-                        st.markdown(f"- `{title}` — **{count}** extrait(s)")
+        # infos compactes
+        infos = []
+        if model:
+            infos.append(f"🤖 {model}")
+        if duration:
+            infos.append(f"⏱️ {duration}")
+        if infos:
+            st.caption(" — ".join(infos))
 
-            if retrieved_chunks:
-                with st.expander("🔍 Extraits pertinents"):
-                    for i, chunk in enumerate(retrieved_chunks, start=1):
-                        meta = chunk.get("metadata", {})
-                        path = meta.get("path", "Source inconnue")
-                        chunk_index = meta.get("chunk_index")
-                        similarity = chunk.get("similarity")
-                        text_content = chunk.get("document", "Contenu vide")
+        if retrieved_documents:
+            with st.expander("📚 Wikis consultés"):
+                for title, count in retrieved_documents.items():
+                    st.markdown(f"- `{title}` — **{count}** extrait(s)")
 
-                        header = f"Extrait {i} — {path}"
-                        if chunk_index is not None:
-                            header += f" (chunk {chunk_index})"
-                        if similarity is not None:
-                            header += f" — sim={similarity:.2f}"
+        if retrieved_chunks:
+            _render_chunks(retrieved_chunks)
 
-                        with st.expander(header, expanded=(i == 1)):
-                            st.markdown(text_content)
-
-            if generated_prompt:
-                with st.expander("🧩 Prompt généré"):
-                    st.json(generated_prompt)
+        if generated_prompt:
+            with st.expander("🧩 Prompt généré"):
+                st.json(generated_prompt)
 
 
 # --- BARRE LATÉRALE ---
@@ -180,7 +192,7 @@ if prompt := st.chat_input("Ex : C'est quoi les Microservices New Way ?"):
             duration = full_response.get("duration", "N/A")
 
             assistant_msg = {
-                "role": "assistant",
+                "role": ROLE_ASSISTANT,
                 "content": llm_answer,
                 "retrieved_documents": retrieved_documents,
                 "retrieved_chunks": retrieved_chunks,
@@ -191,7 +203,7 @@ if prompt := st.chat_input("Ex : C'est quoi les Microservices New Way ?"):
             st.session_state.messages.append(assistant_msg)
 
             afficher_message(
-                "assistant",
+                ROLE_ASSISTANT,
                 llm_answer,
                 retrieved_documents=retrieved_documents,
                 retrieved_chunks=retrieved_chunks,
