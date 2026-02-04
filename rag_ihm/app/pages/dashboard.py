@@ -106,6 +106,9 @@ def display_progress_metric(label, value, scale_max=1.0):
 
 # --- FONCTION 2 : CAMEMBERT (DONUT CHART) ---
 def make_donut(input_response, input_text, input_color, scale_max=1.0):
+
+    PERCENT_VALUE = "% value"
+
     if scale_max > 1.0:
         # Normalisation pour les notes sur 5 (ex: 4.2 devient 84%)
         pct = (input_response / scale_max) * 100
@@ -116,15 +119,15 @@ def make_donut(input_response, input_text, input_color, scale_max=1.0):
         display_val = f"{pct:.1f}%"
 
     # Données pour le graphique (La partie pleine vs la partie vide)
-    source = pd.DataFrame({"Topic": ["", input_text], "% value": [100 - pct, pct]})
+    source = pd.DataFrame({"Topic": ["", input_text], PERCENT_VALUE: [100 - pct, pct]})
 
-    source_bg = pd.DataFrame({"Topic": ["", input_text], "% value": [100, 0]})
+    source_bg = pd.DataFrame({"Topic": ["", input_text], PERCENT_VALUE: [100, 0]})
 
     plot = (
         alt.Chart(source)
         .mark_arc(innerRadius=45, cornerRadius=25)
         .encode(
-            theta="% value",
+            theta=PERCENT_VALUE,
             color=alt.Color(
                 "Topic",
                 scale=alt.Scale(
@@ -150,7 +153,7 @@ def make_donut(input_response, input_text, input_color, scale_max=1.0):
         alt.Chart(source_bg)
         .mark_arc(innerRadius=45, cornerRadius=20)
         .encode(
-            theta="% value",
+            theta=PERCENT_VALUE,
             color=alt.Color(
                 "Topic",
                 scale=alt.Scale(

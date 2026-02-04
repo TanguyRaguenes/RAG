@@ -143,28 +143,10 @@ class VectorStoreRepository:
     def retrieve_related_chunks(
         self, chunks: list, collection: Collection, max_related_links: int
     ) -> list[dict[str, Any]]:
-        # Dictionnaire : chemin -> score max hérité
-        paths_with_scores = {}
 
         # 1° Extraction des liens et calcul du score
-        for chunk in chunks:
-            metadata = chunk["metadata"]
-            parent_score = chunk["similarity"]
-
-            if metadata["has_links"]:
-                links_str = metadata["related_links"]
-                if links_str:
-                    links = links_str.split(",")
-                    for link in links:
-                        clean_link = link.strip()
-                        if clean_link:
-                            # Si le lien existe déjà, on garde le meilleur score des parents
-                            if clean_link in paths_with_scores:
-                                paths_with_scores[clean_link] = max(
-                                    paths_with_scores[clean_link], parent_score
-                                )
-                            else:
-                                paths_with_scores[clean_link] = parent_score
+        # Dictionnaire : chemin -> score max hérité
+        paths_with_scores = extract_related_links(chunks)
 
         # 2° Récupération Chroma
         target_paths = sorted(
@@ -201,3 +183,31 @@ class VectorStoreRepository:
                         chunks.append(related_chunk)
 
         return chunks
+
+
+def extract_related_links(chunks: list):
+    paths_with_scores = {}
+
+    for chunk in chunks:
+        metadata = chunk["metadata"]
+        parent_score = chunk["similarity"]
+
+        if not metadata["has_links"]:
+            continue
+
+        links_str = metadata["related_links"]
+        if not links_str:
+            continue
+
+        for link in links_str.split(","):
+            clean_link = link.strip()
+            if not clean_link:
+                continue
+
+            # garde le meilleur score si le lien existe déjà
+            current = paths_with_scores.get(clean_link)
+            paths_with_scores[clean_link] = (
+                parent_score if current is None else max(current, parent_score)
+            )
+
+    return paths_with_scores
