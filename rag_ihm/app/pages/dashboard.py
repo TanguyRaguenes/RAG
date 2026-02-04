@@ -1,7 +1,7 @@
+import math
 import os
 
 import altair as alt  # Nécessaire pour les camemberts
-import numpy as np
 import pandas as pd
 import requests
 import streamlit as st
@@ -96,7 +96,7 @@ def display_progress_metric(label, value, scale_max=1.0):
     )
     cols = st.columns([1, 3])
     with cols[0]:
-        if scale_max == 1.0:
+        if math.isclose(scale_max, 1.0):
             st.write(f"### {value:.2%}")
         else:
             st.write(f"### {value:.1f}/{int(scale_max)}")

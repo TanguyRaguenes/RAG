@@ -12,6 +12,7 @@ members = [
     "rag-embedder",
     "rag-evaluator",
     "rag-ihm",
+    "rag-mcp",
     "rag-monorepo",
     "rag-retriever",
 ]
@@ -1231,6 +1232,12 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/e2/fc/6dc7659c2ae5ddf280477011f4213a74f806862856b796ef08f028e664bf/mcp-1.25.0-py3-none-any.whl", hash = "sha256:b37c38144a666add0862614cc79ec276e97d72aa8ca26d622818d4e278b9721a", size = 233076, upload-time = "2025-12-19T10:19:55.416Z" },
 ]
 
+[package.optional-dependencies]
+cli = [
+    { name = "python-dotenv" },
+    { name = "typer" },
+]
+
 [[package]]
 name = "mdurl"
 version = "0.1.2"
@@ -2376,6 +2383,37 @@ dependencies = [
 requires-dist = [
     { name = "debugpy", specifier = ">=1.8.19" },
     { name = "streamlit", specifier = ">=1.31.0" },
+]
+
+[[package]]
+name = "rag-mcp"
+version = "0.1.0"
+source = { virtual = "rag_mcp" }
+dependencies = [
+    { name = "debugpy" },
+    { name = "httpx" },
+    { name = "mcp", extra = ["cli"] },
+    { name = "uvicorn" },
+]
+
+[package.dev-dependencies]
+dev = [
+    { name = "httpx" },
+    { name = "pytest" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "debugpy" },
+    { name = "httpx" },
+    { name = "mcp", extras = ["cli"] },
+    { name = "uvicorn" },
+]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "httpx", specifier = ">=0.28.1" },
+    { name = "pytest", specifier = ">=9.0.2" },
 ]
 
 [[package]]

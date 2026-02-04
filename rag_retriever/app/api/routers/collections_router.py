@@ -17,17 +17,17 @@ router = APIRouter()
 
 
 @router.post("/save_items", response_model=SaveItemsResponseBase)
-async def save_items_route(
+def save_items_route(
     items: VectorStoreItemsBase,
     vector_store_repository=Depends(get_vector_store_repository),
 ) -> SaveItemsResponseBase:
-    response: SaveItemsResponseBase = await save_items(items, vector_store_repository)
+    response: SaveItemsResponseBase = save_items(items, vector_store_repository)
 
     return response
 
 
 @router.post("/retrieve_chunks", response_model=RetrievedChunksModelBase)
-async def retrieve_chunk_route(
+def retrieve_chunk_route(
     request_data: RetrieveChunksRequestBase,
     wikis_collection=Depends(get_wikis_collection),
     config=Depends(get_config),
@@ -41,7 +41,7 @@ async def retrieve_chunk_route(
 
 
 @router.post("/delete_collection")
-async def delete_collection_route(
+def delete_collection_route(
     vector_store_repository=Depends(get_vector_store_repository),
     config=Depends(get_config),
 ) -> str:
