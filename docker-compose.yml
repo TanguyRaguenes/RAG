@@ -154,6 +154,17 @@ services:
     depends_on:
       - rag_api
 
+  rag_embedder_docs:
+      build:
+        context: ./rag_embedder
+        dockerfile: dockerfile.docs
+      container_name: rag_embedder_docs_container
+      ports:
+        - "8102:8000"
+      volumes:
+        - ./rag_embedder/docs:/app/docs
+        - ./rag_embedder/mkdocs.yml:/app/mkdocs.yml
+
 volumes:
   ollama_data:
   chroma_data:

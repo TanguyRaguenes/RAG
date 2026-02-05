@@ -8,3 +8,8 @@ dependencies = [
 
 [tool.uv]
 workspace = { members = ["rag_api", "rag_embedder","rag_evaluator","rag_ihm","rag_retriever","rag_mcp"] }
+
+[dependency-groups]
+dev = [
+    "mkdocs>=1.6.1",
+]
