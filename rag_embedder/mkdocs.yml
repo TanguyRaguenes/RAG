@@ -1,2 +1,6 @@
-site_name: rag_embedder
-theme: material
+site_name: rag-embedder
+theme:
+  name: material
+
+plugins:
+  - mermaid2
