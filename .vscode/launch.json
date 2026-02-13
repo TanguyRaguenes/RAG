@@ -2,6 +2,25 @@
   "version": "0.2.0",
   "configurations": [
     {
+      "name": "Debug pytest (rag_embedder)",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "pytest",
+      "cwd": "${workspaceFolder}/rag_embedder",
+      "args": ["-q", "tests/unit_tests"],
+      "console": "integratedTerminal",
+      "justMyCode": true
+    },
+    {
+      "name": "Attach pytest (rag_embedder in Docker)",
+      "type": "debugpy",
+      "request": "attach",
+      "connect": { "host": "localhost", "port": 5689 },
+      "pathMappings": [
+        { "localRoot": "${workspaceFolder}/rag_embedder", "remoteRoot": "/app" }
+      ]
+    },
+    {
       "name": "Attach rag_api",
       "type": "debugpy",
       "request": "attach",

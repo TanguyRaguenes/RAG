@@ -58,10 +58,13 @@ services:
     build:
       context: ./rag_embedder
       dockerfile: dockerfile
+      args:
+        DEBUG: "1"
     container_name: rag_embedder_container
     ports:
       - "8002:8000"
-      - "5679:5678" # Port par defaut utilisé par debugpy (library de débogage)
+      - "5679:5678" # Port par defaut utilisé par debugpy pour débugger uvicorn
+      - "5689:5689" # Port par defaut utilisé par debugpy pour débugger pytest
     environment:
       - DEBUG=1
       - RAG_RETRIEVER_INGEST_DOCUMENTS_URL=http://rag_retriever:8000/save_items

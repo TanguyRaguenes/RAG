@@ -22,7 +22,7 @@ class EmbedderContainerCustomException(Exception):
 
     def to_dict(self) -> dict:
         return {
-            "slug": str(self.SLUG),
+            "slug": self.SLUG.value,
             "message": self.message,
             "details": self.details,
         }
