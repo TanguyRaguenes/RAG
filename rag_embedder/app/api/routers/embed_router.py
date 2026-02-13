@@ -1,4 +1,5 @@
 import time
+from typing import Annotated
 
 from fastapi import APIRouter, Depends
 
@@ -14,11 +15,13 @@ from app.services.load_documents_service import load_documents
 
 router = APIRouter()
 
+ConfigDep = Annotated[dict, Depends(get_config)]
+
 
 @router.post("/embed_text", response_model=EmbedTextResponseBase)
 async def embed_text_route(
     payload: EmbedTextRequestBase,
-    config=Depends(get_config),
+    config: ConfigDep,
 ) -> EmbedTextResponseBase:
     embeded_text: list[float] = await service_embed_text(payload.text, config)
 
@@ -28,7 +31,7 @@ async def embed_text_route(
 
 
 @router.post("/ingest/bulk", response_model=IngestBulkResponseBase)
-async def ingest_bulk_route(config=Depends(get_config)) -> IngestBulkResponseBase:
+async def ingest_bulk_route(config: ConfigDep) -> IngestBulkResponseBase:
     start: float = time.perf_counter()
 
     documents: DocumentsBase = await load_documents()
