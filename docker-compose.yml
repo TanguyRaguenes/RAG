@@ -30,10 +30,9 @@ services:
     ports:
     - "8000:8000"
     volumes:
-      - chroma_data:/chroma/chroma
+      - chroma_data:/data
     environment:
-      - IS_PERSISTENT=TRUE
-      - PERSIST_DIRECTORY=/chroma/chroma
+      - PERSIST_DIRECTORY=/data
     restart: unless-stopped
 
   # 3° Service en charge de faire le crud avec la bdd vectorielle

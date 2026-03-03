@@ -23,9 +23,23 @@ async def embed_text_route(
     payload: EmbedTextRequestBase,
     config: ConfigDep,
 ) -> EmbedTextResponseBase:
+
+    start: float = time.perf_counter()
+
     embeded_text: list[float] = await service_embed_text(payload.text, config)
 
-    response: EmbedTextResponseBase = EmbedTextResponseBase(embeded_text=embeded_text)
+    elapsed: float = time.perf_counter() - start
+
+    duration_ms = round(elapsed * 1000, 2)
+
+    minutes, seconds = divmod(int(elapsed), 60)
+    duration_human: str = f"{minutes:02d}:{seconds:02d}"
+
+    response: EmbedTextResponseBase = EmbedTextResponseBase(
+        duration_ms=duration_ms,
+        duration_human=duration_human,
+        embeded_text=embeded_text,
+    )
 
     return response
 
