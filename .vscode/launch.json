@@ -21,12 +21,12 @@
       ]
     },
     {
-      "name": "Attach rag_api",
+      "name": "Attach rag_orchestrator",
       "type": "debugpy",
       "request": "attach",
       "connect": { "host": "localhost", "port": 5680 },
       "pathMappings": [
-        { "localRoot": "${workspaceFolder}/rag_api", "remoteRoot": "/app" }
+        { "localRoot": "${workspaceFolder}/rag_orchestrator", "remoteRoot": "/app" }
       ]
     },
     {

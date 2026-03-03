@@ -2,7 +2,7 @@ import json
 import os
 from typing import Any
 
-from app.dal.client.rag_api_client import ask_question
+from app.dal.client.rag_orchestrator_client import ask_question
 from app.domain.models.ask_question_response_model import AskQuestionResponseBase
 from app.domain.models.chunk_model import ChunkBase
 from app.schemas.Answer_evaluation_schema import AnswerEvaluationBase

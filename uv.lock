@@ -2517,7 +2517,7 @@ wheels = [
 [[package]]
 name = "rag-api"
 version = "0.1.0"
-source = { virtual = "rag_api" }
+source = { virtual = "rag_orchestrator" }
 dependencies = [
     { name = "aiofiles" },
     { name = "chromadb" },
@@ -2620,7 +2620,7 @@ dev = [
 [[package]]
 name = "rag-ihm"
 version = "0.1.0"
-source = { virtual = "rag_ihm" }
+source = { virtual = "rag_orchestrator" }
 dependencies = [
     { name = "debugpy" },
     { name = "streamlit" },

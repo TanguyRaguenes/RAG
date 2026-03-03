@@ -1726,7 +1726,7 @@ wheels = [
 ]
 
 [[package]]
-name = "rag-api"
+name = "rag-orchestrator"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [

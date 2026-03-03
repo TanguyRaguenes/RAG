@@ -4,7 +4,7 @@ import httpx
 from mcp.server.fastmcp import FastMCP
 
 mcp = FastMCP("RAG Entreprise")
-RAG_API_URL = "http://rag_api:8000/retrieve_chunks"
+RAG_ORCHESTRATOR_URL = "http://rag_orchestrator:8000/retrieve_chunks"
 
 
 @mcp.tool()
@@ -17,7 +17,7 @@ async def interroger_documentation_interne(question: str) -> str:
 
     async with httpx.AsyncClient(timeout=120) as client:
         try:
-            response = await client.post(RAG_API_URL, json=payload)
+            response = await client.post(RAG_ORCHESTRATOR_URL, json=payload)
             response.raise_for_status()
 
             data = response.json()

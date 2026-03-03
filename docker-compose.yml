@@ -75,13 +75,13 @@ services:
       - rag_retriever
   
   # 5° Service en charge d'orchestrer l'appel aux différents services du RAG
-  rag_api:
+  rag_orchestrator:
     build:
-      context: ./rag_api
+      context: ./rag_orchestrator
       dockerfile: dockerfile
-    container_name: rag_api_container
+    container_name: rag_orchestrator_container
     env_file:
-      - ./rag_api/.env
+      - ./rag_orchestrator/.env
     ports:
       - "8003:8000"
       - "5680:5678" # port debug côté host (évite conflit avec rag_embedder:5678)
@@ -90,7 +90,7 @@ services:
       - RAG_EMBEDDER_EMBED_QUESTION_URL=http://rag_embedder:8000/embed_text
       - RAG_RETRIEVER_RETRIEVE_CHUNKS_URL=http://rag_retriever:8000/retrieve_chunks
     volumes:
-      - ./rag_api:/app # HotReload : Montage du code source pour que les modifs soient prises en compte sans rebuild
+      - ./rag_orchestrator:/app # HotReload : Montage du code source pour que les modifs soient prises en compte sans rebuild
     depends_on:
       - ollama
       - rag_embedder
@@ -103,19 +103,19 @@ services:
       dockerfile: dockerfile
     container_name: rag_evaluator_container
     env_file:
-      - ./rag_api/.env
+      - ./rag_evaluator/.env
     ports:
       - "8004:8000"   # evaluator expose 8000 en interne (au sein du container), publié sur 8003 host (host= ma machine = pc/serveur)
       - "5681:5678"   # port debug côté host (évite conflit avec rag_embedder:5678)
     environment:
       - DEBUG=1
-      - RAG_API_ASK_QUESTION_URL=http://rag_api:8000/ask_question
+      - RAG_ORCHESTRATOR_ASK_QUESTION_URL=http://rag_orchestrator:8000/ask_question
       - DATASET_PATH=/app/data/dataset.json
     volumes:
       - ./rag_evaluator:/app
       - ./rag_evaluator/dataset.json:/app/data/dataset.json:ro # On charge dans le container en lecture seule "ro=ReadOnly" le dataset
     depends_on:
-      - rag_api
+      - rag_orchestrator
 
   # 7° Service en charge de l'affichage de l'interface utilisateur (basé sur la bibliothèque streamlit)
   rag_ihm:
@@ -128,15 +128,15 @@ services:
       - "5682:5678"   # port debug côté host (évite conflit avec rag_embedder:5678)
     environment:
       - DEBUG=1
-      - RAG_API_TEST_CONNEXION_URL=http://rag_api:8000
+      - RAG_ORCHESTRATOR_TEST_CONNEXION_URL=http://rag_orchestrator:8000
       - RAG_EVALUATOR_TEST_CONNEXION_URL=http://rag_evaluator:8000
-      - RAG_API_ASK_QUESTION_URL=http://rag_api:8000/ask_question
-      - RAG_API_ASK_QUESTION_API_OPENAI_URL=http://rag_api:8000/ask_question_api_openai
+      - RAG_ORCHESTRATOR_ASK_QUESTION_URL=http://rag_orchestrator:8000/ask_question
+      - RAG_ORCHESTRATOR_ASK_QUESTION_API_OPENAI_URL=http://rag_orchestrator:8000/ask_question_api_openai
       - RAG_EVALUATOR_EVALUATE_RAG_URL=http://rag_evaluator:8000/evaluate_rag
     volumes:
       - ./rag_ihm:/app # HotReload : Montage du code source pour que les modifs soient prises en compte sans rebuild
     depends_on:
-      - rag_api
+      - rag_orchestrator
       - rag_evaluator
 
   # 8° Service MCP pour l'IA dans VS Code
@@ -154,7 +154,7 @@ services:
     volumes:
       - ./rag_mcp:/app
     depends_on:
-      - rag_api
+      - rag_orchestrator
 
   rag_embedder_docs:
       build:

@@ -19,9 +19,11 @@ st.markdown(
 )
 
 # --- VARIABLES D'ENVIRONNEMENT ---
-RAG_API_TEST_CONNEXION_URL = os.getenv("RAG_API_TEST_CONNEXION_URL")
-RAG_API_ASK_QUESTION_URL = os.getenv("RAG_API_ASK_QUESTION_URL")
-RAG_API_ASK_QUESTION_API_OPENAI_URL = os.getenv("RAG_API_ASK_QUESTION_API_OPENAI_URL")
+RAG_ORCHESTRATOR_TEST_CONNEXION_URL = os.getenv("RAG_ORCHESTRATOR_TEST_CONNEXION_URL")
+RAG_ORCHESTRATOR_ASK_QUESTION_URL = os.getenv("RAG_ORCHESTRATOR_ASK_QUESTION_URL")
+RAG_ORCHESTRATOR_ASK_QUESTION_API_OPENAI_URL = os.getenv(
+    "RAG_ORCHESTRATOR_ASK_QUESTION_API_OPENAI_URL"
+)
 ROLE_ASSISTANT = "assistant"
 
 
@@ -31,9 +33,12 @@ def _ensure_env(name: str, value: str | None) -> None:
         st.stop()
 
 
-_ensure_env("RAG_API_TEST_CONNEXION_URL", RAG_API_TEST_CONNEXION_URL)
-_ensure_env("RAG_API_ASK_QUESTION_URL", RAG_API_ASK_QUESTION_URL)
-_ensure_env("RAG_API_ASK_QUESTION_API_OPENAI_URL", RAG_API_ASK_QUESTION_API_OPENAI_URL)
+_ensure_env("RAG_ORCHESTRATOR_TEST_CONNEXION_URL", RAG_ORCHESTRATOR_TEST_CONNEXION_URL)
+_ensure_env("RAG_ORCHESTRATOR_ASK_QUESTION_URL", RAG_ORCHESTRATOR_ASK_QUESTION_URL)
+_ensure_env(
+    "RAG_ORCHESTRATOR_ASK_QUESTION_API_OPENAI_URL",
+    RAG_ORCHESTRATOR_ASK_QUESTION_API_OPENAI_URL,
+)
 
 
 def _build_chunk_header(i: int, path: str, chunk_index, similarity) -> str:
@@ -121,9 +126,9 @@ with st.sidebar:
 
     # Choix de l'URL dynamiquement
     current_ask_url = (
-        RAG_API_ASK_QUESTION_API_OPENAI_URL
+        RAG_ORCHESTRATOR_ASK_QUESTION_API_OPENAI_URL
         if llm_type == "Cloud (OpenAI)"
-        else RAG_API_ASK_QUESTION_URL
+        else RAG_ORCHESTRATOR_ASK_QUESTION_URL
     )
 
     st.divider()
@@ -131,7 +136,9 @@ with st.sidebar:
     if st.button("🔍 État API", use_container_width=True):
         with st.status("Ping API...", expanded=False) as status:
             try:
-                response = requests.get(f"{RAG_API_TEST_CONNEXION_URL}/docs", timeout=5)
+                response = requests.get(
+                    f"{RAG_ORCHESTRATOR_TEST_CONNEXION_URL}/docs", timeout=5
+                )
                 if response.status_code == 200:
                     status.update(label="Connecté ✅", state="complete")
                 else:
