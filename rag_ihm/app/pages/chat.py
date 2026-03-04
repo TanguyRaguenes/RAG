@@ -21,9 +21,6 @@ st.markdown(
 # --- VARIABLES D'ENVIRONNEMENT ---
 RAG_ORCHESTRATOR_TEST_CONNEXION_URL = os.getenv("RAG_ORCHESTRATOR_TEST_CONNEXION_URL")
 RAG_ORCHESTRATOR_ASK_QUESTION_URL = os.getenv("RAG_ORCHESTRATOR_ASK_QUESTION_URL")
-RAG_ORCHESTRATOR_ASK_QUESTION_API_OPENAI_URL = os.getenv(
-    "RAG_ORCHESTRATOR_ASK_QUESTION_API_OPENAI_URL"
-)
 ROLE_ASSISTANT = "assistant"
 
 
@@ -35,10 +32,6 @@ def _ensure_env(name: str, value: str | None) -> None:
 
 _ensure_env("RAG_ORCHESTRATOR_TEST_CONNEXION_URL", RAG_ORCHESTRATOR_TEST_CONNEXION_URL)
 _ensure_env("RAG_ORCHESTRATOR_ASK_QUESTION_URL", RAG_ORCHESTRATOR_ASK_QUESTION_URL)
-_ensure_env(
-    "RAG_ORCHESTRATOR_ASK_QUESTION_API_OPENAI_URL",
-    RAG_ORCHESTRATOR_ASK_QUESTION_API_OPENAI_URL,
-)
 
 
 def _build_chunk_header(i: int, path: str, chunk_index, similarity) -> str:
@@ -72,6 +65,8 @@ def afficher_message(
     retrieved_chunks: list[dict] | None = None,
     duration: str | None = None,
     model: str | None = None,
+    total_tokens: int | None = None,
+    cost: float | None = None,
     generated_prompt: list[dict] | None = None,
 ):
     """Affiche un message + métadonnées assistant."""
@@ -88,6 +83,10 @@ def afficher_message(
             infos.append(f"🤖 {model}")
         if duration:
             infos.append(f"⏱️ {duration}")
+        if total_tokens:
+            infos.append(f"🪙 {total_tokens} tokens")
+        if cost:
+            infos.append(f"💰 {cost}€")
         if infos:
             st.caption(" — ".join(infos))
 
@@ -119,16 +118,9 @@ with st.sidebar:
     st.subheader("⚙️ Configuration")
     llm_type = st.radio(
         "Moteur d'intelligence :",
-        ["Cloud (OpenAI)", "Local (Ollama)"],
+        ["Cloud (API)", "Local (Ollama)"],
         index=0,
-        help="Choisissez entre l'exécution locale ou via l'API OpenAI.",
-    )
-
-    # Choix de l'URL dynamiquement
-    current_ask_url = (
-        RAG_ORCHESTRATOR_ASK_QUESTION_API_OPENAI_URL
-        if llm_type == "Cloud (OpenAI)"
-        else RAG_ORCHESTRATOR_ASK_QUESTION_URL
+        help="Choisissez entre l'exécution locale ou via l'API.",
     )
 
     st.divider()
@@ -168,6 +160,7 @@ for message in st.session_state.messages:
         retrieved_documents=message.get("retrieved_documents"),
         retrieved_chunks=message.get("retrieved_chunks"),
         duration=message.get("duration"),
+        total_tokens=message.get("total_tokens"),
         model=message.get("model"),
         generated_prompt=message.get("generated_prompt"),
     )
@@ -175,14 +168,25 @@ for message in st.session_state.messages:
 # --- ZONE DE CHAT ---
 if prompt := st.chat_input("Ex : C'est quoi les Microservices New Way ?"):
     user_msg = {"role": "user", "content": prompt}
+
     st.session_state.messages.append(user_msg)
     afficher_message("user", prompt)
 
+    provider: str = ""
+
+    if llm_type == "Cloud (API)":
+        provider = "api"
+    else:
+        provider = "local"
+
     with st.spinner(f"IsiDore ({llm_type}) réfléchit..."):
         try:
-            payload = {"question": prompt}
+            payload = {"question": prompt, "provider": provider}
+
             # Utilisation de l'URL dynamique choisie dans la barre latérale
-            response = requests.post(current_ask_url, json=payload, timeout=360)
+            response = requests.post(
+                RAG_ORCHESTRATOR_ASK_QUESTION_URL, json=payload, timeout=360
+            )
 
             if response.status_code != 200:
                 st.error(f"Erreur API : {response.status_code}")
@@ -195,6 +199,8 @@ if prompt := st.chat_input("Ex : C'est quoi les Microservices New Way ?"):
             retrieved_documents = full_response.get("retrieved_documents", [])
             retrieved_chunks = full_response.get("retrieved_chunks", [])
             model = full_response.get("model")
+            total_tokens = full_response.get("total_tokens")
+            cost = full_response.get("cost")
             generated_prompt = full_response.get("generated_prompt")
             duration = full_response.get("duration", "N/A")
 
@@ -204,6 +210,8 @@ if prompt := st.chat_input("Ex : C'est quoi les Microservices New Way ?"):
                 "retrieved_documents": retrieved_documents,
                 "retrieved_chunks": retrieved_chunks,
                 "model": model,
+                "total_tokens": total_tokens,
+                "cost": cost,
                 "generated_prompt": generated_prompt,
                 "duration": duration,
             }
@@ -215,7 +223,9 @@ if prompt := st.chat_input("Ex : C'est quoi les Microservices New Way ?"):
                 retrieved_documents=retrieved_documents,
                 retrieved_chunks=retrieved_chunks,
                 duration=duration,
+                total_tokens=total_tokens,
                 model=model,
+                cost=cost,
                 generated_prompt=generated_prompt,
             )
 

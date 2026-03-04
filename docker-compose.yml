@@ -131,7 +131,6 @@ services:
       - RAG_ORCHESTRATOR_TEST_CONNEXION_URL=http://rag_orchestrator:8000
       - RAG_EVALUATOR_TEST_CONNEXION_URL=http://rag_evaluator:8000
       - RAG_ORCHESTRATOR_ASK_QUESTION_URL=http://rag_orchestrator:8000/ask_question
-      - RAG_ORCHESTRATOR_ASK_QUESTION_API_OPENAI_URL=http://rag_orchestrator:8000/ask_question_api_openai
       - RAG_EVALUATOR_EVALUATE_RAG_URL=http://rag_evaluator:8000/evaluate_rag
     volumes:
       - ./rag_ihm:/app # HotReload : Montage du code source pour que les modifs soient prises en compte sans rebuild

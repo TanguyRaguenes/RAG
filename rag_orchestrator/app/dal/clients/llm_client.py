@@ -25,7 +25,7 @@ async def ask_question_to_llm(payload: dict[str, Any], timeout_seconds, url):
         print(f"Exception : {e}")
 
 
-async def ask_question_to_api_openai(
+async def ask_question_to_api(
     payload: dict[str, Any], timeout_seconds: int, url: str, api_key: str
 ):
     headers = {"Content-Type": "application/json"}

@@ -6,8 +6,7 @@ from typing import Any
 # → Cette fonction va laisser entrer les chunks tant qu'il y a de la place, et refuse les suivants (donc dans ce cas de figure seulement le 4 premiers).
 
 
-def build_context(chunks: list[dict[str, Any]], config: dict) -> str:
-    max_chars = config["context_builder"]["max_chars"]
+def build_context(chunks: list[dict[str, Any]], max_prompt_chars: int) -> str:
 
     parts: list[str] = []
     total = 0
@@ -22,7 +21,7 @@ def build_context(chunks: list[dict[str, Any]], config: dict) -> str:
             f"CONTENU:\n{chunk.get('document', '')}"
         ).strip()
 
-        if total + len(block) > max_chars:
+        if total + len(block) > max_prompt_chars:
             break
 
         parts.append(block)
@@ -32,9 +31,11 @@ def build_context(chunks: list[dict[str, Any]], config: dict) -> str:
 
 
 def build_prompt(
-    question: str, retrieve_chunks: list[dict[str, Any]], config: dict
+    question: str,
+    retrieve_chunks: list[dict[str, Any]],
+    max_prompt_chars: int,
 ) -> list[dict[str, str]]:
-    context = build_context(retrieve_chunks, config)
+    context = build_context(retrieve_chunks, max_prompt_chars)
 
     if context:
         system = (

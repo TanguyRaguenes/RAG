@@ -9,7 +9,7 @@ async def judge_client(config: dict, messages: list[dict[str, str]]) -> dict[str
     timeout_seconds = config["llm"]["timeout_seconds"]
     temperature = config["llm"]["temperature"]
     stream = config["llm"]["stream"]
-    max_tokens = config["llm"]["max_tokens"]
+    max_output_token = config["llm"]["max_output_token"]
     num_ctx: int = config["llm"]["num_ctx"]
 
     payload: dict[str, Any] = {
@@ -19,7 +19,7 @@ async def judge_client(config: dict, messages: list[dict[str, str]]) -> dict[str
         "options": {
             "temperature": temperature,
             "num_ctx": num_ctx,
-            "num_predict": max_tokens,
+            "num_predict": max_output_token,
         },
     }
 

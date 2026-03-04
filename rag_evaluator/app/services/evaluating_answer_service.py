@@ -25,15 +25,16 @@ async def evaluate_answer(
     use_api_openai = config["evaluation_method"]["use_api_openai"]
     if use_api_openai:
         api_key = os.getenv("OPEN_API_KEY")
+
         base_url = "https://api.openai.com/v1/chat/completions"
         timeout = config["llm"]["timeout_seconds"]
 
-        # Payload à plat pour OpenAI
+        # Payload à plat pour API
         payload = {
             "model": "gpt-4o",
             "messages": messages,
             "temperature": config["llm"]["temperature"],
-            "max_tokens": config["llm"]["max_tokens"],
+            "max_output_token": config["llm"]["max_output_token"],
         }
         judge_json = await judge_client_api_openia(payload, timeout, base_url, api_key)
     else:

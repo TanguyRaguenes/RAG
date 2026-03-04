@@ -1,5 +1,7 @@
 from typing import Any
+
 from pydantic import BaseModel
+
 
 class AskQuestionResponseBase(BaseModel):
     llm_response: str
@@ -8,3 +10,7 @@ class AskQuestionResponseBase(BaseModel):
     model: str
     generated_prompt: list[dict[str, Any]]
     duration: str
+    input_tokens: int
+    output_tokens: int
+    total_tokens: int
+    cost: float

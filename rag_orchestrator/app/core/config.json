@@ -1,15 +1,25 @@
 {
     "llm":{
-        "provider" : "ollama",
-        "url": "http://ollama:11434/v1/chat/completions",
-        "model": "qwen2.5:3b",
-        "temperature": 0.1,
-        "num_ctx": 8192,
-        "max_tokens": 2048,
-        "timeout_seconds": 360,
-        "stream":false
-    },
-    "context_builder":{
-        "max_chars": 8000
+        
+        "common":{
+            "timeout_seconds": 360,
+            "stream":false,
+            "temperature": 0.2
+        },
+
+        "local":{
+            "endpoint": "http://ollama:11434/v1/chat/completions",
+            "model": "qwen2.5:3b",
+            "context_window_tokens": 8000,
+            "max_output_tokens": 1500,
+            "max_prompt_chars": 8000
+        },
+
+        "api" :{
+            "endpoint" : "https://api.openai.com/v1/responses",
+            "model" : "gpt-5-mini",
+            "max_output_tokens": 1500,
+            "max_prompt_chars": 20000
+        }
     }
 }
