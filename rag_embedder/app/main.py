@@ -34,11 +34,13 @@ async def embedder_exception_handler(
     request: Request, exception: EmbedderContainerCustomException
 ):
     """Handler centralisé pour les exceptions métier"""
+
+    "Ici on génère les log qui seront affiché dans la console "
     logger.error(
-        f"[{exception.SLUG}] {exception.message}",
-        extra={"details": exception.details, "path": request.url.path},
+        f"[{exception.SLUG}] {exception.message} | path={request.url.path} | details={exception.details}",
         exc_info=True,
     )
+
     return JSONResponse(
         status_code=exception.STATUS_CODE,
         content=exception.to_dict(),

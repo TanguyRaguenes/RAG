@@ -189,7 +189,20 @@ if prompt := st.chat_input("Ex : C'est quoi les Microservices New Way ?"):
             )
 
             if response.status_code != 200:
-                st.error(f"Erreur API : {response.status_code}")
+                response_json = response.json()
+
+                # Message principal court et visible
+                if "original_exception" in response_json:
+                    error_msg = response_json["original_exception"]["message"]
+                else:
+                    error_msg = response_json["message"]
+
+                st.error(f"Erreur : {error_msg}")
+
+                # Détails dans un expander repliable
+                with st.expander("🔍 Détails techniques"):
+                    st.json(response_json)
+
                 st.stop()
 
             # ✅ Aligné avec AskQuestionResponseBase

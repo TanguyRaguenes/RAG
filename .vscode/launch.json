@@ -54,7 +54,8 @@
       "connect": { "host": "localhost", "port": 5682 },
       "pathMappings": [
         { "localRoot": "${workspaceFolder}/rag_ihm", "remoteRoot": "/app" }
-      ]
+      ],
+      "subProcess": true
     },
     {
       "name": "Attach rag_retriever",
