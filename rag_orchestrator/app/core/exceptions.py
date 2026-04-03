@@ -5,6 +5,7 @@ class ErrorSlug(str, Enum):
     """Centralise tous les codes d'erreur métier du conteneur orchestrator"""
 
     EMBEDDING_CONTAINER_ERROR = "ERR_EMBEDDING_SERVICE"
+    LLM_API_ERROR = "ERR_LLM_API"
 
 
 class OrchestratorContainerCustomException(Exception):
@@ -47,3 +48,10 @@ class EmbedderContainerException(OrchestratorContainerCustomException):
 
     STATUS_CODE = 503
     SLUG = ErrorSlug.EMBEDDING_CONTAINER_ERROR
+
+
+class LlmApiException(OrchestratorContainerCustomException):
+    """Erreur lors de l'interaction avec le container 'embedder'"""
+
+    STATUS_CODE = 503
+    SLUG = ErrorSlug.LLM_API_ERROR

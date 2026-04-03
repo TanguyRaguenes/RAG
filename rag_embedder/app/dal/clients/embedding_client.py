@@ -18,8 +18,6 @@ async def embed_text(text: str, config: dict, is_query: bool) -> list[float]:
 
     payload = {"model": model, "input": text_to_embed}
 
-    payload = {"model": "toto", "input": text_to_embed}
-
     try:
         async with httpx.AsyncClient(timeout=120) as client:
             response = await client.post(url, json=payload)

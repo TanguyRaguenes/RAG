@@ -60,7 +60,6 @@ async def ask_question_to_api(question: str, config: dict) -> AskQuestionRespons
 
     api_key: str = os.getenv("OPEN_API_KEY")
 
-    timeout_seconds: int = config["llm"]["common"]["timeout_seconds"]
     stream: bool = config["llm"]["common"]["stream"]
 
     endpoint: str = config["llm"]["api"]["endpoint"]
@@ -83,9 +82,7 @@ async def ask_question_to_api(question: str, config: dict) -> AskQuestionRespons
         "max_output_tokens": max_output_tokens,
     }
 
-    llm_response = await ask_question_to_api_client(
-        payload, timeout_seconds, endpoint, api_key
-    )
+    llm_response = await ask_question_to_api_client(payload, endpoint, api_key)
 
     sources: dict[str, int] = design_source(retrieved_chunks)
 
