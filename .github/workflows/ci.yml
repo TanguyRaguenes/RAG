@@ -1,0 +1,47 @@
+# Nom visible dans l'onglet "Actions" de GitHub
+name: CI
+
+# Déclenche la pipeline :
+# - à chaque push
+# - à chaque Pull Request
+on:
+  push:
+  pull_request:
+
+jobs:
+
+  # Nom du job
+  unit-tests:
+
+    # GitHub démarre une VM Ubuntu temporaire
+    runs-on: ubuntu-latest
+
+    steps:
+
+      # 1° Récupère le code du dépôt GitHub dans la VM
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 2° Installe l'outil uv
+      # uv sert à gérer Python + dépendances
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      # 3° Installe Python 3.12 dans la VM
+      - name: Install Python
+        run: uv python install 3.12
+
+      # 4° Lance les tests du microservice rag_embedder
+      - name: Run rag_embedder tests
+
+        # On se place dans le dossier du microservice
+        working-directory: rag_embedder
+
+        run: |
+
+          # Installe les dépendances du projet
+          # + les dépendances dev (pytest etc.)
+          uv sync --dev
+
+          # Lance les tests pytest en mode silencieux
+          uv run pytest -q tests/unit_tests
