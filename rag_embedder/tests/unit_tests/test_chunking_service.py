@@ -51,3 +51,4 @@ def test_chunk_text_returns_empty_list_when_text_is_empty():
     chunks = chunk_text("", get_test_config())
 
     assert chunks == []
+    assert 1 == 2
