@@ -18,7 +18,7 @@ router = APIRouter()
 ConfigDep = Annotated[dict, Depends(get_config)]
 
 
-@router.post("/embed_text", response_model=EmbedTextResponseBase)
+@router.post("/embed_text")
 async def embed_text_route(
     payload: EmbedTextRequestBase,
     config: ConfigDep,
@@ -44,7 +44,7 @@ async def embed_text_route(
     return response
 
 
-@router.post("/ingest/bulk", response_model=IngestBulkResponseBase)
+@router.post("/ingest/bulk")
 async def ingest_bulk_route(config: ConfigDep) -> IngestBulkResponseBase:
     start: float = time.perf_counter()
 

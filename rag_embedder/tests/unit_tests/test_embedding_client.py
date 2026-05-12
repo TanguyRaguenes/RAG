@@ -1,10 +1,10 @@
 import pytest
-from app.core.exceptions import EmbeddingServiceException, ErrorSlug
+from app.core.exceptions import EmbeddingServiceException
 from app.dal.clients.embedding_client import embed_text
 
 
 @pytest.mark.asyncio
-async def test_invalid_configuration_file():
+async def test_embed_text_raises_exception_when_service_is_unreachable():
 
     config = {
         "embedding": {
