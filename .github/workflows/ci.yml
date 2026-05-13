@@ -18,31 +18,48 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # 2° Installe l'outil uv
+      # 2° Installe uv
       - name: Install uv
         uses: astral-sh/setup-uv@v5
 
-      # 3° Installe Python 3.12 dans la VM
+      # 3° Installe Python 3.12
       - name: Install Python
         run: uv python install 3.12
 
-      # 4° Lance les tests unitaires du microservice rag_embedder
+      # 4° Installe les dépendances du microservice rag_embedder
+      - name: Install rag_embedder dependencies
+        working-directory: rag_embedder
+        run: uv sync --dev
+
+      # 5° Vérifie le code Python avec Ruff
+      # Nécessite : uv add --dev ruff dans rag_embedder
+      - name: Run rag_embedder Ruff linter
+        working-directory: rag_embedder
+        run: uv run ruff check .
+
+      # 6° Vérifie le formatage Python avec Ruff
+      - name: Run rag_embedder Ruff format check
+        working-directory: rag_embedder
+        run: uv run ruff format --check .
+
+      # 7° Lance les tests unitaires du microservice rag_embedder
       - name: Run rag_embedder unit tests
         working-directory: rag_embedder
+        run: uv run pytest -q tests/unit_tests
+
+      # 8° Crée les fichiers/dossiers attendus par docker-compose
+      # Les .env sont ignorés par Git, donc absents dans GitHub Actions
+      - name: Prepare Docker Compose files
         run: |
-          uv sync --dev
-          uv run pytest -q tests/unit_tests
+          mkdir -p ../wikis
+          touch rag_orchestrator/.env
+          touch rag_evaluator/.env
 
-      # 5° Crée le dossier attendu par le docker-compose
-      # Ton compose monte ../wikis:/app/wikis:ro
-      - name: Create wikis folder
-        run: mkdir -p ../wikis
-
-      # 6° Démarre toute la stack Docker
+      # 9° Démarre toute la stack Docker
       - name: Start Docker stack
         run: docker compose up -d --build
 
-      # 7° Attend que le modèle d'embedding soit bien disponible dans Ollama
+      # 10° Attend que le modèle d'embedding soit disponible dans Ollama
       - name: Wait for Ollama embedding model
         run: |
           until curl -s http://localhost:11434/api/tags | grep -q "bge-m3:567m"; do
@@ -50,13 +67,17 @@ jobs:
             sleep 10
           done
 
-      # 8° Lance les tests d'intégration du microservice rag_embedder
+      # 11° Lance les tests d'intégration du microservice rag_embedder
       - name: Run rag_embedder integration tests
         working-directory: rag_embedder
-        run: |
-          uv run pytest -q tests/integration_tests
+        run: uv run pytest -q tests/integration_tests
 
-      # 9° Arrête les containers même si un test échoue
+      # 12° Affiche les logs Docker si une étape précédente échoue
+      - name: Show Docker logs on failure
+        if: failure()
+        run: docker compose logs
+
+      # 13° Arrête les containers même si un test échoue
       - name: Stop Docker stack
         if: always()
         run: docker compose down
