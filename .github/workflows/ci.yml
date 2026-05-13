@@ -10,56 +10,67 @@ on:
 
 jobs:
   tests:
+
     # GitHub démarre une VM Ubuntu temporaire
     runs-on: ubuntu-latest
 
     steps:
+
       # 1° Récupère le code du dépôt GitHub dans la VM
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # 2° Installe uv
-      - name: Install uv
-        uses: astral-sh/setup-uv@v5
-
-      # 3° Installe Python 3.12
-      - name: Install Python
-        run: uv python install 3.12
-
-      # 4° Installe les dépendances du microservice rag_embedder
-      - name: Install rag_embedder dependencies
-        working-directory: rag_embedder
-        run: uv sync --dev
-
-      # 5° Vérifie le code Python avec Ruff
-      # Nécessite : uv add --dev ruff dans rag_embedder
-      - name: Run rag_embedder Ruff linter
-        working-directory: rag_embedder
-        run: uv run ruff check .
-
-      # 6° Vérifie le formatage Python avec Ruff
-      - name: Run rag_embedder Ruff format check
-        working-directory: rag_embedder
-        run: uv run ruff format --check .
-
-      # 7° Lance les tests unitaires du microservice rag_embedder
-      - name: Run rag_embedder unit tests
-        working-directory: rag_embedder
-        run: uv run pytest -q tests/unit_tests
-
-      # 8° Crée les fichiers/dossiers attendus par docker-compose
-      # Les .env sont ignorés par Git, donc absents dans GitHub Actions
+      # 2° Prépare les fichiers/dossiers attendus par docker-compose
+      # Les fichiers .env sont ignorés par GitHub (.gitignore)
+      # donc ils n'existent pas dans GitHub Actions.
       - name: Prepare Docker Compose files
         run: |
           mkdir -p ../wikis
           touch rag_orchestrator/.env
           touch rag_evaluator/.env
 
+      # 3° Installe uv
+      # uv sert à gérer Python + dépendances
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      # 4° Installe Python 3.12 dans la VM
+      - name: Install Python
+        run: uv python install 3.12
+
+      # 5° Installe les dépendances du microservice rag_embedder
+      # + les dépendances de dev (pytest, ruff, etc.)
+      - name: Install rag_embedder dependencies
+        working-directory: rag_embedder
+        run: uv sync --dev
+
+      # 6° Vérifie la qualité du code Python
+      # Ruff joue le rôle de linter
+      - name: Run rag_embedder Ruff linter
+        working-directory: rag_embedder
+        run: uv run ruff check .
+
+      # 7° Vérifie le formatage du code Python
+      # Si le code n'est pas bien formaté → la CI échoue
+      - name: Run rag_embedder Ruff format check
+        working-directory: rag_embedder
+        run: uv run ruff format --check .
+
+      # 8° Lance les tests unitaires
+      # Les tests unitaires testent des fonctions isolées
+      - name: Run rag_embedder unit tests
+        working-directory: rag_embedder
+        run: uv run pytest -q tests/unit_tests
+
       # 9° Démarre toute la stack Docker
+      # (ollama, chroma, retriever, orchestrator, etc.)
       - name: Start Docker stack
         run: docker compose up -d --build
 
-      # 10° Attend que le modèle d'embedding soit disponible dans Ollama
+      # 10° Attend que le modèle d'embedding soit disponible
+      # Tant que le modèle n'est pas téléchargé :
+      # → on attend 10 secondes
+      # → puis on réessaie
       - name: Wait for Ollama embedding model
         run: |
           until curl -s http://localhost:11434/api/tags | grep -q "bge-m3:567m"; do
@@ -67,17 +78,20 @@ jobs:
             sleep 10
           done
 
-      # 11° Lance les tests d'intégration du microservice rag_embedder
+      # 11° Lance les tests d'intégration
+      # Ici les tests parlent à de vrais services Docker
       - name: Run rag_embedder integration tests
         working-directory: rag_embedder
         run: uv run pytest -q tests/integration_tests
 
-      # 12° Affiche les logs Docker si une étape précédente échoue
+      # 12° Si une étape échoue :
+      # affiche les logs Docker pour aider au debug
       - name: Show Docker logs on failure
         if: failure()
         run: docker compose logs
 
       # 13° Arrête les containers même si un test échoue
+      # always() = cette étape s'exécute toujours
       - name: Stop Docker stack
         if: always()
         run: docker compose down
