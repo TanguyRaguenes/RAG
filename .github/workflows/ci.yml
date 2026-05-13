@@ -9,21 +9,16 @@ on:
   pull_request:
 
 jobs:
-
-  # Nom du job
-  unit-tests:
-
+  tests:
     # GitHub démarre une VM Ubuntu temporaire
     runs-on: ubuntu-latest
 
     steps:
-
       # 1° Récupère le code du dépôt GitHub dans la VM
       - name: Checkout repository
         uses: actions/checkout@v4
 
       # 2° Installe l'outil uv
-      # uv sert à gérer Python + dépendances
       - name: Install uv
         uses: astral-sh/setup-uv@v5
 
@@ -31,17 +26,37 @@ jobs:
       - name: Install Python
         run: uv python install 3.12
 
-      # 4° Lance les tests du microservice rag_embedder
-      - name: Run rag_embedder tests
-
-        # On se place dans le dossier du microservice
+      # 4° Lance les tests unitaires du microservice rag_embedder
+      - name: Run rag_embedder unit tests
         working-directory: rag_embedder
-
         run: |
-
-          # Installe les dépendances du projet
-          # + les dépendances dev (pytest etc.)
           uv sync --dev
-
-          # Lance les tests pytest en mode silencieux
           uv run pytest -q tests/unit_tests
+
+      # 5° Crée le dossier attendu par le docker-compose
+      # Ton compose monte ../wikis:/app/wikis:ro
+      - name: Create wikis folder
+        run: mkdir -p ../wikis
+
+      # 6° Démarre toute la stack Docker
+      - name: Start Docker stack
+        run: docker compose up -d --build
+
+      # 7° Attend que le modèle d'embedding soit bien disponible dans Ollama
+      - name: Wait for Ollama embedding model
+        run: |
+          until curl -s http://localhost:11434/api/tags | grep -q "bge-m3:567m"; do
+            echo "Waiting for Ollama model bge-m3:567m..."
+            sleep 10
+          done
+
+      # 8° Lance les tests d'intégration du microservice rag_embedder
+      - name: Run rag_embedder integration tests
+        working-directory: rag_embedder
+        run: |
+          uv run pytest -q tests/integration_tests
+
+      # 9° Arrête les containers même si un test échoue
+      - name: Stop Docker stack
+        if: always()
+        run: docker compose down

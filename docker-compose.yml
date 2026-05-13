@@ -16,9 +16,7 @@ services:
         echo 'Waiting for ollama...'; sleep 1;
       done;
       ollama pull bge-m3:567m;
-      ollama pull qwen2.5:1.5b;
       ollama pull qwen2.5:3b;
-      ollama pull qwen2.5:7b;
       echo 'Models pulled.';
       wait
       "
