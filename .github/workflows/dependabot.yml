@@ -1,20 +1,103 @@
 version: 2
 
 updates:
-  # Met à jour les GitHub Actions
+
+  # =========================
+  # GitHub Actions
+  # =========================
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "weekly"
 
-  # Met à jour les dépendances Python du rag_embedder
+  # =========================
+  # Docker
+  # =========================
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+
+  # =========================
+  # rag_embedder
+  # =========================
   - package-ecosystem: "uv"
     directory: "/rag_embedder"
     schedule:
       interval: "weekly"
 
-  # Surveille les Dockerfiles à la racine
-  - package-ecosystem: "docker"
-    directory: "/"
+    groups:
+      rag-embedder-security-updates:
+        applies-to: security-updates
+        patterns:
+          - "*"
+
+  # =========================
+  # rag_retriever
+  # =========================
+  - package-ecosystem: "uv"
+    directory: "/rag_retriever"
     schedule:
       interval: "weekly"
+
+    groups:
+      rag-retriever-security-updates:
+        applies-to: security-updates
+        patterns:
+          - "*"
+
+  # =========================
+  # rag_orchestrator
+  # =========================
+  - package-ecosystem: "uv"
+    directory: "/rag_orchestrator"
+    schedule:
+      interval: "weekly"
+
+    groups:
+      rag-orchestrator-security-updates:
+        applies-to: security-updates
+        patterns:
+          - "*"
+
+  # =========================
+  # rag_evaluator
+  # =========================
+  - package-ecosystem: "uv"
+    directory: "/rag_evaluator"
+    schedule:
+      interval: "weekly"
+
+    groups:
+      rag-evaluator-security-updates:
+        applies-to: security-updates
+        patterns:
+          - "*"
+
+  # =========================
+  # rag_ihm
+  # =========================
+  - package-ecosystem: "uv"
+    directory: "/rag_ihm"
+    schedule:
+      interval: "weekly"
+
+    groups:
+      rag-ihm-security-updates:
+        applies-to: security-updates
+        patterns:
+          - "*"
+
+  # =========================
+  # rag_mcp
+  # =========================
+  - package-ecosystem: "uv"
+    directory: "/rag_mcp"
+    schedule:
+      interval: "weekly"
+
+    groups:
+      rag-mcp-security-updates:
+        applies-to: security-updates
+        patterns:
+          - "*"
