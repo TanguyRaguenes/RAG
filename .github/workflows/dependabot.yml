@@ -1,0 +1,20 @@
+version: 2
+
+updates:
+  # Met à jour les GitHub Actions
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+
+  # Met à jour les dépendances Python du rag_embedder
+  - package-ecosystem: "uv"
+    directory: "/rag_embedder"
+    schedule:
+      interval: "weekly"
+
+  # Surveille les Dockerfiles à la racine
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
