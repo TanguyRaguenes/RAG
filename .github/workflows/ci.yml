@@ -18,7 +18,7 @@ jobs:
 
       # 1° Récupère le code du dépôt GitHub dans la VM
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       # 2° Prépare les fichiers/dossiers attendus par docker-compose
       # Les fichiers .env sont ignorés par GitHub (.gitignore)
