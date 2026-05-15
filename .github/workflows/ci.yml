@@ -67,6 +67,15 @@ jobs:
       - name: Start Docker stack
         run: docker compose up -d --build
 
+      # Scanne l'image Docker du microservice rag_embedder
+      - name: Scan rag_embedder image with Trivy
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: rag-rag_embedder:latest
+          format: table
+          severity: CRITICAL,HIGH
+          exit-code: 0
+
       # 10° Attend que le modèle d'embedding soit disponible
       # Tant que le modèle n'est pas téléchargé :
       # → on attend 10 secondes
