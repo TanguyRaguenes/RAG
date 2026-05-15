@@ -14,3 +14,5 @@ wheels/
 # Exclure tous les fichiers .env dans n'importe quel dossier
 **/.env
 **/.env.*
+
+.coverage

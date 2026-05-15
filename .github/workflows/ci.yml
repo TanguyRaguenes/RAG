@@ -60,7 +60,7 @@ jobs:
       # Les tests unitaires testent des fonctions isolées
       - name: Run rag_embedder unit tests
         working-directory: rag_embedder
-        run: uv run pytest -q tests/unit_tests
+        run: uv run pytest -q tests/unit_tests --cov=app --cov-report=term-missing --cov-fail-under=70
 
       # 9° Démarre toute la stack Docker
       # (ollama, chroma, retriever, orchestrator, etc.)
