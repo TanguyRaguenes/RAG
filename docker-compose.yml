@@ -153,6 +153,20 @@ services:
     depends_on:
       - rag_orchestrator
 
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus_container
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    depends_on:
+      - rag_embedder
+      - rag_retriever
+      - rag_evaluator
+      - rag_orchestrator
+
   rag_embedder_docs:
       build:
         context: ./rag_embedder
@@ -167,3 +181,4 @@ services:
 volumes:
   ollama_data:
   chroma_data:
+  prometheus_data:

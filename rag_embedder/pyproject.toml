@@ -10,6 +10,7 @@ dependencies = [
     "debugpy>=1.8.18",
     "fastapi[standard]>=0.124.2",
     "langchain-text-splitters>=1.1.0",
+    "prometheus-client>=0.25.0",
 ]
 
 [dependency-groups]

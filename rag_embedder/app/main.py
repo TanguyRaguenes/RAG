@@ -6,6 +6,7 @@ from fastapi.responses import JSONResponse
 from app.api.lifespan import lifespan
 from app.api.routers.embed_router import router as embed_router
 from app.core.exceptions import EmbedderContainerCustomException
+from prometheus_client import make_asgi_app
 
 logging.basicConfig(
     level=logging.INFO,
@@ -21,6 +22,9 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+metrics_app = make_asgi_app()
+app.mount("/metrics", metrics_app)
+
 app.include_router(embed_router)
 
 
@@ -34,8 +38,7 @@ async def embedder_exception_handler(
     request: Request, exception: EmbedderContainerCustomException
 ):
     """Handler centralisé pour les exceptions métier"""
-
-    "Ici on génère les log qui seront affiché dans la console "
+    # Ici on génère les logs qui seront affichés dans la console.
     logger.error(
         f"[{exception.SLUG}] {exception.message} | path={request.url.path} | details={exception.details}",
         exc_info=True,
