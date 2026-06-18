@@ -167,6 +167,16 @@ services:
       - rag_evaluator
       - rag_orchestrator
 
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana_container
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - prometheus
+
   rag_embedder_docs:
       build:
         context: ./rag_embedder
@@ -182,3 +192,4 @@ volumes:
   ollama_data:
   chroma_data:
   prometheus_data:
+  grafana_data:
