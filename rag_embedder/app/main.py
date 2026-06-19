@@ -1,5 +1,9 @@
 import logging
 import sys
+
+from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+from app.core.telemetry import configure_telemetry
+
 from pythonjsonlogger.json import JsonFormatter
 
 from fastapi import FastAPI, Request
@@ -50,6 +54,9 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan,
 )
+
+configure_telemetry()
+FastAPIInstrumentor.instrument_app(app)
 
 metrics_app = make_asgi_app()
 app.mount("/metrics", metrics_app)

@@ -1,6 +1,7 @@
 import httpx
 import logging
 import time
+from opentelemetry import trace
 
 from app.core.exceptions import EmbeddingServiceException
 from app.core.metrics import (
@@ -10,6 +11,7 @@ from app.core.metrics import (
 )
 
 logger = logging.getLogger(__name__)
+tracer = trace.get_tracer(__name__)
 
 
 async def embed_text(text: str, config: dict, is_query: bool) -> list[float]:
@@ -36,10 +38,16 @@ async def embed_text(text: str, config: dict, is_query: bool) -> list[float]:
     payload = {"model": model, "input": text_to_embed}
 
     try:
-        async with httpx.AsyncClient(timeout=120) as client:
-            response = await client.post(url, json=payload)
-            response.raise_for_status()
-            data = response.json()
+        with tracer.start_as_current_span("embedding.call_model") as span:
+            span.set_attribute("embedding.model", model)
+            span.set_attribute("embedding.is_query", is_query)
+            span.set_attribute("embedding.text_length", len(text))
+            span.set_attribute("http.url", url)
+
+            async with httpx.AsyncClient(timeout=120) as client:
+                response = await client.post(url, json=payload)
+                response.raise_for_status()
+                data = response.json()
 
     except httpx.HTTPStatusError as e:
         embedding_errors_total.inc()

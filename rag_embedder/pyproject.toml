@@ -10,6 +10,10 @@ dependencies = [
     "debugpy>=1.8.18",
     "fastapi[standard]>=0.124.2",
     "langchain-text-splitters>=1.1.0",
+    "opentelemetry-api>=1.41.1",
+    "opentelemetry-exporter-otlp>=1.41.1",
+    "opentelemetry-instrumentation-fastapi>=0.62b1",
+    "opentelemetry-sdk>=1.41.1",
     "prometheus-client>=0.25.0",
     "python-json-logger>=4.1.0",
 ]
