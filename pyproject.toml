@@ -11,5 +11,6 @@ workspace = { members = ["rag_orchestrator", "rag_embedder","rag_evaluator","rag
 
 [dependency-groups]
 dev = [
+    "locust>=2.44.4",
     "mkdocs>=1.6.1",
 ]
