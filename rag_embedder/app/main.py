@@ -1,4 +1,6 @@
 import logging
+import sys
+from pythonjsonlogger.json import JsonFormatter
 
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
@@ -8,10 +10,37 @@ from app.api.routers.embed_router import router as embed_router
 from app.core.exceptions import EmbedderContainerCustomException
 from prometheus_client import make_asgi_app
 
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s | %(levelname)s | %(name)s | %(message)s",
-)
+
+# Handler chargé d'écrire les logs sur la sortie standard (stdout).
+# Dans Docker, c'est ce flux que récupère Alloy.
+handler = logging.StreamHandler(sys.stdout)
+
+# Format JSON des logs.
+#
+# Les champs standards :
+# - asctime    : date/heure du log
+# - levelname : INFO, WARNING, ERROR...
+# - name      : nom du logger (souvent le module Python)
+# - message   : message du log
+#
+# reserved_attrs=[] permet également d'inclure automatiquement
+# tous les champs passés via "extra={...}".
+handler.setFormatter(JsonFormatter("%(asctime)s %(levelname)s %(name)s %(message)s"))
+
+# Récupération du logger racine de l'application.
+root_logger = logging.getLogger()
+
+# Suppression des handlers éventuellement configurés auparavant
+# (par exemple via basicConfig()) afin d'éviter les doublons.
+root_logger.handlers.clear()
+
+# Ajout de notre handler JSON personnalisé.
+root_logger.addHandler(handler)
+
+# Niveau minimal des logs à enregistrer.
+# INFO => INFO, WARNING, ERROR, CRITICAL
+root_logger.setLevel(logging.INFO)
+
 
 logger = logging.getLogger(__name__)
 
@@ -39,9 +68,16 @@ async def embedder_exception_handler(
 ):
     """Handler centralisé pour les exceptions métier"""
     # Ici on génère les logs qui seront affichés dans la console.
-    logger.error(
-        f"[{exception.SLUG}] {exception.message} | path={request.url.path} | details={exception.details}",
-        exc_info=True,
+    logger.exception(
+        exception.message,
+        extra={
+            "group": "embedding",
+            "event": "business_exception",
+            "slug": exception.SLUG,
+            "path": request.url.path,
+            "details": exception.details,
+            "status_code": exception.STATUS_CODE,
+        },
     )
 
     return JSONResponse(
