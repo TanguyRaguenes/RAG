@@ -191,6 +191,19 @@ services:
     depends_on:
       - loki
 
+  tempo:
+    image: grafana/tempo:latest
+    container_name: tempo_container
+    command: ["-config.file=/etc/tempo.yml"]
+    ports:
+      - "3200:3200" # API HTTP Tempo, utilisée par Grafana
+      - "4317:4317" # Réception des traces OTLP en gRPC
+      - "4318:4318" # Réception des traces OTLP en HTTP
+    volumes:
+      - ./observability/tempo.yml:/etc/tempo.yml:ro
+      - tempo_data:/var/tempo
+
+
   grafana:
     image: grafana/grafana:latest
     container_name: grafana_container
@@ -200,6 +213,8 @@ services:
       - grafana_data:/var/lib/grafana
     depends_on:
       - prometheus
+      - loki
+      - tempo
 
   rag_embedder_docs:
       build:
@@ -218,3 +233,4 @@ volumes:
   prometheus_data:
   grafana_data:
   loki_data:
+  tempo_data:
