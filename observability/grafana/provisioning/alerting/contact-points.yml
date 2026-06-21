@@ -1,0 +1,10 @@
+apiVersion: 1
+
+contactPoints:
+  - orgId: 1
+    name: Discord serveur RAG
+    receivers:
+      - uid: discord_serveur_rag
+        type: discord
+        settings:
+          url: ${DISCORD_WEBHOOK_URL}

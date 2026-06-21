@@ -209,12 +209,27 @@ services:
     container_name: grafana_container
     ports:
       - "3000:3000"
+    env_file:
+      - .env
     volumes:
       - grafana_data:/var/lib/grafana
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
     depends_on:
       - prometheus
       - loki
       - tempo
+
+  pocket-id:
+    image: ghcr.io/pocket-id/pocket-id:v2
+    container_name: pocket_id_container
+    restart: unless-stopped
+    env_file:
+      - ./pocket-id/.env
+    ports:
+      - "1411:1411"
+    volumes:
+      - pocket_id_data:/app/data
 
   rag_embedder_docs:
       build:
@@ -234,3 +249,4 @@ volumes:
   grafana_data:
   loki_data:
   tempo_data:
+  pocket_id_data:

@@ -13,7 +13,7 @@ groups:
               relativeTimeRange:
                 from: 600
                 to: 0
-              datasourceUid: ffphcvbllh2ioa
+              datasourceUid: prometheus
               model:
                 editorMode: code
                 expr: up{job="rag_embedder"}
