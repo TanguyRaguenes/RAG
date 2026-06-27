@@ -670,12 +670,14 @@ version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
     { name = "debugpy" },
+    { name = "requests" },
     { name = "streamlit" },
 ]
 
 [package.metadata]
 requires-dist = [
     { name = "debugpy", specifier = ">=1.8.19" },
+    { name = "requests", specifier = ">=2.34.2" },
     { name = "streamlit", specifier = ">=1.31.0" },
 ]
 

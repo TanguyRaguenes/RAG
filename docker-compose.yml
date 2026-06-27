@@ -121,6 +121,8 @@ services:
       context: ./rag_ihm
       dockerfile: dockerfile
     container_name: rag_ihm_container
+    env_file:
+      - ./rag_ihm/.env
     ports:
       - "8501:8501" # Port par défaut utilisé par Streamlit.
       - "5682:5678"   # port debug côté host (évite conflit avec rag_embedder:5678)
@@ -130,11 +132,16 @@ services:
       - RAG_EVALUATOR_TEST_CONNEXION_URL=http://rag_evaluator:8000
       - RAG_ORCHESTRATOR_ASK_QUESTION_URL=http://rag_orchestrator:8000/ask_question
       - RAG_EVALUATOR_EVALUATE_RAG_URL=http://rag_evaluator:8000/evaluate_rag
+      - RAG_IHM_OIDC_AUTHORIZE_URL=http://localhost:1411/authorize
+      - RAG_IHM_OIDC_TOKEN_URL=http://pocket-id:1411/api/oidc/token
+      - RAG_IHM_OIDC_REDIRECT_URI=http://localhost:8501
+      - RAG_IHM_OIDC_SCOPE=openid email profile groups
     volumes:
       - ./rag_ihm:/app # HotReload : Montage du code source pour que les modifs soient prises en compte sans rebuild
     depends_on:
       - rag_orchestrator
       - rag_evaluator
+      - pocket-id
 
   # 8° Service MCP pour l'IA dans VS Code
   rag_mcp:

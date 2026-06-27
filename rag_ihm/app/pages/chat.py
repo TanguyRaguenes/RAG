@@ -3,6 +3,12 @@ import os
 import requests
 import streamlit as st
 
+from app.services.auth_service import (
+    get_access_token,
+    logout,
+    require_authenticated_user,
+)
+
 # --- CONFIGURATION DE LA PAGE ---
 st.set_page_config(page_title="IsiDore", page_icon="🤖", layout="centered")
 
@@ -32,6 +38,8 @@ def _ensure_env(name: str, value: str | None) -> None:
 
 _ensure_env("RAG_ORCHESTRATOR_TEST_CONNEXION_URL", RAG_ORCHESTRATOR_TEST_CONNEXION_URL)
 _ensure_env("RAG_ORCHESTRATOR_ASK_QUESTION_URL", RAG_ORCHESTRATOR_ASK_QUESTION_URL)
+
+current_user = require_authenticated_user()
 
 
 def _build_chunk_header(i: int, path: str, chunk_index, similarity) -> str:
@@ -112,6 +120,16 @@ with st.sidebar:
         st.title("🤖 IsiDore")
 
     st.caption("LLM basé sur la documentation interne ISILOG.")
+
+    if current_user:
+        user_label = current_user.get("email") or current_user.get("name")
+        if user_label:
+            st.caption(f"Connecté : {user_label}")
+
+    if st.button("Se déconnecter", use_container_width=True):
+        logout()
+        st.rerun()
+
     st.divider()
 
     # --- SÉLECTEUR DE LLM ---
@@ -182,10 +200,15 @@ if prompt := st.chat_input("Ex : C'est quoi les Microservices New Way ?"):
     with st.spinner(f"IsiDore ({llm_type}) réfléchit..."):
         try:
             payload = {"question": prompt, "provider": provider}
+            access_token = get_access_token()
+            headers = {"Authorization": f"Bearer {access_token}"}
 
             # Utilisation de l'URL dynamique choisie dans la barre latérale
             response = requests.post(
-                RAG_ORCHESTRATOR_ASK_QUESTION_URL, json=payload, timeout=360
+                RAG_ORCHESTRATOR_ASK_QUESTION_URL,
+                json=payload,
+                headers=headers,
+                timeout=360,
             )
 
             if response.status_code != 200:
@@ -194,8 +217,12 @@ if prompt := st.chat_input("Ex : C'est quoi les Microservices New Way ?"):
                 # Message principal court et visible
                 if "original_exception" in response_json:
                     error_msg = response_json["original_exception"]["message"]
-                else:
+                elif "message" in response_json:
                     error_msg = response_json["message"]
+                elif "detail" in response_json:
+                    error_msg = response_json["detail"]
+                else:
+                    error_msg = "Erreur inconnue"
 
                 st.error(f"Erreur : {error_msg}")
 
