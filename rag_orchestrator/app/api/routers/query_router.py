@@ -2,7 +2,7 @@ import time
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from app.api.dependencies import get_config
+from app.api.dependencies import get_config, get_current_user
 from app.schemas.ask_question_request_schema import AskQuestionRequestBase
 from app.schemas.ask_question_response_schema import AskQuestionResponseBase
 from app.schemas.retrieve_chunks_request_schema import RetrieveChunksRequestBase
@@ -19,6 +19,7 @@ router = APIRouter()
 @router.post("/ask_question", response_model=AskQuestionResponseBase)
 async def ask_question_route(
     body: AskQuestionRequestBase,
+    current_user=Depends(get_current_user),
     config=Depends(get_config),
 ):
     start = time.perf_counter()
@@ -46,6 +47,7 @@ async def ask_question_route(
 @router.post("/retrieve_chunks", response_model=RetrieveChunksResponseBase)
 async def retrieve_chunks_route(
     body: RetrieveChunksRequestBase,
+    current_user=Depends(get_current_user),
     config=Depends(get_config),
 ):
     answer: RetrieveChunksResponseBase = await retrieve_chunks(body.question, config)

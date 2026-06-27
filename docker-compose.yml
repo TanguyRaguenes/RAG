@@ -142,12 +142,16 @@ services:
       context: ./rag_mcp
       dockerfile: Dockerfile
     container_name: rag_mcp_container
+    env_file:
+      - ./rag_mcp/.env
     ports:
       - "8005:8000"
       - "5683:5678"   # port debug côté host (évite conflit avec rag_embedder:5678)
     environment:
       - DEBUG=1
       - FORWARDED_ALLOW_IPS=*
+      - RAG_ORCHESTRATOR_RETRIEVE_CHUNKS_URL=http://rag_orchestrator:8000/retrieve_chunks
+      - RAG_MCP_OIDC_TOKEN_URL=http://pocket-id:1411/api/oidc/token
     volumes:
       - ./rag_mcp:/app
     depends_on:
@@ -166,6 +170,7 @@ services:
       - rag_retriever
       - rag_evaluator
       - rag_orchestrator
+      - pocket-id
 
   loki:
     image: grafana/loki:latest

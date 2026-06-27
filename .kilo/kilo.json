@@ -1,0 +1,11 @@
+{
+  "$schema": "https://app.kilo.ai/config.json",
+  "mcp": {
+    "rag-interne": {
+      "type": "remote",
+      "url": "http://localhost:8005/sse",
+      "enabled": true,
+      "timeout": 120000
+    }
+  }
+}

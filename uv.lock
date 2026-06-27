@@ -3029,6 +3029,7 @@ dependencies = [
     { name = "debugpy" },
     { name = "fastapi", extra = ["standard"] },
     { name = "langchain-text-splitters" },
+    { name = "pyjwt", extra = ["crypto"] },
 ]
 
 [package.dev-dependencies]
@@ -3044,6 +3045,7 @@ requires-dist = [
     { name = "debugpy", specifier = ">=1.8.18" },
     { name = "fastapi", extras = ["standard"], specifier = ">=0.124.2" },
     { name = "langchain-text-splitters", specifier = ">=1.1.0" },
+    { name = "pyjwt", extras = ["crypto"], specifier = ">=2.12.1" },
 ]
 
 [package.metadata.requires-dev]
