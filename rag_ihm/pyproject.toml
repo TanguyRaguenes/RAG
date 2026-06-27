@@ -7,5 +7,5 @@ requires-python = ">=3.12"
 dependencies = [
     "debugpy>=1.8.19",
     "requests>=2.34.2",
-    "streamlit>=1.31.0",
+    "streamlit>=1.58.0",
 ]
