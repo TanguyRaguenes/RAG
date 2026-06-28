@@ -1,4 +1,5 @@
 import base64
+import html
 import json
 import os
 import secrets
@@ -169,7 +170,27 @@ def require_authenticated_user() -> dict[str, Any] | None:
     if is_authenticated():
         return get_current_user()
 
-    st.title("IsiDore")
-    st.info("Connecte-toi avec Pocket ID pour accéder au RAG interne.")
-    st.link_button("Se connecter avec Pocket ID", build_login_url())
+    from app.styles.theme import apply_theme, render_theme_selector
+
+    apply_theme()
+
+    with st.sidebar:
+        render_theme_selector()
+
+    login_url = html.escape(build_login_url(), quote=True)
+    st.markdown(
+        f"""
+        <div class="auth-shell">
+            <div class="auth-card">
+                <div class="auth-eyebrow">RAG interne</div>
+                <div class="auth-title">IsiDore</div>
+                <div class="auth-copy">
+                    Connecte-toi avec Pocket ID pour accéder à la documentation interne.
+                </div>
+                <a class="auth-button" href="{login_url}">Se connecter avec Pocket ID</a>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
     st.stop()
