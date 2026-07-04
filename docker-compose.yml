@@ -93,6 +93,7 @@ services:
       - ollama
       - rag_embedder
       - rag_retriever
+      - postgres
 
    # 6° Service en charge d'évaluer la qualité du RAG
   rag_evaluator:

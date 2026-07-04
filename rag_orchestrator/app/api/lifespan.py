@@ -1,16 +1,44 @@
+import logging
+import os
+from contextlib import asynccontextmanager
+
+import asyncpg
 from fastapi import FastAPI
 
-from contextlib import asynccontextmanager
 from app.core.config import load_config
+
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-
-    # startup
     app.state.config = load_config()
 
-    yield
+    database_url = os.environ["DATABASE_URL"]
 
-    # shutdown (si besoin plus tard)
-    # ex: app.state.vector_store_repository.close()
+    try:
+        logger.info("Opening PostgreSQL connection pool")
+
+        app.state.db_pool = await asyncpg.create_pool(
+            dsn=database_url,
+            min_size=1,
+            max_size=5,
+        )
+
+        async with app.state.db_pool.acquire() as connection:
+            await connection.execute("SELECT 1")
+
+        logger.info("PostgreSQL connection pool ready")
+
+        yield
+
+    except Exception:
+        logger.exception("Failed to initialize PostgreSQL connection pool")
+        raise
+
+    finally:
+        db_pool = getattr(app.state, "db_pool", None)
+
+        if db_pool is not None:
+            logger.info("Closing PostgreSQL connection pool")
+            await db_pool.close()
