@@ -15,6 +15,10 @@ async def lifespan(app: FastAPI):
     app.state.config = load_config()
 
     database_url = os.environ["DATABASE_URL"]
+    user_hash_secret = os.environ["USER_HASH_SECRET"]
+
+    if not user_hash_secret.strip():
+        raise RuntimeError("USER_HASH_SECRET must not be empty")
 
     try:
         logger.info("Opening PostgreSQL connection pool")

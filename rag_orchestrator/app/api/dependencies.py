@@ -1,6 +1,7 @@
 import os
 from functools import lru_cache
 
+import asyncpg
 import jwt
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -10,6 +11,10 @@ from app.services.auth_service import AuthService
 
 def get_config(request: Request) -> dict:
     return request.app.state.config
+
+
+def get_db_pool(request: Request) -> asyncpg.Pool:
+    return request.app.state.db_pool
 
 # Déclare un mécanisme d'authentification HTTP Bearer.
 # Il va lire automatiquement le header :
