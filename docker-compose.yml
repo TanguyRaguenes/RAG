@@ -243,6 +243,29 @@ services:
     volumes:
       - pocket_id_data:/app/data
 
+  postgres:
+    image: postgres:16-alpine
+    container_name: postgres_container
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/postgres/init:/docker-entrypoint-initdb.d:ro
+  
+  adminer:
+    image: adminer:4.8.1
+    container_name: adminer_container
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    depends_on:
+      - postgres
+
   rag_embedder_docs:
       build:
         context: ./rag_embedder
@@ -262,3 +285,4 @@ volumes:
   loki_data:
   tempo_data:
   pocket_id_data:
+  postgres_data:
