@@ -213,23 +213,24 @@ CREATE TABLE avis (
 
 -- ============================================================
 -- Table : quota_utilisateur
--- Objectif : définir les quotas de tokens par utilisateur et par période
+-- Objectif : définir les règles de quota mensuel par utilisateur
 -- ============================================================
 
 CREATE TABLE quota_utilisateur (
     id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     utilisateur_id TEXT NOT NULL,
-    max_tokens BIGINT NOT NULL,
-    date_debut TIMESTAMPTZ NOT NULL,
-    date_fin TIMESTAMPTZ NOT NULL,
+    max_tokens_par_mois BIGINT NOT NULL,
+    actif BOOLEAN NOT NULL DEFAULT true,
+    date_debut TIMESTAMPTZ NOT NULL DEFAULT now(),
+    date_fin TIMESTAMPTZ NULL,
 
     CONSTRAINT fk_quota_utilisateur_utilisateur
         FOREIGN KEY (utilisateur_id)
         REFERENCES utilisateur(id),
 
-    CONSTRAINT chk_quota_max_tokens
-        CHECK (max_tokens > 0),
+    CONSTRAINT chk_quota_max_tokens_par_mois
+        CHECK (max_tokens_par_mois > 0),
 
     CONSTRAINT chk_quota_dates
-        CHECK (date_fin > date_debut)
+        CHECK (date_fin IS NULL OR date_fin > date_debut)
 );

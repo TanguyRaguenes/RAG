@@ -8,6 +8,7 @@
         },
 
         "local":{
+            "provider" : "Ollama",
             "endpoint": "http://ollama:11434/v1/chat/completions",
             "model": "qwen2.5:3b",
             "context_window_tokens": 8000,
@@ -16,6 +17,7 @@
         },
 
         "api" :{
+            "provider" : "OpenAi",
             "endpoint" : "https://api.openai.com/v1/responses",
             "model" : "gpt-5-mini",
             "max_output_tokens": 1500,

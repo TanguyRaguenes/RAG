@@ -1,10 +1,14 @@
 import os
+from decimal import Decimal
 from typing import Any
+
+import asyncpg
 
 from app.dal.clients.embedder_client import embed_question
 from app.dal.clients.llm_client import ask_question_to_api as ask_question_to_api_client
 from app.dal.clients.llm_client import ask_question_to_llm as ask_question_to_llm_client
 from app.dal.clients.retriever_client import retrieve_chunks
+from app.dal.repositories.usage_repository import UsageRepository
 from app.schemas.ask_question_response_schema import AskQuestionResponseBase
 from app.services.prompt_builder_service import build_prompt
 
@@ -56,12 +60,17 @@ async def ask_question_to_local_model(
     )
 
 
-async def ask_question_to_api(question: str, config: dict) -> AskQuestionResponseBase:
+async def ask_question_to_api(
+    question: str,
+    config: dict,
+    db_pool: asyncpg.Pool,
+) -> AskQuestionResponseBase:
 
     api_key: str = os.getenv("OPEN_API_KEY")
 
     stream: bool = config["llm"]["common"]["stream"]
 
+    provider: str = config["llm"]["api"]["provider"]
     endpoint: str = config["llm"]["api"]["endpoint"]
     model: str = config["llm"]["api"]["model"]
     max_output_tokens: int = config["llm"]["api"]["max_output_tokens"]
@@ -86,7 +95,12 @@ async def ask_question_to_api(question: str, config: dict) -> AskQuestionRespons
 
     sources: dict[str, int] = design_source(retrieved_chunks)
 
-    cost: float = calculate_cost(llm_response)
+    cost: float = await calculate_cost(
+        llm_response=llm_response,
+        db_pool=db_pool,
+        provider=provider,
+        model=model,
+    )
 
     return AskQuestionResponseBase(
         llm_response=llm_response["output"][1]["content"][0]["text"],
@@ -120,17 +134,25 @@ def design_source(retrieved_chunks: list[dict[str, Any]]) -> dict[str, int]:
     return sources_sorted
 
 
-def calculate_cost(llm_response) -> float:
+async def calculate_cost(
+    *,
+    llm_response: dict[str, Any],
+    db_pool: asyncpg.Pool,
+    provider: str,
+    model: str,
+) -> float:
+    usage_repository = UsageRepository(db_pool)
+    input_price, output_price = await usage_repository.get_active_model_pricing(
+        provider=provider,
+        model_name=model,
+    )
 
-    # Tarification gpt-5-mini
-    input_price = 0.250
-    output_price = 2
+    input_tokens = Decimal(llm_response["usage"]["input_tokens"])
+    output_tokens = Decimal(llm_response["usage"]["output_tokens"])
 
-    input_tokens = llm_response["usage"]["input_tokens"]
-    output_tokens = llm_response["usage"]["output_tokens"]
+    cost = (
+        input_tokens * input_price / Decimal("1000000")
+        + output_tokens * output_price / Decimal("1000000")
+    )
 
-    cost = input_tokens * input_price / 1000000 + output_tokens * output_price / 1000000
-
-    cost *= 0.86  # USD -> EUR le 04/03/2026
-
-    return round(cost, 4)
+    return float(cost.quantize(Decimal("0.000001")))

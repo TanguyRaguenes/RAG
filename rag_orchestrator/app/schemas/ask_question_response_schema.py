@@ -10,7 +10,7 @@ class AskQuestionResponseBase(BaseModel):
     model: str
     generated_prompt: list[dict[str, Any]]
     duration: str
-    input_tokens: int
-    output_tokens: int
-    total_tokens: int
-    cost: float
+    input_tokens: int = 0
+    output_tokens: int = 0
+    total_tokens: int = 0
+    cost: float = 0.0

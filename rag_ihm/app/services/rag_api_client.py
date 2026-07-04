@@ -73,7 +73,7 @@ def ask_question(
     try:
         response = requests.post(
             config.ask_question_url,
-            json={"question": question, "provider": provider},
+            json={"question": question, "provider": provider, "channel": "streamlit"},
             headers={"Authorization": f"Bearer {access_token}"},
             timeout=360,
         )

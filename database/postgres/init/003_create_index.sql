@@ -35,5 +35,9 @@ CREATE INDEX idx_avis_note
 CREATE INDEX idx_quota_utilisateur_utilisateur_id
     ON quota_utilisateur(utilisateur_id);
 
-CREATE INDEX idx_quota_utilisateur_dates
-    ON quota_utilisateur(date_debut, date_fin);
+CREATE INDEX idx_quota_utilisateur_active_dates
+    ON quota_utilisateur(utilisateur_id, actif, date_debut, date_fin);
+
+CREATE UNIQUE INDEX uq_quota_utilisateur_active_rule
+    ON quota_utilisateur(utilisateur_id)
+    WHERE actif;
