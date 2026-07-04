@@ -92,6 +92,80 @@ def ask_question(
     return _response_json(response)
 
 
+def get_my_quota_usage(
+    config: ChatApiConfig,
+    access_token: str | None,
+) -> dict[str, Any]:
+    data = _authenticated_get(_usage_url(config, "/usage/quota/me"), access_token)
+
+    if not isinstance(data, dict):
+        raise RagApiError("Le service a retourné un format inattendu.")
+
+    return data
+
+
+def list_admin_quota_usages(
+    config: ChatApiConfig,
+    access_token: str | None,
+) -> list[dict[str, Any]]:
+    data = _authenticated_get(_usage_url(config, "/usage/quota/admin/users"), access_token)
+
+    if not isinstance(data, list):
+        raise RagApiError("Le service a retourné un format inattendu.")
+
+    return data
+
+
+def update_admin_quota_usage(
+    config: ChatApiConfig,
+    access_token: str | None,
+    user_id: str,
+    max_tokens_par_mois: int,
+    actif: bool,
+) -> dict[str, Any]:
+    url = _usage_url(config, f"/usage/quota/admin/users/{user_id}")
+
+    data = _authenticated_patch(
+        url,
+        access_token,
+        {"max_tokens_par_mois": max_tokens_par_mois, "actif": actif},
+    )
+
+    if not isinstance(data, dict):
+        raise RagApiError("Le service a retourné un format inattendu.")
+
+    return data
+
+
+def get_my_preferences(
+    config: ChatApiConfig,
+    access_token: str | None,
+) -> dict[str, Any]:
+    data = _authenticated_get(_usage_url(config, "/usage/preferences/me"), access_token)
+
+    if not isinstance(data, dict):
+        raise RagApiError("Le service a retourné un format inattendu.")
+
+    return data
+
+
+def update_my_preferences(
+    config: ChatApiConfig,
+    access_token: str | None,
+    theme_preference: str,
+) -> dict[str, Any]:
+    data = _authenticated_patch(
+        _usage_url(config, "/usage/preferences/me"),
+        access_token,
+        {"theme_preference": theme_preference},
+    )
+
+    if not isinstance(data, dict):
+        raise RagApiError("Le service a retourné un format inattendu.")
+
+    return data
+
+
 def run_evaluation(config: EvaluatorApiConfig) -> dict[str, Any]:
     try:
         response = requests.post(config.evaluate_url, timeout=300)
@@ -103,7 +177,7 @@ def run_evaluation(config: EvaluatorApiConfig) -> dict[str, Any]:
         raise RagApiError("L'évaluation n'a pas pu être lancée.") from exception
 
     _raise_for_error_response(response)
-    return _response_json(response)
+    return _response_json_any(response)
 
 
 def _required_env(name: str) -> str:
@@ -111,6 +185,62 @@ def _required_env(name: str) -> str:
     if not value:
         raise RagApiError(f"Configuration manquante : {name}.")
     return value
+
+
+def _usage_url(config: ChatApiConfig, path: str) -> str:
+    base_url = config.ask_question_url.rsplit("/", 1)[0]
+
+    return f"{base_url}{path}"
+
+
+def _authenticated_get(url: str, access_token: str | None):
+    if not access_token:
+        raise RagApiError("La session a expiré. Reconnecte-toi pour continuer.")
+
+    try:
+        response = requests.get(
+            url,
+            headers={"Authorization": f"Bearer {access_token}"},
+            timeout=30,
+        )
+    except requests.exceptions.Timeout as exception:
+        raise RagApiError("Le service met trop de temps à répondre.") from exception
+    except requests.exceptions.ConnectionError as exception:
+        raise RagApiError("Le service est injoignable pour le moment.") from exception
+    except requests.RequestException as exception:
+        raise RagApiError("La demande n'a pas pu être envoyée au service RAG.") from exception
+
+    _raise_for_error_response(response)
+    return _response_json_any(response)
+
+
+def _response_json_any(response: requests.Response):
+    try:
+        return response.json()
+    except ValueError as exception:
+        raise RagApiError("Le service a retourné une réponse illisible.") from exception
+
+
+def _authenticated_patch(url: str, access_token: str | None, payload: dict[str, Any]):
+    if not access_token:
+        raise RagApiError("La session a expiré. Reconnecte-toi pour continuer.")
+
+    try:
+        response = requests.patch(
+            url,
+            json=payload,
+            headers={"Authorization": f"Bearer {access_token}"},
+            timeout=30,
+        )
+    except requests.exceptions.Timeout as exception:
+        raise RagApiError("Le service met trop de temps à répondre.") from exception
+    except requests.exceptions.ConnectionError as exception:
+        raise RagApiError("Le service est injoignable pour le moment.") from exception
+    except requests.RequestException as exception:
+        raise RagApiError("La demande n'a pas pu être envoyée au service RAG.") from exception
+
+    _raise_for_error_response(response)
+    return _response_json(response)
 
 
 def _docs_url(base_url: str) -> str:

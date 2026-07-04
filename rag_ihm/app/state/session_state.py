@@ -7,6 +7,8 @@ CHAT_MESSAGES_KEY = "chat_messages"
 CHAT_PENDING_PROMPT_KEY = "chat_pending_prompt"
 DASHBOARD_RESULT_KEY = "dashboard_result"
 UI_THEME_KEY = "ui_theme_mode"
+UI_THEME_SYNCED_KEY = "ui_theme_synced"
+UI_THEME_PERSISTED_KEY = "ui_theme_persisted"
 
 
 def init_chat_state() -> None:
@@ -48,9 +50,24 @@ def clear_dashboard_result() -> None:
 
 
 def get_theme_mode() -> str:
-    value = st.session_state.get(UI_THEME_KEY, "Sombre")
+    value = st.session_state.get(UI_THEME_KEY, "Clair")
     return str(value)
 
 
 def set_theme_mode(mode: str) -> None:
     st.session_state[UI_THEME_KEY] = mode
+
+
+def has_synced_theme_preference() -> bool:
+    return bool(st.session_state.get(UI_THEME_SYNCED_KEY))
+
+
+def mark_theme_preference_synced(mode: str) -> None:
+    st.session_state[UI_THEME_SYNCED_KEY] = True
+    st.session_state[UI_THEME_PERSISTED_KEY] = mode
+
+
+def get_persisted_theme_mode() -> str | None:
+    value = st.session_state.get(UI_THEME_PERSISTED_KEY)
+
+    return str(value) if value else None

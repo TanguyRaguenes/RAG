@@ -1,10 +1,12 @@
 import os
+from typing import Iterable
 
 import asyncpg
 
 from app.dal.repositories.usage_repository import UsageRepository
 from app.schemas.ask_question_response_schema import AskQuestionResponseBase
 from app.schemas.authenticated_user_schema import AuthenticatedUser
+from app.schemas.quota_schema import QuotaUsageResponse, UserPreferencesResponse
 from app.services.user_identity_service import build_user_id_from_identifier
 
 MCP_PROVIDER = "KiloCode"
@@ -22,6 +24,11 @@ class QuotaExceededError(Exception):
         self.consumed_tokens = consumed_tokens
         super().__init__(QUOTA_EXCEEDED_MESSAGE)
 
+
+class QuotaInactiveError(Exception):
+    def __init__(self):
+        super().__init__(QUOTA_EXCEEDED_MESSAGE)
+
 async def ensure_usage_user_exists(
     current_user: AuthenticatedUser,
     db_pool: asyncpg.Pool,
@@ -34,8 +41,8 @@ async def ensure_usage_user_exists(
     )
 
     usage_repository = UsageRepository(db_pool)
-    await usage_repository.upsert_user(user_id)
-    await usage_repository.ensure_active_quota_rule(
+    await usage_repository.upsert_user(user_id, _normalize_optional_email(current_user.email))
+    await usage_repository.ensure_default_quota_rule(
         user_id=user_id,
         max_tokens_per_month=_get_default_user_monthly_token_quota(),
     )
@@ -63,10 +70,82 @@ async def finish_usage_session(db_pool: asyncpg.Pool, session_id: int) -> None:
 
 async def check_user_token_quota(db_pool: asyncpg.Pool, user_id: str) -> None:
     usage_repository = UsageRepository(db_pool)
-    max_tokens, consumed_tokens = await usage_repository.get_active_quota_usage(user_id)
+    max_tokens, consumed_tokens, active = await usage_repository.get_active_quota_usage(user_id)
+
+    if not active:
+        raise QuotaInactiveError()
 
     if consumed_tokens >= max_tokens:
         raise QuotaExceededError(max_tokens, consumed_tokens)
+
+
+async def get_current_user_quota_usage(
+    current_user: AuthenticatedUser,
+    db_pool: asyncpg.Pool,
+) -> QuotaUsageResponse:
+    user_id = await ensure_usage_user_exists(current_user, db_pool)
+    usage_repository = UsageRepository(db_pool)
+    row = await usage_repository.get_quota_usage_details(user_id)
+
+    return _quota_row_to_response(row)
+
+
+async def list_all_quota_usages(db_pool: asyncpg.Pool) -> list[QuotaUsageResponse]:
+    usage_repository = UsageRepository(db_pool)
+    rows = await usage_repository.list_quota_usages()
+
+    return [_quota_row_to_response(row) for row in rows if row["max_tokens_par_mois"]]
+
+
+async def update_user_quota(
+    *,
+    db_pool: asyncpg.Pool,
+    user_id: str,
+    max_tokens_per_month: int,
+    active: bool,
+) -> QuotaUsageResponse:
+    usage_repository = UsageRepository(db_pool)
+    await usage_repository.update_quota_rule(
+        user_id=user_id,
+        max_tokens_per_month=max_tokens_per_month,
+        active=active,
+    )
+    row = await usage_repository.get_quota_usage_details(user_id)
+
+    return _quota_row_to_response(row)
+
+
+async def get_current_user_preferences(
+    current_user: AuthenticatedUser,
+    db_pool: asyncpg.Pool,
+) -> UserPreferencesResponse:
+    user_id = await ensure_usage_user_exists(current_user, db_pool)
+    usage_repository = UsageRepository(db_pool)
+    theme_preference = await usage_repository.get_user_theme_preference(user_id)
+
+    return UserPreferencesResponse(theme_preference=theme_preference)
+
+
+async def update_current_user_preferences(
+    current_user: AuthenticatedUser,
+    db_pool: asyncpg.Pool,
+    theme_preference: str,
+) -> UserPreferencesResponse:
+    if theme_preference not in {"Sombre", "Clair"}:
+        raise ValueError("Unknown theme preference")
+
+    user_id = await ensure_usage_user_exists(current_user, db_pool)
+    usage_repository = UsageRepository(db_pool)
+    await usage_repository.update_user_theme_preference(
+        user_id=user_id,
+        theme_preference=theme_preference,
+    )
+
+    return UserPreferencesResponse(theme_preference=theme_preference)
+
+
+def is_usage_admin(current_user: AuthenticatedUser) -> bool:
+    return bool(_normalize_groups(current_user.groups) & _get_admin_groups())
 
 
 async def save_successful_question_usage(
@@ -153,3 +232,41 @@ def _get_default_user_monthly_token_quota() -> int:
         raise ValueError("DEFAULT_USER_MONTHLY_TOKEN_QUOTA must be greater than 0")
 
     return max_tokens
+
+
+def _quota_row_to_response(row) -> QuotaUsageResponse:
+    max_tokens = int(row["max_tokens_par_mois"])
+    consumed_tokens = int(row["consumed_tokens"])
+    remaining_tokens = max(max_tokens - consumed_tokens, 0)
+    usage_ratio = consumed_tokens / max_tokens if max_tokens > 0 else 0.0
+
+    return QuotaUsageResponse(
+        utilisateur_id=row["utilisateur_id"],
+        email=row["email"],
+        max_tokens_par_mois=max_tokens,
+        consumed_tokens=consumed_tokens,
+        remaining_tokens=remaining_tokens,
+        usage_ratio=min(usage_ratio, 1.0),
+        actif=bool(row["actif"]),
+        date_debut=row["date_debut"],
+        date_fin=row["date_fin"],
+    )
+
+
+def _get_admin_groups() -> set[str]:
+    raw_groups = os.getenv("RAG_USAGE_ADMIN_GROUPS", "admin,admins,rag-admin")
+
+    return _normalize_groups(raw_groups.split(","))
+
+
+def _normalize_groups(groups: Iterable[str]) -> set[str]:
+    return {group.strip().lower() for group in groups if group.strip()}
+
+
+def _normalize_optional_email(email: str | None) -> str | None:
+    if email is None:
+        return None
+
+    normalized_email = email.strip().lower()
+
+    return normalized_email or None

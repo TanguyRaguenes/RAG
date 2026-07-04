@@ -10,9 +10,8 @@ from app.components.common import (
     render_api_error,
     render_healthcheck_status,
     render_page_header,
-    render_sidebar_brand,
 )
-from app.services.auth_service import get_access_token, logout, require_authenticated_user
+from app.services.auth_service import get_access_token, require_authenticated_user
 from app.services.rag_api_client import (
     RagApiError,
     ask_question,
@@ -27,7 +26,7 @@ from app.state.session_state import (
     pop_pending_prompt,
     set_pending_prompt,
 )
-from app.styles.theme import apply_theme, render_theme_selector
+from app.styles.theme import apply_theme
 
 
 PROVIDER_OPTIONS = {
@@ -44,13 +43,9 @@ def _load_config_or_stop():
         st.stop()
 
 
-def _render_sidebar(current_user: dict | None, config) -> tuple[str, bool]:
+def _render_sidebar(config) -> tuple[str, bool]:
     with st.sidebar:
-        render_sidebar_brand(current_user)
-        st.divider()
-
-        render_theme_selector()
-        st.divider()
+        st.subheader("Discussion")
 
         provider_label = st.radio(
             "Mode de réponse",
@@ -65,8 +60,6 @@ def _render_sidebar(current_user: dict | None, config) -> tuple[str, bool]:
             help="À réserver au diagnostic : prompt généré et détails d'erreur.",
         )
 
-        st.divider()
-
         if st.button("🔍 État API", use_container_width=True):
             render_healthcheck_status(
                 "Ping API...",
@@ -76,10 +69,6 @@ def _render_sidebar(current_user: dict | None, config) -> tuple[str, bool]:
         if st.button("Effacer la conversation", use_container_width=True):
             clear_chat_messages()
             st.toast("Conversation effacée.")
-            st.rerun()
-
-        if st.button("Se déconnecter", use_container_width=True):
-            logout()
             st.rerun()
 
     return PROVIDER_OPTIONS[provider_label], details_mode == "Affichés"
@@ -111,11 +100,11 @@ def _process_prompt(prompt: str, provider: str, debug_enabled: bool, config) -> 
 
 
 config = _load_config_or_stop()
-current_user = require_authenticated_user()
+require_authenticated_user()
 init_chat_state()
 apply_theme()
 
-provider, debug_mode = _render_sidebar(current_user, config)
+provider, debug_mode = _render_sidebar(config)
 
 render_page_header("IsiDore", "")
 

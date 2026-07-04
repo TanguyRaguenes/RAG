@@ -6,6 +6,7 @@ from fastapi.responses import JSONResponse
 from app.api.lifespan import lifespan
 from app.api.routers.query_router import router as query_router
 from app.api.routers.auth_router import router as auth_router
+from app.api.routers.usage_router import router as usage_router
 from app.core.exceptions import OrchestratorContainerCustomException
 
 app = FastAPI(
@@ -21,6 +22,7 @@ logger = logging.getLogger(__name__)
 
 app.include_router(query_router)
 app.include_router(auth_router)
+app.include_router(usage_router)
 
 
 @app.get("/")

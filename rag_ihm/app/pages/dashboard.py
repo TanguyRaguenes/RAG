@@ -23,10 +23,10 @@ from app.state.session_state import (
     get_dashboard_result,
     save_dashboard_result,
 )
-from app.styles.theme import apply_theme, render_theme_selector
+from app.styles.theme import apply_theme
 
 
-def _load_config_or_stop():
+def _load_evaluator_config_or_stop():
     try:
         return load_evaluator_api_config()
     except RagApiError as error:
@@ -34,17 +34,16 @@ def _load_config_or_stop():
         st.stop()
 
 
-def _render_sidebar(config) -> None:
+def _render_sidebar(evaluator_config) -> None:
     with st.sidebar:
-        st.title("Évaluation")
+        st.subheader("Évaluation")
         st.caption("Mesure la qualité du retrieval et des réponses générées.")
-        render_theme_selector()
         st.divider()
 
         if st.button("🔍 État API", use_container_width=True):
             render_healthcheck_status(
                 "Ping API...",
-                lambda: check_api_health(config.health_url),
+                lambda: check_api_health(evaluator_config.health_url),
             )
 
         has_result = get_dashboard_result() is not None
@@ -83,10 +82,10 @@ def _render_results(result: dict) -> None:
         render_answer_scores(result.get("average_answer_quality", {}))
 
 
+evaluator_config = _load_evaluator_config_or_stop()
 require_authenticated_user()
 apply_theme()
-config = _load_config_or_stop()
-_render_sidebar(config)
+_render_sidebar(evaluator_config)
 
 render_page_header(
     "Dashboard RAG",
@@ -94,7 +93,7 @@ render_page_header(
 )
 
 if st.button("Lancer l'évaluation", type="primary", use_container_width=True):
-    _run_evaluation(config)
+    _run_evaluation(evaluator_config)
 
 result = get_dashboard_result()
 if result:

@@ -1,22 +1,70 @@
 import streamlit as st
 
-from app.state.session_state import UI_THEME_KEY, get_theme_mode
+from app.services.rag_api_client import RagApiError, get_my_preferences, update_my_preferences
+from app.state.session_state import (
+    UI_THEME_KEY,
+    get_persisted_theme_mode,
+    get_theme_mode,
+    has_synced_theme_preference,
+    mark_theme_preference_synced,
+    set_theme_mode,
+)
 
 
 THEME_OPTIONS = ["Sombre", "Clair"]
 
 
-def render_theme_selector() -> None:
-    """Affiche le choix de thème dans la sidebar."""
+def sync_theme_preference(config, access_token: str | None) -> None:
+    """Charge le thème sauvegardé en base une seule fois par session Streamlit."""
+    if has_synced_theme_preference():
+        return
+
+    try:
+        preferences = get_my_preferences(config, access_token)
+    except RagApiError:
+        mark_theme_preference_synced(get_theme_mode())
+        return
+
+    theme_preference = preferences.get("theme_preference")
+
+    if _is_valid_theme(theme_preference):
+        set_theme_mode(theme_preference)
+        mark_theme_preference_synced(theme_preference)
+        return
+
+    mark_theme_preference_synced(get_theme_mode())
+
+
+def render_theme_selector(config=None, access_token: str | None = None) -> None:
+    """Affiche le choix de thème et sauvegarde la préférence si possible."""
     current_mode = get_theme_mode()
     index = THEME_OPTIONS.index(current_mode) if current_mode in THEME_OPTIONS else 0
-    st.radio(
+    selected_mode = st.radio(
         "Apparence",
         THEME_OPTIONS,
         index=index,
         horizontal=True,
         key=UI_THEME_KEY,
     )
+
+    if config is None or access_token is None:
+        return
+
+    persisted_mode = get_persisted_theme_mode()
+
+    if selected_mode == persisted_mode or not _is_valid_theme(selected_mode):
+        return
+
+    try:
+        update_my_preferences(config, access_token, selected_mode)
+    except RagApiError:
+        return
+
+    mark_theme_preference_synced(selected_mode)
+
+
+def _is_valid_theme(theme: object) -> bool:
+    return isinstance(theme, str) and theme in THEME_OPTIONS
 
 
 def apply_theme() -> None:
@@ -150,9 +198,9 @@ def apply_theme() -> None:
         textarea:focus,
         input:focus,
         [data-testid="stChatInput"] textarea:focus {{
-            outline: 2px solid #FF6D5A !important;
-            border-color: #FF6D5A !important;
-            box-shadow: 0 0 0 3px rgba(255, 109, 90, 0.22) !important;
+            outline: none !important;
+            border-color: transparent !important;
+            box-shadow: none !important;
             caret-color: #FF6D5A !important;
         }}
 
@@ -179,7 +227,53 @@ def apply_theme() -> None:
         [data-testid="stChatInput"] section:focus-within,
         [data-testid="stChatInput"] div[data-baseweb="textarea"]:focus-within {{
             border-color: #FF6D5A !important;
-            box-shadow: 0 0 0 3px rgba(255, 109, 90, 0.22) !important;
+            box-shadow: none !important;
+        }}
+
+        [data-testid="stChatInputSubmitButton"] button {{
+            background: #FF6D5A !important;
+            border: 1px solid #FF6D5A !important;
+            color: #FFFFFF !important;
+            opacity: 1 !important;
+            border-radius: 14px !important;
+            box-shadow: none !important;
+        }}
+
+        [data-testid="stChatInputSubmitButton"] svg,
+        [data-testid="stChatInputSubmitButton"] button svg {{
+            color: #FFFFFF !important;
+            fill: #FFFFFF !important;
+            stroke: #FFFFFF !important;
+        }}
+
+        [data-testid="stChatInputSubmitButton"] svg rect {{
+            display: none !important;
+        }}
+
+        [data-testid="stDataFrame"] * {{
+            color: #211A2E !important;
+        }}
+
+        [data-testid="stDataFrame"] input,
+        [data-testid="stDataFrame"] textarea {{
+            background: #FFFFFF !important;
+            color: #211A2E !important;
+            caret-color: #FF6D5A !important;
+        }}
+
+        [data-testid="stDataFrame"] [data-testid="stElementToolbar"] button,
+        [data-testid="stDataFrame"] [data-testid="stElementToolbar"] svg,
+        [data-testid="stElementToolbar"] button,
+        [data-testid="stElementToolbar"] svg {{
+            color: #211A2E !important;
+            fill: #211A2E !important;
+            stroke: #211A2E !important;
+            opacity: 1 !important;
+        }}
+
+        [data-baseweb="select"] *,
+        [data-baseweb="popover"] * {{
+            color: #211A2E !important;
         }}
 
         textarea::selection,

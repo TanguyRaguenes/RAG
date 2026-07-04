@@ -1,14 +1,22 @@
 -- ============================================================
 -- Table : utilisateur
--- Objectif : identifier un utilisateur sans stocker son email
--- id = HMAC-SHA256(email normalisé)
+-- Objectif : identifier un utilisateur avec un id pseudonymisé.
+-- id = HMAC-SHA256(email normalisé ou identifiant machine)
 -- ============================================================
 
 CREATE TABLE utilisateur (
     id TEXT PRIMARY KEY,
+    email TEXT NULL,
+    theme_preference VARCHAR(20) NOT NULL DEFAULT 'Clair',
 
     CONSTRAINT chk_utilisateur_id_hash
-        CHECK (id ~ '^[a-f0-9]{64}$')
+        CHECK (id ~ '^[a-f0-9]{64}$'),
+
+    CONSTRAINT chk_utilisateur_email_not_blank
+        CHECK (email IS NULL OR btrim(email) <> ''),
+
+    CONSTRAINT chk_utilisateur_theme_preference
+        CHECK (theme_preference IN ('Sombre', 'Clair'))
 );
 
 -- ============================================================

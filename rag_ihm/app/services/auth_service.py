@@ -60,8 +60,36 @@ def get_current_user() -> dict[str, Any] | None:
     return st.session_state.get(USER_KEY)
 
 
+def is_usage_admin(current_user: dict[str, Any] | None) -> bool:
+    if not current_user:
+        return False
+
+    admin_groups = _normalize_groups(
+        os.getenv("RAG_IHM_ADMIN_GROUPS", "rag_admin").split(",")
+    )
+    user_groups = (
+        current_user.get("groups")
+        or current_user.get("roles")
+        or current_user.get("role")
+        or []
+    )
+
+    if isinstance(user_groups, str):
+        user_groups = [user_groups]
+
+    return bool(_normalize_groups(user_groups) & admin_groups)
+
+
 def logout() -> None:
-    for key in [ACCESS_TOKEN_KEY, ID_TOKEN_KEY, REFRESH_TOKEN_KEY, USER_KEY, STATE_KEY]:
+    for key in [
+        ACCESS_TOKEN_KEY,
+        ID_TOKEN_KEY,
+        REFRESH_TOKEN_KEY,
+        USER_KEY,
+        STATE_KEY,
+        "ui_theme_synced",
+        "ui_theme_persisted",
+    ]:
         st.session_state.pop(key, None)
 
 
@@ -158,9 +186,9 @@ def handle_oidc_callback() -> None:
     st.session_state[ACCESS_TOKEN_KEY] = access_token
     st.session_state[ID_TOKEN_KEY] = token_response.get("id_token")
     st.session_state[REFRESH_TOKEN_KEY] = token_response.get("refresh_token")
-    st.session_state[USER_KEY] = _decode_jwt_payload_without_verification(
-        token_response.get("id_token", "")
-    )
+    id_claims = _decode_jwt_payload_without_verification(token_response.get("id_token", ""))
+    access_claims = _decode_jwt_payload_without_verification(access_token)
+    st.session_state[USER_KEY] = _merge_user_claims(id_claims, access_claims)
 
     st.query_params.clear()
     st.rerun()
@@ -170,12 +198,9 @@ def require_authenticated_user() -> dict[str, Any] | None:
     if is_authenticated():
         return get_current_user()
 
-    from app.styles.theme import apply_theme, render_theme_selector
+    from app.styles.theme import apply_theme
 
     apply_theme()
-
-    with st.sidebar:
-        render_theme_selector()
 
     login_url = html.escape(build_login_url(), quote=True)
     st.markdown(
@@ -187,10 +212,46 @@ def require_authenticated_user() -> dict[str, Any] | None:
                 <div class="auth-copy">
                     Connecte-toi avec Pocket ID pour accéder à la documentation interne.
                 </div>
-                <a class="auth-button" href="{login_url}">Se connecter avec Pocket ID</a>
+                <a class="auth-button" href="{login_url}" target="_self">Se connecter avec Pocket ID</a>
             </div>
         </div>
         """,
         unsafe_allow_html=True,
     )
     st.stop()
+
+
+def _normalize_groups(groups) -> set[str]:
+    if isinstance(groups, dict):
+        groups = [groups]
+
+    normalized_groups: set[str] = set()
+
+    for group in groups:
+        if isinstance(group, dict):
+            value = group.get("name") or group.get("display_name") or group.get("id")
+        else:
+            value = group
+
+        if value is None:
+            continue
+
+        normalized_group = str(value).strip().lower()
+
+        if normalized_group:
+            normalized_groups.add(normalized_group)
+
+    return normalized_groups
+
+
+def _merge_user_claims(
+    id_claims: dict[str, Any],
+    access_claims: dict[str, Any],
+) -> dict[str, Any]:
+    merged_claims = {**access_claims, **id_claims}
+
+    for key in ["groups", "roles", "role"]:
+        if not merged_claims.get(key) and access_claims.get(key):
+            merged_claims[key] = access_claims[key]
+
+    return merged_claims

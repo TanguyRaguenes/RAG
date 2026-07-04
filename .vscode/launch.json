@@ -55,7 +55,9 @@
       "pathMappings": [
         { "localRoot": "${workspaceFolder}/rag_ihm", "remoteRoot": "/app" }
       ],
-      "subProcess": true
+      "subProcess": true,
+      "justMyCode": false,
+      "redirectOutput": true
     },
     {
       "name": "Attach rag_retriever",
