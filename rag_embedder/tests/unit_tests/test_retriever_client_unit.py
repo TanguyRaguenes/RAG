@@ -49,7 +49,9 @@ def _items() -> VectorStoreItemsBase:
 
 
 @pytest.mark.asyncio
-async def test_save_items_requires_retriever_url(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_save_items_requires_retriever_url(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.delenv("RAG_RETRIEVER_INGEST_DOCUMENTS_URL", raising=False)
 
     with pytest.raises(RetrievalServiceException) as exc_info:
@@ -59,10 +61,14 @@ async def test_save_items_requires_retriever_url(monkeypatch: pytest.MonkeyPatch
 
 
 @pytest.mark.asyncio
-async def test_save_items_posts_vector_store_payload(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_save_items_posts_vector_store_payload(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     FakeAsyncClient.calls = []
     FakeAsyncClient.response = FakeResponse({"saved": True})
-    monkeypatch.setenv("RAG_RETRIEVER_INGEST_DOCUMENTS_URL", "http://retriever/save_items")
+    monkeypatch.setenv(
+        "RAG_RETRIEVER_INGEST_DOCUMENTS_URL", "http://retriever/save_items"
+    )
     monkeypatch.setattr(retriever_client.httpx, "AsyncClient", FakeAsyncClient)
 
     result = await retriever_client.save_items(_items())
@@ -78,9 +84,13 @@ async def test_save_items_posts_vector_store_payload(monkeypatch: pytest.MonkeyP
 
 
 @pytest.mark.asyncio
-async def test_save_items_wraps_http_status_errors(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_save_items_wraps_http_status_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     FakeAsyncClient.response = FakeResponse({}, status_code=503, text="down")
-    monkeypatch.setenv("RAG_RETRIEVER_INGEST_DOCUMENTS_URL", "http://retriever/save_items")
+    monkeypatch.setenv(
+        "RAG_RETRIEVER_INGEST_DOCUMENTS_URL", "http://retriever/save_items"
+    )
     monkeypatch.setattr(retriever_client.httpx, "AsyncClient", FakeAsyncClient)
 
     with pytest.raises(RetrievalServiceException) as exc_info:

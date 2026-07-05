@@ -123,7 +123,9 @@ async def test_ingest_documents_saves_vector_store_items(
             ],
         )
 
-    monkeypatch.setattr(service, "prepare_document_to_ingest", fake_prepare_document_to_ingest)
+    monkeypatch.setattr(
+        service, "prepare_document_to_ingest", fake_prepare_document_to_ingest
+    )
     monkeypatch.setattr(service, "client_save_items", fake_save_items)
 
     response = await service.ingest_documents(

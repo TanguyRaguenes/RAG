@@ -7,7 +7,9 @@ from app.schemas.save_items_response_schema import SaveItemsResponseBase
 
 
 @pytest.mark.asyncio
-async def test_embed_text_route_returns_embedding_and_duration(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_embed_text_route_returns_embedding_and_duration(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     async def fake_service_embed_text(text: str, config: dict) -> list[float]:
         assert text == "question"
         assert config == {"config": True}
@@ -27,8 +29,12 @@ async def test_embed_text_route_returns_embedding_and_duration(monkeypatch: pyte
 
 
 @pytest.mark.asyncio
-async def test_ingest_bulk_route_loads_documents_and_returns_saved_items(monkeypatch: pytest.MonkeyPatch) -> None:
-    documents = DocumentsBase(documents=[DocumentBase(path="doc.md", content="content")])
+async def test_ingest_bulk_route_loads_documents_and_returns_saved_items(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    documents = DocumentsBase(
+        documents=[DocumentBase(path="doc.md", content="content")]
+    )
 
     async def fake_load_documents() -> DocumentsBase:
         return documents

@@ -22,7 +22,9 @@ async def test_read_markdown_documents_returns_relative_paths_and_ignores_git(
 
     result = await read_markdown_documents()
 
-    documents_by_path = {document.path: document.content for document in result.documents}
+    documents_by_path = {
+        document.path: document.content for document in result.documents
+    }
     assert documents_by_path == {"guide.md": "Guide", "nested/page.md": "Page"}
 
 
