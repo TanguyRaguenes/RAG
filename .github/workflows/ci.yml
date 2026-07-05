@@ -28,6 +28,9 @@ jobs:
           mkdir -p ../wikis
           touch rag_orchestrator/.env
           touch rag_evaluator/.env
+          touch rag_ihm/.env
+          touch rag_mcp/.env
+          touch pocket-id/.env
 
       # 3° Installe uv
       # uv sert à gérer Python + dépendances
