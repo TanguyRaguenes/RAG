@@ -98,7 +98,7 @@ Choisir le niveau le plus bas capable de prouver le comportement :
 - fonction pure ou transformation : test unitaire direct ;
 - service métier avec dépendances : test unitaire avec dépendances injectées, mocks ou fakes ;
 - client HTTP externe : test unitaire des erreurs avec mock/transport simulé, test d'intégration séparé si un service réel est requis ;
-- route FastAPI : test avec `TestClient` ou client async et overrides de dépendances ;
+- route FastAPI : test avec `TestClient` pour les cas synchrones simples, ou `httpx.AsyncClient` avec `ASGITransport` pour les tests async et les overrides de dépendances ;
 - Streamlit : tester d'abord les fonctions pures, services API, helpers d'état et transformations plutôt que le rendu Streamlit complet ;
 - observabilité : tester que le comportement reste correct, et vérifier les métriques/logs uniquement si leur présence est contractuelle ou critique.
 
@@ -117,6 +117,8 @@ Règles :
 - tester les erreurs applicatives avec `pytest.raises` et vérifier le slug, le statut, le message utile, les détails et le chaînage `__cause__` quand c'est pertinent.
 
 Pour le code async, utiliser `@pytest.mark.asyncio` ou la configuration `asyncio_mode = "auto"`.
+
+Pour une application FastAPI async, préférer `httpx.AsyncClient` avec `ASGITransport(app=app)` quand cela évite les incompatibilités `TestClient`/`httpx`. Si le test dépend des événements de démarrage ou d'arrêt, gérer explicitement le lifespan avec l'outil déjà utilisé par le service ou une fixture dédiée.
 
 ## Tests d'intégration
 
@@ -173,6 +175,8 @@ Viser une couverture élevée sur le code critique, sans chercher une couverture
 
 Exiger au minimum 80% de couverture globale sur le package `app` pour les services testés. Si le service part de très loin, signaler explicitement l'écart restant, mais ne pas abaisser l'objectif sans demande explicite.
 
+Atteindre cette couverture par des tests utiles sur les comportements critiques. Ne pas écrire de tests artificiels qui figent l'implémentation uniquement pour gagner des lignes couvertes.
+
 Prioriser :
 
 - parsing et validation ;
@@ -187,7 +191,7 @@ Ne pas tester uniquement pour faire monter un pourcentage si le test n'apporte p
 
 ## Commandes utiles
 
-Exécuter les commandes depuis le dossier du microservice concerné.
+Exécuter les commandes depuis le dossier du microservice concerné, ou utiliser `uv run --project <service> ...` depuis la racine.
 
 ```bash
 uv run pytest
@@ -197,7 +201,7 @@ uv run pytest --cov=app --cov-report=term-missing --cov-fail-under=80
 uv run ruff check .
 ```
 
-Ajouter `pytest-asyncio` ou `pytest-cov` au groupe dev uniquement si la commande ciblée en a besoin et si la dépendance manque.
+Ajouter `pytest-asyncio`, `pytest-cov` ou un outil de test au groupe dev uniquement si la commande ciblée en a besoin et si la dépendance manque. Utiliser `uv add --group dev <package>` plutôt qu'une édition manuelle de `pyproject.toml`, afin de garder `uv.lock` cohérent.
 
 ## Workflow
 

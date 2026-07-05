@@ -100,7 +100,7 @@ Elle doit proposer :
 - une saisie claire ;
 - une réponse lisible ;
 - des sources compactes et compréhensibles ;
-- des métadonnées discrètes : modèle, durée, tokens, coût ;
+- des métadonnées discrètes : modèle, durée, nombre de tokens consommés, coût ;
 - un message clair si aucune source n'est trouvée ;
 - un message clair si l'API est indisponible.
 
@@ -148,10 +148,10 @@ Ne pas créer un design system complet si quelques composants locaux suffisent. 
 - Déclencher les appels API depuis une action utilisateur.
 - Limiter les données lourdes stockées en session.
 - Utiliser `st.cache_data` ou `st.cache_resource` seulement pour des données ou ressources adaptées.
-- Vérifier que les dépendances importées sont dans `pyproject.toml`.
+- Vérifier que les dépendances importées sont déclarées avec `uv add` ou `uv add --group dev` selon leur usage, afin de garder `pyproject.toml` et `uv.lock` cohérents.
 - Respecter la casse exacte des chemins pour Docker/Linux.
 
-À éviter : CSS fragile basé sur les classes internes Streamlit, `unsafe_allow_html=True` sans justification, erreurs techniques brutes, prompts ou tokens visibles, expanders imbriqués et fichiers page trop longs.
+À éviter : CSS fragile basé sur les classes internes Streamlit, `unsafe_allow_html=True` sans justification, erreurs techniques brutes, prompts visibles, tokens d'authentification visibles, expanders imbriqués et fichiers page trop longs.
 
 ## Appels API, erreurs et sécurité
 
@@ -159,7 +159,7 @@ Isoler les appels API dans `app/services` quand cela améliore la lisibilité.
 
 Gérer explicitement les timeouts, réponses non JSON et erreurs réseau. Transformer les erreurs techniques en messages utilisateur compréhensibles.
 
-Ne jamais afficher tokens, secrets OIDC, webhooks, prompts internes ou détails complets de token décodé.
+Ne jamais afficher tokens d'authentification, secrets OIDC, webhooks, prompts internes ou détails complets de token décodé. Le `token_count` d'un modèle peut être affiché comme métrique d'usage s'il ne contient aucune valeur sensible.
 
 ## Simplification des fichiers
 
@@ -176,6 +176,8 @@ Pendant la modification : améliorer la clarté, ajouter les feedbacks utiles, s
 Après modification : vérifier que la page charge, que les interactions principales répondent, que l'affichage reste utilisable sur mobile, que les états d'erreur sont compréhensibles et que les tests ajoutés respectent l'organisation `rag_embedder` si la demande inclut des tests.
 
 ## Commandes utiles
+
+Lancer les commandes depuis le dossier `rag_ihm`, ou utiliser `uv run --project rag_ihm ...` depuis la racine.
 
 ```bash
 uv run streamlit run app/main.py

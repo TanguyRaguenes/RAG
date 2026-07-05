@@ -173,13 +173,15 @@ Ne pas ajouter de plugins ou thèmes supplémentaires sans besoin concret.
 
 ## Commandes utiles
 
-Exécuter les commandes depuis le dossier du microservice concerné.
+Exécuter les commandes depuis le dossier du microservice concerné, ou utiliser `uv run --project <service> ...` depuis la racine.
 
 ```bash
-uv run mkdocs build
+uv run mkdocs build --strict
 uv run mkdocs serve
 docker build -f dockerfile.docs -t <service>_docs .
 ```
+
+Ajouter MkDocs ou ses plugins au groupe dev uniquement s'ils manquent. Utiliser `uv add --group dev mkdocs mkdocs-material mkdocs-mermaid2-plugin` plutôt qu'une édition manuelle de `pyproject.toml`, afin de garder `uv.lock` cohérent.
 
 Utiliser `docker compose config` depuis la racine seulement si la documentation touche Docker Compose.
 
@@ -189,7 +191,7 @@ Avant de modifier : identifier le service, lire sa documentation existante, insp
 
 Pendant la modification : mettre à jour `docs/index.md`, `mkdocs.yml` et éventuellement `README.md` si le service l'utilise réellement. Garder la documentation alignée avec le code et éviter les détails sensibles.
 
-Après modification : valider la syntaxe Markdown/MkDocs si les dépendances sont disponibles, vérifier les diagrammes Mermaid visuellement si possible et relire les exemples de commandes.
+Après modification : valider la documentation avec `mkdocs build --strict` si les dépendances sont disponibles, vérifier les diagrammes Mermaid visuellement si possible et relire les exemples de commandes.
 
 ## Règles strictes
 

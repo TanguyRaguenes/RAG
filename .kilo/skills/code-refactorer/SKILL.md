@@ -156,14 +156,16 @@ Viser une couverture élevée sur les nouvelles parties critiques, sans élargir
 
 Respecter l'organisation de tests utilisée par `rag_embedder` : `tests/unit_tests/test_*_unit.py`, `tests/integration_tests/test_*_integration.py` et `tests/conftest.py` pour les fixtures partagées.
 
-Commandes utiles selon le service :
+Commandes utiles selon le service. Les lancer depuis le dossier du microservice concerné, ou utiliser `uv run --project <service> ...` depuis la racine.
 
 ```bash
 uv run pytest
 uv run pytest --cov=app --cov-report=term-missing
 uv run ruff check .
-uv run ruff format .
+uv run ruff format --check .
 ```
+
+Utiliser `uv run ruff format .` seulement quand le formatage fait partie de la demande ou de la correction acceptée.
 
 ## Préserver les spécialités transverses
 

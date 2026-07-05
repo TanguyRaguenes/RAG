@@ -68,6 +68,8 @@ Conventions :
 - utiliser JSON pour les services Python ;
 - utiliser `logging.getLogger(__name__)` ;
 - passer les champs structurés via `extra={...}` ;
+- vérifier que le formatter JSON sérialise réellement les champs `extra` utiles ;
+- éviter les collisions avec les attributs réservés de `logging.LogRecord` ;
 - garder des noms d'événements stables.
 
 Champs recommandés selon le contexte : `service`, `group`, `event`, `operation`, `status`, `duration_ms`, `error_type`, `status_code`, `model`, `provider`, `token_count`, `document_count`, `chunk_count`.
@@ -103,7 +105,9 @@ Règles :
 - définir un `service.name` stable ;
 - rendre l'endpoint OTLP configurable quand c'est raisonnable ;
 - instrumenter FastAPI pour les services HTTP ;
+- instrumenter `httpx` ou propager explicitement les headers W3C `traceparent` sur les appels interservices ;
 - tracer les appels externes importants ;
+- corréler logs et traces avec `trace_id` et `span_id` quand le format de log le permet ;
 - créer des spans métiers sur les opérations longues ;
 - éviter les spans trop fines dans les boucles de chunks ;
 - ne pas mettre de contenu sensible dans les attributs.
@@ -137,6 +141,8 @@ Pendant la modification : ajouter uniquement les logs, métriques et spans utile
 Après modification : vérifier les tests pertinents en respectant l'organisation `rag_embedder` (`tests/unit_tests`, `tests/integration_tests`, `tests/conftest.py`), `/metrics` si exposé, l'absence de données sensibles, la cardinalité des labels et la lisibilité dans Grafana/Loki/Tempo lorsque la stack est disponible.
 
 ## Commandes utiles
+
+Lancer les commandes Python depuis le dossier du microservice concerné, ou utiliser `uv run --project <service> ...` depuis la racine.
 
 ```bash
 uv run pytest
