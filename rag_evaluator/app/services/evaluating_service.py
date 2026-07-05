@@ -11,13 +11,21 @@ from app.schemas.retrieval_evaluation_schema import RetrievalEvaluationBase
 from app.services.evaluating_answer_service import evaluate_answer
 from app.services.evaluating_retrieval_service import evaluate_retrieval
 
+RetrievalAccumulator = dict[str, float]
+QualityAccumulator = dict[str, float]
+
 
 def load_dataset() -> list[dict[str, Any]]:
     dataset_path = os.getenv("DATASET_PATH")
+    if not dataset_path:
+        raise ValueError("DATASET_PATH must be configured")
+
     with open(dataset_path, "r", encoding="utf-8") as f:
         data = json.load(f)
+
     if not isinstance(data, list):
         raise ValueError("dataset.json doit contenir une liste d'objets")
+
     return data
 
 
@@ -26,20 +34,10 @@ async def evaluate_rag(config: dict) -> EvaluatorResponseBase:
     nb_questions = len(tests)
 
     if nb_questions == 0:
-        return EvaluatorResponseBase(
-            average_retrieval=RetrievalEvaluationBase(
-                mrr=0.0, ndcg=0.0, recall=0.0, precision=0.0
-            ),
-            average_answer_quality=AnswerEvaluationBase(
-                feedback="Aucune évaluation", accuracy=0, completeness=0, relevance=0
-            ),
-            total_duration="00:00",
-            total_questions=0,
-        )
+        return build_empty_evaluation_response()
 
-    # ---- accumulateurs ----
-    acc_retrieval = {"mrr": 0.0, "ndcg": 0.0, "recall": 0.0, "precision": 0.0}
-    acc_quality = {"accuracy": 0.0, "completeness": 0.0, "relevance": 0.0}
+    acc_retrieval = build_retrieval_accumulator()
+    acc_quality = build_quality_accumulator()
     valid_judgements = 0
 
     for test in tests:
@@ -67,11 +65,7 @@ async def evaluate_rag(config: dict) -> EvaluatorResponseBase:
         retrieval_evaluation_response = evaluate_retrieval(
             keywords=keywords, retrieved_chunks=retrieved_chunks, k=5
         )
-
-        acc_retrieval["mrr"] += retrieval_evaluation_response.mrr
-        acc_retrieval["ndcg"] += retrieval_evaluation_response.ndcg
-        acc_retrieval["recall"] += retrieval_evaluation_response.recall
-        acc_retrieval["precision"] += retrieval_evaluation_response.precision
+        add_retrieval_score(acc_retrieval, retrieval_evaluation_response)
 
         # 3° On demande à un autre LLM son avis sur la réponse de notre RAG
         try:
@@ -83,34 +77,90 @@ async def evaluate_rag(config: dict) -> EvaluatorResponseBase:
                 retrieved_chunks=retrieved_chunks,
             )
 
-            acc_quality["accuracy"] += answer_evaluation_response.accuracy
-            acc_quality["completeness"] += answer_evaluation_response.completeness
-            acc_quality["relevance"] += answer_evaluation_response.relevance
+            add_quality_score(acc_quality, answer_evaluation_response)
             valid_judgements += 1
 
         except Exception as e:
             print(e)
 
-    # ---- moyennes ----
-    avg_retrieval = RetrievalEvaluationBase(
-        mrr=round(acc_retrieval["mrr"] / nb_questions, 4),
-        ndcg=round(acc_retrieval["ndcg"] / nb_questions, 4),
-        recall=round(acc_retrieval["recall"] / nb_questions, 4),
-        precision=round(acc_retrieval["precision"] / nb_questions, 4),
-    )
-
-    div_q = valid_judgements if valid_judgements > 0 else 1
-
-    avg_answer_quality = AnswerEvaluationBase(
-        feedback="Moyenne Globale du Dataset",
-        accuracy=round(acc_quality["accuracy"] / div_q, 2),
-        completeness=round(acc_quality["completeness"] / div_q, 2),
-        relevance=round(acc_quality["relevance"] / div_q, 2),
-    )
-
     return EvaluatorResponseBase(
-        average_retrieval=avg_retrieval,
-        average_answer_quality=avg_answer_quality,
+        average_retrieval=calculate_average_retrieval(acc_retrieval, nb_questions),
+        average_answer_quality=calculate_average_quality(
+            acc_quality,
+            valid_judgements,
+        ),
         total_duration="00:00",
         total_questions=nb_questions,
+    )
+
+
+def build_empty_evaluation_response() -> EvaluatorResponseBase:
+    return EvaluatorResponseBase(
+        average_retrieval=RetrievalEvaluationBase(
+            mrr=0.0,
+            ndcg=0.0,
+            recall=0.0,
+            precision=0.0,
+        ),
+        average_answer_quality=AnswerEvaluationBase(
+            feedback="Aucune évaluation",
+            accuracy=0,
+            completeness=0,
+            relevance=0,
+        ),
+        total_duration="00:00",
+        total_questions=0,
+    )
+
+
+def build_retrieval_accumulator() -> RetrievalAccumulator:
+    return {"mrr": 0.0, "ndcg": 0.0, "recall": 0.0, "precision": 0.0}
+
+
+def build_quality_accumulator() -> QualityAccumulator:
+    return {"accuracy": 0.0, "completeness": 0.0, "relevance": 0.0}
+
+
+def add_retrieval_score(
+    accumulator: RetrievalAccumulator,
+    retrieval_evaluation: RetrievalEvaluationBase,
+) -> None:
+    accumulator["mrr"] += retrieval_evaluation.mrr
+    accumulator["ndcg"] += retrieval_evaluation.ndcg
+    accumulator["recall"] += retrieval_evaluation.recall
+    accumulator["precision"] += retrieval_evaluation.precision
+
+
+def add_quality_score(
+    accumulator: QualityAccumulator,
+    answer_evaluation: AnswerEvaluationBase,
+) -> None:
+    accumulator["accuracy"] += answer_evaluation.accuracy
+    accumulator["completeness"] += answer_evaluation.completeness
+    accumulator["relevance"] += answer_evaluation.relevance
+
+
+def calculate_average_retrieval(
+    accumulator: RetrievalAccumulator,
+    total_questions: int,
+) -> RetrievalEvaluationBase:
+    return RetrievalEvaluationBase(
+        mrr=round(accumulator["mrr"] / total_questions, 4),
+        ndcg=round(accumulator["ndcg"] / total_questions, 4),
+        recall=round(accumulator["recall"] / total_questions, 4),
+        precision=round(accumulator["precision"] / total_questions, 4),
+    )
+
+
+def calculate_average_quality(
+    accumulator: QualityAccumulator,
+    valid_judgements: int,
+) -> AnswerEvaluationBase:
+    divisor = valid_judgements if valid_judgements > 0 else 1
+
+    return AnswerEvaluationBase(
+        feedback="Moyenne Globale du Dataset",
+        accuracy=round(accumulator["accuracy"] / divisor, 2),
+        completeness=round(accumulator["completeness"] / divisor, 2),
+        relevance=round(accumulator["relevance"] / divisor, 2),
     )

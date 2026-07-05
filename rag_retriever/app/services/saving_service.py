@@ -1,7 +1,8 @@
 from app.schemas.save_items_response_schema import SavedItemBase, SaveItemsResponseBase
+from app.schemas.vector_db_items_schema import VectorStoreItemsBase
 
 
-def save_items(items, vector_store_repository) -> SaveItemsResponseBase:
+def save_items(items: VectorStoreItemsBase, vector_store_repository) -> SaveItemsResponseBase:
     wikis_collection = vector_store_repository.get_or_create_collection("wiki_chunks")
 
     collection_count_before = wikis_collection.count()

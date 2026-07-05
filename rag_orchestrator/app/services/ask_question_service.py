@@ -1,4 +1,5 @@
 import os
+from collections import Counter
 from decimal import Decimal
 from typing import Any
 
@@ -66,7 +67,7 @@ async def ask_question_to_api(
     db_pool: asyncpg.Pool,
 ) -> AskQuestionResponseBase:
 
-    api_key: str = os.getenv("OPEN_API_KEY")
+    api_key: str | None = os.getenv("OPEN_API_KEY")
 
     stream: bool = config["llm"]["common"]["stream"]
 
@@ -117,21 +118,9 @@ async def ask_question_to_api(
 
 
 def design_source(retrieved_chunks: list[dict[str, Any]]) -> dict[str, int]:
-    sources: dict[str, int] = {}
+    sources = Counter(chunk["metadata"]["title"] for chunk in retrieved_chunks)
 
-    for chunk in retrieved_chunks:
-        title = chunk["metadata"]["title"]
-
-        if title in sources:
-            sources[title] += 1
-        else:
-            sources[title] = 1
-
-    sources_sorted = dict(
-        sorted(sources.items(), key=lambda item: item[1], reverse=True)
-    )
-
-    return sources_sorted
+    return dict(sources.most_common())
 
 
 async def calculate_cost(

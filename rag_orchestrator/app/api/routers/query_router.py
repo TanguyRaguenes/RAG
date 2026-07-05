@@ -42,7 +42,11 @@ async def ask_question_route(
     rag_completed = False
 
     try:
-        user_id, session_id = await start_usage_session(current_user, db_pool, body.channel)
+        user_id, session_id = await start_usage_session(
+            current_user,
+            db_pool,
+            body.channel,
+        )
     except ValueError as exception:
         raise HTTPException(status_code=400, detail=str(exception)) from exception
 
@@ -51,21 +55,19 @@ async def ask_question_route(
     except QuotaExceededError as exception:
         duration_ms = _elapsed_ms(start)
 
-        try:
-            await save_failed_question_usage(
-                db_pool=db_pool,
-                session_id=session_id,
-                question=body.question,
-                status="quota_exceeded",
-                duration_ms=duration_ms,
-            )
-        except Exception:
-            logger.exception("Failed to save quota exceeded RAG interaction")
-
-        try:
-            await finish_usage_session(db_pool, session_id)
-        except Exception:
-            logger.exception("Failed to finish quota exceeded usage session")
+        await _save_failed_usage_safely(
+            db_pool=db_pool,
+            session_id=session_id,
+            question=body.question,
+            status="quota_exceeded",
+            duration_ms=duration_ms,
+            log_message="Failed to save quota exceeded RAG interaction",
+        )
+        await _finish_usage_session_safely(
+            db_pool=db_pool,
+            session_id=session_id,
+            log_message="Failed to finish quota exceeded usage session",
+        )
 
         raise HTTPException(
             status_code=403,
@@ -99,24 +101,22 @@ async def ask_question_route(
         duration_ms = _elapsed_ms(start)
 
         if not rag_completed:
-            try:
-                await save_failed_question_usage(
-                    db_pool=db_pool,
-                    session_id=session_id,
-                    question=body.question,
-                    status="error",
-                    duration_ms=duration_ms,
-                )
-            except Exception:
-                logger.exception("Failed to save failed RAG interaction")
+            await _save_failed_usage_safely(
+                db_pool=db_pool,
+                session_id=session_id,
+                question=body.question,
+                status="error",
+                duration_ms=duration_ms,
+                log_message="Failed to save failed RAG interaction",
+            )
 
         raise
     finally:
-        if session_id is not None:
-            try:
-                await finish_usage_session(db_pool, session_id)
-            except Exception:
-                logger.exception("Failed to finish usage session")
+        await _finish_usage_session_safely(
+            db_pool=db_pool,
+            session_id=session_id,
+            log_message="Failed to finish usage session",
+        )
 
 
 @router.post("/retrieve_chunks", response_model=RetrieveChunksResponseBase)
@@ -154,24 +154,22 @@ async def retrieve_chunks_route(
         duration_ms = _elapsed_ms(start)
 
         if not retrieval_completed:
-            try:
-                await save_failed_question_usage(
-                    db_pool=db_pool,
-                    session_id=session_id,
-                    question=body.question,
-                    status="error",
-                    duration_ms=duration_ms,
-                )
-            except Exception:
-                logger.exception("Failed to save failed MCP retrieval interaction")
+            await _save_failed_usage_safely(
+                db_pool=db_pool,
+                session_id=session_id,
+                question=body.question,
+                status="error",
+                duration_ms=duration_ms,
+                log_message="Failed to save failed MCP retrieval interaction",
+            )
 
         raise
     finally:
-        if session_id is not None:
-            try:
-                await finish_usage_session(db_pool, session_id)
-            except Exception:
-                logger.exception("Failed to finish MCP usage session")
+        await _finish_usage_session_safely(
+            db_pool=db_pool,
+            session_id=session_id,
+            log_message="Failed to finish MCP usage session",
+        )
 
 
 def _elapsed_ms(start: float) -> int:
@@ -187,3 +185,42 @@ def _format_duration(duration_ms: int) -> str:
 
 def _get_llm_provider(provider: str, config: dict) -> str:
     return config["llm"][provider]["provider"]
+
+
+async def _save_failed_usage_safely(
+    *,
+    db_pool: asyncpg.Pool,
+    session_id: int | None,
+    question: str,
+    status: str,
+    duration_ms: int,
+    log_message: str,
+) -> None:
+    if session_id is None:
+        return
+
+    try:
+        await save_failed_question_usage(
+            db_pool=db_pool,
+            session_id=session_id,
+            question=question,
+            status=status,
+            duration_ms=duration_ms,
+        )
+    except Exception:
+        logger.exception(log_message)
+
+
+async def _finish_usage_session_safely(
+    *,
+    db_pool: asyncpg.Pool,
+    session_id: int | None,
+    log_message: str,
+) -> None:
+    if session_id is None:
+        return
+
+    try:
+        await finish_usage_session(db_pool, session_id)
+    except Exception:
+        logger.exception(log_message)

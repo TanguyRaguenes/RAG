@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class AuthenticatedUser(BaseModel):
@@ -6,4 +6,4 @@ class AuthenticatedUser(BaseModel):
     email: str | None = None
     name: str | None = None
     preferred_username: str | None = None
-    groups: list[str] = []
+    groups: list[str] = Field(default_factory=list)

@@ -17,6 +17,16 @@ REFRESH_TOKEN_KEY = "auth_refresh_token"
 USER_KEY = "auth_user"
 STATE_KEY = "auth_state"
 
+AUTH_SESSION_KEYS = (
+    ACCESS_TOKEN_KEY,
+    ID_TOKEN_KEY,
+    REFRESH_TOKEN_KEY,
+    USER_KEY,
+    STATE_KEY,
+    "ui_theme_synced",
+    "ui_theme_persisted",
+)
+
 
 @dataclass(frozen=True)
 class OidcConfig:
@@ -67,29 +77,12 @@ def is_usage_admin(current_user: dict[str, Any] | None) -> bool:
     admin_groups = _normalize_groups(
         os.getenv("RAG_IHM_ADMIN_GROUPS", "rag_admin").split(",")
     )
-    user_groups = (
-        current_user.get("groups")
-        or current_user.get("roles")
-        or current_user.get("role")
-        or []
-    )
 
-    if isinstance(user_groups, str):
-        user_groups = [user_groups]
-
-    return bool(_normalize_groups(user_groups) & admin_groups)
+    return bool(_normalize_groups(_extract_user_groups(current_user)) & admin_groups)
 
 
 def logout() -> None:
-    for key in [
-        ACCESS_TOKEN_KEY,
-        ID_TOKEN_KEY,
-        REFRESH_TOKEN_KEY,
-        USER_KEY,
-        STATE_KEY,
-        "ui_theme_synced",
-        "ui_theme_persisted",
-    ]:
+    for key in AUTH_SESSION_KEYS:
         st.session_state.pop(key, None)
 
 
@@ -98,15 +91,19 @@ def build_login_url() -> str:
     state = secrets.token_urlsafe(32)
     st.session_state[STATE_KEY] = state
 
-    params = {
+    params = build_authorization_params(config, state)
+
+    return f"{config.authorize_url}?{urlencode(params)}"
+
+
+def build_authorization_params(config: OidcConfig, state: str) -> dict[str, str]:
+    return {
         "response_type": "code",
         "client_id": config.client_id,
         "redirect_uri": config.redirect_uri,
         "scope": config.scope,
         "state": state,
     }
-
-    return f"{config.authorize_url}?{urlencode(params)}"
 
 
 def _query_param_value(name: str) -> str | None:
@@ -242,6 +239,23 @@ def _normalize_groups(groups) -> set[str]:
             normalized_groups.add(normalized_group)
 
     return normalized_groups
+
+
+def _extract_user_groups(current_user: dict[str, Any]) -> list[Any]:
+    user_groups = (
+        current_user.get("groups")
+        or current_user.get("roles")
+        or current_user.get("role")
+        or []
+    )
+
+    if isinstance(user_groups, str):
+        return [user_groups]
+
+    if isinstance(user_groups, list):
+        return user_groups
+
+    return [user_groups]
 
 
 def _merge_user_claims(

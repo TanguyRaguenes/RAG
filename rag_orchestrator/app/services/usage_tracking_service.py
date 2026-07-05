@@ -346,7 +346,11 @@ def _decode_chunks(raw_chunks) -> list[dict]:
         return raw_chunks
 
     if isinstance(raw_chunks, str):
-        loaded_chunks = json.loads(raw_chunks)
+        try:
+            loaded_chunks = json.loads(raw_chunks)
+        except json.JSONDecodeError:
+            return []
+
         return loaded_chunks if isinstance(loaded_chunks, list) else []
 
     return []
