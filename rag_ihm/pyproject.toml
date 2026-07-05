@@ -14,3 +14,11 @@ dependencies = [
 dev = [
     "pytest>=9.0.2",
 ]
+
+[tool.coverage.run]
+omit = [
+    "app/main.py",
+    "app/components/*.py",
+    "app/pages/*.py",
+    "app/styles/*.py",
+]

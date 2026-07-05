@@ -75,3 +75,34 @@ def test_retrieve_chunks_uses_config_and_formats_repository_results() -> None:
     assert repository.call_args == (collection, [0.1, 0.2], 10, 0.5, 2, 3)
     assert len(response.chunks) == 1
     assert response.chunks[0].id == "Titre | wiki/page.md | 1"
+
+
+def test_retrieve_chunks_returns_empty_response_when_repository_returns_no_chunks() -> None:
+    repository = FakeVectorStoreRepository([])
+    config = {
+        "retriever": {
+            "top_k": 10,
+            "minimum_similarity": 0.5,
+            "minimum_number_of_chunks": 2,
+            "max_related_links": 3,
+        }
+    }
+
+    response = retrieve_chunks(config, object(), [0.1], repository)
+
+    assert response.chunks == []
+
+
+def test_format_retrieved_chunk_raises_key_error_when_required_metadata_is_missing() -> None:
+    chunk = {
+        "document": "contenu",
+        "metadata": {"title": "Titre", "path": "wiki/page.md"},
+        "similarity": 0.8,
+    }
+
+    try:
+        format_retrieved_chunk(chunk)
+    except KeyError as exc:
+        assert exc.args == ("chunk_index",)
+    else:
+        raise AssertionError("format_retrieved_chunk should require chunk_index metadata")
