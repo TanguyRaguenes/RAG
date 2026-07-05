@@ -27,12 +27,18 @@ jobs:
         run: |
           mkdir -p ../wikis
 
+          mkdir -p rag_orchestrator
+          mkdir -p rag_evaluator
+          mkdir -p rag_ihm
+          mkdir -p rag_mcp
+          mkdir -p pocket-id
+
           cat > .env <<EOF
           POSTGRES_DB=rag_test
           POSTGRES_USER=postgres
           POSTGRES_PASSWORD=postgres
           EOF
-          
+
           touch rag_orchestrator/.env
           touch rag_evaluator/.env
           touch rag_ihm/.env
