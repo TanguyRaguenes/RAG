@@ -239,46 +239,22 @@ def _authenticated_get(
     access_token: str | None,
     params: dict[str, Any] | None = None,
 ):
-    if not access_token:
-        raise RagApiError("La session a expiré. Reconnecte-toi pour continuer.")
-
-    try:
-        response = requests.get(
-            url,
-            params=params,
-            headers={"Authorization": f"Bearer {access_token}"},
-            timeout=30,
-        )
-    except requests.exceptions.Timeout as exception:
-        raise RagApiError("Le service met trop de temps à répondre.") from exception
-    except requests.exceptions.ConnectionError as exception:
-        raise RagApiError("Le service est injoignable pour le moment.") from exception
-    except requests.RequestException as exception:
-        raise RagApiError("La demande n'a pas pu être envoyée au service RAG.") from exception
-
-    _raise_for_error_response(response)
+    response = _authenticated_request(
+        "GET",
+        url,
+        access_token,
+        params=params,
+    )
     return _response_json_any(response)
 
 
 def _authenticated_post(url: str, access_token: str | None, payload: dict[str, Any]):
-    if not access_token:
-        raise RagApiError("La session a expiré. Reconnecte-toi pour continuer.")
-
-    try:
-        response = requests.post(
-            url,
-            json=payload,
-            headers={"Authorization": f"Bearer {access_token}"},
-            timeout=30,
-        )
-    except requests.exceptions.Timeout as exception:
-        raise RagApiError("Le service met trop de temps à répondre.") from exception
-    except requests.exceptions.ConnectionError as exception:
-        raise RagApiError("Le service est injoignable pour le moment.") from exception
-    except requests.RequestException as exception:
-        raise RagApiError("La demande n'a pas pu être envoyée au service RAG.") from exception
-
-    _raise_for_error_response(response)
+    response = _authenticated_request(
+        "POST",
+        url,
+        access_token,
+        payload=payload,
+    )
     return _response_json_any(response)
 
 
@@ -290,14 +266,33 @@ def _response_json_any(response: requests.Response):
 
 
 def _authenticated_patch(url: str, access_token: str | None, payload: dict[str, Any]):
+    response = _authenticated_request(
+        "PATCH",
+        url,
+        access_token,
+        payload=payload,
+    )
+    return _response_json(response)
+
+
+def _authenticated_request(
+    method: str,
+    url: str,
+    access_token: str | None,
+    *,
+    params: dict[str, Any] | None = None,
+    payload: dict[str, Any] | None = None,
+) -> requests.Response:
     if not access_token:
         raise RagApiError("La session a expiré. Reconnecte-toi pour continuer.")
 
     try:
-        response = requests.patch(
+        response = requests.request(
+            method,
             url,
+            params=params,
             json=payload,
-            headers={"Authorization": f"Bearer {access_token}"},
+            headers=_auth_headers(access_token),
             timeout=30,
         )
     except requests.exceptions.Timeout as exception:
@@ -308,7 +303,11 @@ def _authenticated_patch(url: str, access_token: str | None, payload: dict[str, 
         raise RagApiError("La demande n'a pas pu être envoyée au service RAG.") from exception
 
     _raise_for_error_response(response)
-    return _response_json(response)
+    return response
+
+
+def _auth_headers(access_token: str) -> dict[str, str]:
+    return {"Authorization": f"Bearer {access_token}"}
 
 
 def _docs_url(base_url: str) -> str:

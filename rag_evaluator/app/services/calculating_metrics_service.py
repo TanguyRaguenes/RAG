@@ -1,5 +1,4 @@
 import math
-from typing import List
 
 
 # Rappel format du dataset :
@@ -22,13 +21,13 @@ from typing import List
 # Si le bon chunk est en 2ème position : score = 1/2 = 0.5
 # Si le bon chunk est en 10ème position : score = 1/10 = 0.1
 # Pas de chunk pertinent ? Score = 0.
-def calculate_mrr(keywords: List[str], retrieved_chunks: List[str]) -> float:
+def calculate_mrr(keywords: list[str], retrieved_chunks: list[str]) -> float:
 
     if not keywords or not retrieved_chunks:
         return 0.0
 
-    keywords_lower = [keyword.lower() for keyword in keywords]
-    retrieved_chunks_lower = [chunk.lower() for chunk in retrieved_chunks]
+    keywords_lower = normalize_texts(keywords)
+    retrieved_chunks_lower = normalize_texts(retrieved_chunks)
 
     rr_scores = []
     
@@ -66,13 +65,13 @@ def calculate_mrr(keywords: List[str], retrieved_chunks: List[str]) -> float:
 # - Classement [B, A, C] (Moyen) : Le meilleur est tombé en 2ème -> Score < 1.0 (ex: 0.85)
 # - Classement [C, B, A] (Mauvais): Les bons chunks sont à la fin -> Score très faible.
 
-def calculate_ndcg(keywords: List[str], retrieved_chunks: List[str], k: int) -> float:
+def calculate_ndcg(keywords: list[str], retrieved_chunks: list[str], k: int) -> float:
 
     if not keywords or not retrieved_chunks:
         return 0.0
 
-    keywords_lower = [keyword.lower() for keyword in keywords]
-    retrieved_chunks_lower = [chunk.lower() for chunk in retrieved_chunks]
+    keywords_lower = normalize_texts(keywords)
+    retrieved_chunks_lower = normalize_texts(retrieved_chunks)
 
     # Pour chaque chunk, on dit qu'il vaut 1 (pertinent) si :
     # N'IMPORTE LEQUEL (any) des mots-clés est présent dans ce texte.
@@ -81,7 +80,7 @@ def calculate_ndcg(keywords: List[str], retrieved_chunks: List[str], k: int) -> 
     for chunk in retrieved_chunks_lower[:k]:
 
         # Est-ce que au moins un des mots-clés est dans ce texte ?
-        is_relevant = any(keyword in chunk for keyword in keywords_lower)
+        is_relevant = contains_keyword(chunk, keywords_lower)
         
         if is_relevant:
             relevances.append(1)
@@ -98,7 +97,7 @@ def calculate_ndcg(keywords: List[str], retrieved_chunks: List[str], k: int) -> 
     
     return (actual_dcg / idcg) if idcg > 0 else 0.0
 
-def calculate_dcg(relevances: List[int]) -> float:
+def calculate_dcg(relevances: list[int]) -> float:
 
     dcg = 0.0
     # On parcourt toute la liste de relevances fournie
@@ -127,13 +126,13 @@ def calculate_dcg(relevances: List[int]) -> float:
 # - Trouvés = 2. Total attendu = 3.
 # - Score = 2/3 = 0.66 (66% de couverture).
 
-def calculate_recall(keywords: List[str], retrieved_chunks: List[str]) -> float:
+def calculate_recall(keywords: list[str], retrieved_chunks: list[str]) -> float:
 
     if not keywords or not retrieved_chunks:
         return 0.0
     
-    keywords_lower = [keyword.lower() for keyword in keywords]
-    retrieved_chunks_lower = [chunk.lower() for chunk in retrieved_chunks]
+    keywords_lower = normalize_texts(keywords)
+    retrieved_chunks_lower = normalize_texts(retrieved_chunks)
 
     found_count = 0
 
@@ -160,13 +159,13 @@ def calculate_recall(keywords: List[str], retrieved_chunks: List[str]) -> float:
 # - Chunk 3 : Pertinent (Parle de Frais)
 # - Score : 2 pertinents sur 3 affichés = 2/3 = 0.66 (66%).
 
-def calculate_precision(keywords: List[str], retrieved_chunks: List[str], k) -> float:
+def calculate_precision(keywords: list[str], retrieved_chunks: list[str], k: int) -> float:
 
     if not keywords or not retrieved_chunks:
         return 0.0
 
-    keywords_lower = [keyword.lower() for keyword in keywords]
-    retrieved_chunks_lower = [chunk.lower() for chunk in retrieved_chunks]
+    keywords_lower = normalize_texts(keywords)
+    retrieved_chunks_lower = normalize_texts(retrieved_chunks)
 
     considered_chunks = retrieved_chunks_lower[:k]
     relevant_chunks_count = 0
@@ -178,8 +177,16 @@ def calculate_precision(keywords: List[str], retrieved_chunks: List[str], k) -> 
     # Un chunk est pertinent s'il contient AU MOINS UN mot-clé.
     # On évite ainsi de compter un chunk plusieurs fois.
     for chunk in considered_chunks:
-        is_relevant = any(kw in chunk for kw in keywords_lower)
+        is_relevant = contains_keyword(chunk, keywords_lower)
         if is_relevant:
             relevant_chunks_count += 1
-            
+             
     return relevant_chunks_count / len(considered_chunks)
+
+
+def normalize_texts(texts: list[str]) -> list[str]:
+    return [text.lower() for text in texts]
+
+
+def contains_keyword(text: str, keywords: list[str]) -> bool:
+    return any(keyword in text for keyword in keywords)

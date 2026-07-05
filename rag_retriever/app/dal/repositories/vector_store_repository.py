@@ -6,6 +6,8 @@ from chromadb.api.models.Collection import Collection, QueryResult
 from app.schemas.save_items_response_schema import SavedItemBase
 from app.schemas.vector_db_items_schema import VectorStoreItemsBase
 
+RetrievedChunk = dict[str, Any]
+
 
 class VectorStoreRepository:
     def __init__(self, config: dict, host: str = "chroma", port: int = 8000):
@@ -84,7 +86,7 @@ class VectorStoreRepository:
         minimum_similarity: float,
         minimum_number_of_chunks: int,
         max_related_links: int,
-    ) -> list[dict[str, Any]]:
+    ) -> list[RetrievedChunk]:
         # 1° Récupération des chunks bruts depuis Chroma
         retrieved_chunks: QueryResult = collection.query(
             query_embeddings=[query_embedding],
@@ -98,18 +100,7 @@ class VectorStoreRepository:
         distances = retrieved_chunks.get("distances", [[]])[0] or []
 
         # 3° Enrichissement des chunks avec distance et similarité
-        enriched_chunks = []
-        for document, metadata, distance in zip(documents, metadatas, distances):
-            # En cosinus (cosine en anglais) : similarité ≈ 1 - distance
-
-            enriched_chunks.append(
-                {
-                    "document": document,
-                    "metadata": metadata,
-                    "distance": float(distance),
-                    "similarity": 1.0 - float(distance),
-                }
-            )
+        enriched_chunks = build_enriched_chunks(documents, metadatas, distances)
 
         # 4° Filtre les chunks par similarité
         kept_chunks = self.filter_by_similarity(enriched_chunks, minimum_similarity)
@@ -128,21 +119,16 @@ class VectorStoreRepository:
         return enriched_kept_chunks
 
     def filter_by_similarity(
-        self, chunks: list, minimum_similarity: float
-    ) -> list[dict[str, Any]]:
-        # 1° Tri par similarité décroissante (meilleurs chunks en premier)
-        chunks.sort(key=lambda chunk: chunk["similarity"], reverse=True)
-
-        # 4° Filtrage : on conserve uniquement les chunks suffisamment pertinents
-        kept_chunks: list[dict[str, Any]] = [
-            chunk for chunk in chunks if chunk["similarity"] >= minimum_similarity
-        ]
-
-        return kept_chunks
+        self, chunks: list[RetrievedChunk], minimum_similarity: float
+    ) -> list[RetrievedChunk]:
+        return filter_by_similarity(chunks, minimum_similarity)
 
     def retrieve_related_chunks(
-        self, chunks: list, collection: Collection, max_related_links: int
-    ) -> list[dict[str, Any]]:
+        self,
+        chunks: list[RetrievedChunk],
+        collection: Collection,
+        max_related_links: int,
+    ) -> list[RetrievedChunk]:
 
         # 1° Extraction des liens et calcul du score
         # Dictionnaire : chemin -> score max hérité
@@ -185,8 +171,37 @@ class VectorStoreRepository:
         return chunks
 
 
-def extract_related_links(chunks: list):
-    paths_with_scores = {}
+def build_enriched_chunks(
+    documents: list[str], metadatas: list[dict[str, Any]], distances: list[float]
+) -> list[RetrievedChunk]:
+    enriched_chunks: list[RetrievedChunk] = []
+
+    for document, metadata, distance in zip(documents, metadatas, distances):
+        distance_value = float(distance)
+        enriched_chunks.append(
+            {
+                "document": document,
+                "metadata": metadata,
+                "distance": distance_value,
+                "similarity": 1.0 - distance_value,
+            }
+        )
+
+    return enriched_chunks
+
+
+def filter_by_similarity(
+    chunks: list[RetrievedChunk], minimum_similarity: float
+) -> list[RetrievedChunk]:
+    return sorted(
+        (chunk for chunk in chunks if chunk["similarity"] >= minimum_similarity),
+        key=lambda chunk: chunk["similarity"],
+        reverse=True,
+    )
+
+
+def extract_related_links(chunks: list[RetrievedChunk]) -> dict[str, float]:
+    paths_with_scores: dict[str, float] = {}
 
     for chunk in chunks:
         metadata = chunk["metadata"]
