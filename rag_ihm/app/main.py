@@ -6,12 +6,18 @@ from app.services.auth_service import (
     get_current_user,
     handle_oidc_callback,
     is_authenticated,
+    is_usage_admin,
     logout,
+    require_authenticated_user,
 )
 from app.services.rag_api_client import RagApiError, load_chat_api_config
 from app.styles.theme import apply_theme, render_theme_selector, sync_theme_preference
 
-st.set_page_config(page_title="IsiDore", layout="wide")
+st.set_page_config(
+    page_title="IsiDore",
+    layout="wide",
+    initial_sidebar_state="expanded" if is_authenticated() else "collapsed",
+)
 
 handle_oidc_callback()
 
@@ -45,14 +51,22 @@ if is_authenticated() and chat_config is not None:
 
 apply_theme()
 
+if not is_authenticated():
+    require_authenticated_user()
+
 if is_authenticated() and chat_config is not None:
     _render_global_sidebar(chat_config)
+
+current_user = get_current_user() if is_authenticated() else None
 
 pages = [
     st.Page("pages/chat.py", title="Discussion", default=True),
     st.Page("pages/usage.py", title="Consommation"),
-    st.Page("pages/dashboard.py", title="Évaluation"),
 ]
+
+if is_usage_admin(current_user):
+    pages.append(st.Page("pages/feedbacks.py", title="Avis"))
+    pages.append(st.Page("pages/dashboard.py", title="Évaluation"))
 
 pg = st.navigation(pages)
 pg.run()

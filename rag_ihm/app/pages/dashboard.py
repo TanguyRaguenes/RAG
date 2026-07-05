@@ -2,7 +2,6 @@ import streamlit as st
 
 from app.components.common import (
     render_api_error,
-    render_healthcheck_status,
     render_page_header,
 )
 from app.components.dashboard import (
@@ -11,10 +10,9 @@ from app.components.dashboard import (
     render_retrieval_scores,
     render_summary_cards,
 )
-from app.services.auth_service import require_authenticated_user
+from app.services.auth_service import is_usage_admin, require_authenticated_user
 from app.services.rag_api_client import (
     RagApiError,
-    check_api_health,
     load_evaluator_api_config,
     run_evaluation,
 )
@@ -34,18 +32,8 @@ def _load_evaluator_config_or_stop():
         st.stop()
 
 
-def _render_sidebar(evaluator_config) -> None:
+def _render_sidebar() -> None:
     with st.sidebar:
-        st.subheader("Évaluation")
-        st.caption("Mesure la qualité du retrieval et des réponses générées.")
-        st.divider()
-
-        if st.button("🔍 État API", use_container_width=True):
-            render_healthcheck_status(
-                "Ping API...",
-                lambda: check_api_health(evaluator_config.health_url),
-            )
-
         has_result = get_dashboard_result() is not None
         if has_result and st.button("Réinitialiser les résultats", use_container_width=True):
             clear_dashboard_result()
@@ -82,10 +70,15 @@ def _render_results(result: dict) -> None:
         render_answer_scores(result.get("average_answer_quality", {}))
 
 
-evaluator_config = _load_evaluator_config_or_stop()
-require_authenticated_user()
+current_user = require_authenticated_user()
 apply_theme()
-_render_sidebar(evaluator_config)
+
+if not is_usage_admin(current_user):
+    st.error("Cette page est réservée aux administrateurs.")
+    st.stop()
+
+evaluator_config = _load_evaluator_config_or_stop()
+_render_sidebar()
 
 render_page_header(
     "Dashboard RAG",

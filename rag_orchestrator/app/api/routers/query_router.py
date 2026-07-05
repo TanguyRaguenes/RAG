@@ -84,7 +84,7 @@ async def ask_question_route(
         duration_ms = _elapsed_ms(start)
         answer.duration = _format_duration(duration_ms)
 
-        await save_successful_question_usage(
+        interaction_id = await save_successful_question_usage(
             db_pool=db_pool,
             session_id=session_id,
             question=body.question,
@@ -92,6 +92,7 @@ async def ask_question_route(
             answer=answer,
             duration_ms=duration_ms,
         )
+        answer.interaction_id = interaction_id
 
         return answer
     except Exception:

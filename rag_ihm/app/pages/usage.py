@@ -19,6 +19,9 @@ from app.services.rag_api_client import (
 from app.styles.theme import apply_theme
 
 
+ADMIN_QUOTA_FLASH_KEY = "admin_quota_flash_message"
+
+
 def _load_config_or_stop():
     try:
         return load_chat_api_config()
@@ -65,9 +68,14 @@ def _render_admin_panel(config, access_token: str | None) -> None:
     st.divider()
     st.subheader("Administration des quotas")
     st.caption(
-        "Les utilisateurs humains sont affichés avec leur email. "
-        "Les appels machine restent identifiés par leur identifiant pseudonymisé."
+        "Les utilisateurs avec email sont identifiés par cet email. "
+        "Les comptes sans email restent affichés avec un identifiant raccourci."
     )
+
+    flash_message = st.session_state.pop(ADMIN_QUOTA_FLASH_KEY, None)
+    if flash_message:
+        st.success(flash_message)
+        st.toast(flash_message)
 
     try:
         quotas = list_admin_quota_usages(config, access_token)
@@ -98,7 +106,13 @@ def _render_admin_panel(config, access_token: str | None) -> None:
             step=1000,
             value=int(selected_quota["max_tokens_par_mois"]),
         )
-        active = st.toggle("Quota actif", value=bool(selected_quota["actif"]))
+        active_label = st.radio(
+            "Quota",
+            ["Actif", "Désactivé"],
+            horizontal=True,
+            index=0 if bool(selected_quota["actif"]) else 1,
+        )
+        active = active_label == "Actif"
         submitted = st.form_submit_button("Enregistrer", type="primary")
 
     if not submitted:
@@ -116,7 +130,9 @@ def _render_admin_panel(config, access_token: str | None) -> None:
         render_api_error(error, debug_enabled=True)
         return
 
-    st.toast("Quota mis à jour.")
+    st.session_state[ADMIN_QUOTA_FLASH_KEY] = (
+        "Quota mis à jour. Le tableau est actualisé."
+    )
     st.rerun()
 
 
@@ -125,7 +141,6 @@ def _quota_to_table_row(quota: dict) -> dict:
 
     return {
         "Utilisateur": _quota_label(quota),
-        "Email": quota.get("email") or "-",
         "Actif": "Oui" if quota["actif"] else "Non",
         "Consommés": int(quota["consumed_tokens"]),
         "Max / mois": int(quota["max_tokens_par_mois"]),

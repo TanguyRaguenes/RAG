@@ -1,8 +1,15 @@
+from datetime import date
+
 import asyncpg
 from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.api.dependencies import get_current_user, get_db_pool
 from app.schemas.authenticated_user_schema import AuthenticatedUser
+from app.schemas.feedback_schema import (
+    AdminInteractionFeedbackResponse,
+    FeedbackRequest,
+    FeedbackResponse,
+)
 from app.schemas.quota_schema import (
     QuotaUsageResponse,
     UpdateQuotaRequest,
@@ -13,7 +20,9 @@ from app.services.usage_tracking_service import (
     get_current_user_preferences,
     get_current_user_quota_usage,
     is_usage_admin,
+    list_admin_interaction_feedbacks,
     list_all_quota_usages,
+    save_current_user_feedback,
     update_current_user_preferences,
     update_user_quota,
 )
@@ -53,6 +62,25 @@ async def update_my_preferences(
         raise HTTPException(status_code=400, detail=str(exception)) from exception
 
 
+@router.post("/interactions/{interaction_id}/feedback", response_model=FeedbackResponse)
+async def save_interaction_feedback(
+    interaction_id: int,
+    body: FeedbackRequest,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+    db_pool: asyncpg.Pool = Depends(get_db_pool),
+) -> FeedbackResponse:
+    try:
+        return await save_current_user_feedback(
+            current_user=current_user,
+            db_pool=db_pool,
+            interaction_id=interaction_id,
+            note=body.note,
+            comment=body.commentaire,
+        )
+    except ValueError as exception:
+        raise HTTPException(status_code=404, detail=str(exception)) from exception
+
+
 @router.get("/quota/admin/users", response_model=list[QuotaUsageResponse])
 async def list_user_quota_usages(
     current_user: AuthenticatedUser = Depends(get_current_user),
@@ -81,6 +109,28 @@ async def update_user_quota_usage(
         )
     except ValueError as exception:
         raise HTTPException(status_code=404, detail=str(exception)) from exception
+
+
+@router.get(
+    "/admin/interactions/feedbacks",
+    response_model=list[AdminInteractionFeedbackResponse],
+)
+async def list_interaction_feedbacks(
+    start_date: date,
+    end_date: date,
+    current_user: AuthenticatedUser = Depends(get_current_user),
+    db_pool: asyncpg.Pool = Depends(get_db_pool),
+) -> list[AdminInteractionFeedbackResponse]:
+    _ensure_usage_admin(current_user)
+
+    try:
+        return await list_admin_interaction_feedbacks(
+            db_pool=db_pool,
+            start_date=start_date,
+            end_date=end_date,
+        )
+    except ValueError as exception:
+        raise HTTPException(status_code=400, detail=str(exception)) from exception
 
 
 def _ensure_usage_admin(current_user: AuthenticatedUser) -> None:

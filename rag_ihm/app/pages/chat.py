@@ -8,7 +8,7 @@ from app.components.chat import (
 )
 from app.components.common import (
     render_api_error,
-    render_healthcheck_status,
+    render_healthchecks_status,
     render_page_header,
 )
 from app.services.auth_service import get_access_token, require_authenticated_user
@@ -17,6 +17,8 @@ from app.services.rag_api_client import (
     ask_question,
     check_api_health,
     load_chat_api_config,
+    load_evaluator_api_config,
+    submit_interaction_feedback,
 )
 from app.state.session_state import (
     append_chat_message,
@@ -33,6 +35,29 @@ PROVIDER_OPTIONS = {
     "Cloud": "api",
     "Local": "local",
 }
+
+
+def _render_api_status(config) -> None:
+    healthchecks = [
+        ("API RAG", lambda: check_api_health(config.health_url)),
+    ]
+
+    try:
+        evaluator_config = load_evaluator_api_config()
+    except RagApiError as error:
+        healthchecks.append(
+            ("API d'évaluation", lambda error=error: _raise_health_error(error))
+        )
+    else:
+        healthchecks.append(
+            ("API d'évaluation", lambda: check_api_health(evaluator_config.health_url))
+        )
+
+    render_healthchecks_status(healthchecks)
+
+
+def _raise_health_error(error: RagApiError) -> None:
+    raise error
 
 
 def _load_config_or_stop():
@@ -61,10 +86,7 @@ def _render_sidebar(config) -> tuple[str, bool]:
         )
 
         if st.button("🔍 État API", use_container_width=True):
-            render_healthcheck_status(
-                "Ping API...",
-                lambda: check_api_health(config.health_url),
-            )
+            _render_api_status(config)
 
         if st.button("Effacer la conversation", use_container_width=True):
             clear_chat_messages()
@@ -74,9 +96,34 @@ def _render_sidebar(config) -> tuple[str, bool]:
     return PROVIDER_OPTIONS[provider_label], details_mode == "Affichés"
 
 
-def _render_history(debug_enabled: bool) -> None:
+def _submit_feedback(config, interaction_id: int, note: int, comment: str) -> bool:
+    try:
+        submit_interaction_feedback(
+            config=config,
+            access_token=get_access_token(),
+            interaction_id=interaction_id,
+            note=note,
+            commentaire=comment,
+        )
+    except RagApiError as error:
+        render_api_error(error)
+        return False
+
+    return True
+
+
+def _render_history(debug_enabled: bool, config) -> None:
     for message in get_chat_messages():
-        render_chat_message(message, debug_enabled=debug_enabled)
+        render_chat_message(
+            message,
+            debug_enabled=debug_enabled,
+            on_submit_feedback=lambda interaction_id, note, comment: _submit_feedback(
+                config,
+                interaction_id,
+                note,
+                comment,
+            ),
+        )
 
 
 def _process_prompt(prompt: str, provider: str, debug_enabled: bool, config) -> None:
@@ -96,7 +143,16 @@ def _process_prompt(prompt: str, provider: str, debug_enabled: bool, config) -> 
 
     assistant_message = build_assistant_message(response)
     append_chat_message(assistant_message)
-    render_chat_message(assistant_message, debug_enabled=debug_enabled)
+    render_chat_message(
+        assistant_message,
+        debug_enabled=debug_enabled,
+        on_submit_feedback=lambda interaction_id, note, comment: _submit_feedback(
+            config,
+            interaction_id,
+            note,
+            comment,
+        ),
+    )
 
 
 config = _load_config_or_stop()
@@ -112,7 +168,7 @@ messages = get_chat_messages()
 if not messages:
     render_empty_chat_state(lambda question: (set_pending_prompt(question), st.rerun()))
 
-_render_history(debug_mode)
+_render_history(debug_mode, config)
 
 pending_prompt = pop_pending_prompt()
 typed_prompt = st.chat_input("Pose ta question sur la documentation interne")

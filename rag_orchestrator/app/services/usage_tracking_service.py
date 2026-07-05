@@ -1,4 +1,6 @@
 import os
+import json
+from datetime import date
 from typing import Iterable
 
 import asyncpg
@@ -6,6 +8,10 @@ import asyncpg
 from app.dal.repositories.usage_repository import UsageRepository
 from app.schemas.ask_question_response_schema import AskQuestionResponseBase
 from app.schemas.authenticated_user_schema import AuthenticatedUser
+from app.schemas.feedback_schema import (
+    AdminInteractionFeedbackResponse,
+    FeedbackResponse,
+)
 from app.schemas.quota_schema import QuotaUsageResponse, UserPreferencesResponse
 from app.services.user_identity_service import build_user_id_from_identifier
 
@@ -28,6 +34,7 @@ class QuotaExceededError(Exception):
 class QuotaInactiveError(Exception):
     def __init__(self):
         super().__init__(QUOTA_EXCEEDED_MESSAGE)
+
 
 async def ensure_usage_user_exists(
     current_user: AuthenticatedUser,
@@ -142,6 +149,59 @@ async def update_current_user_preferences(
     )
 
     return UserPreferencesResponse(theme_preference=theme_preference)
+
+
+async def save_current_user_feedback(
+    current_user: AuthenticatedUser,
+    db_pool: asyncpg.Pool,
+    interaction_id: int,
+    note: int,
+    comment: str | None,
+) -> FeedbackResponse:
+    user_id = await ensure_usage_user_exists(current_user, db_pool)
+    usage_repository = UsageRepository(db_pool)
+    normalized_comment = _normalize_optional_comment(comment)
+
+    await usage_repository.upsert_feedback(
+        interaction_id=interaction_id,
+        user_id=user_id,
+        note=note,
+        comment=normalized_comment,
+    )
+
+    return FeedbackResponse(
+        interaction_id=interaction_id,
+        note=note,
+        commentaire=normalized_comment,
+    )
+
+
+async def list_admin_interaction_feedbacks(
+    db_pool: asyncpg.Pool,
+    start_date: date,
+    end_date: date,
+) -> list[AdminInteractionFeedbackResponse]:
+    if end_date < start_date:
+        raise ValueError("end_date must be greater than or equal to start_date")
+
+    usage_repository = UsageRepository(db_pool)
+    rows = await usage_repository.list_interaction_feedbacks(
+        start_date=start_date,
+        end_date=end_date,
+    )
+
+    return [
+        AdminInteractionFeedbackResponse(
+            interaction_id=row["interaction_id"],
+            cree_le=row["cree_le"],
+            question=row["question"],
+            reponse=row["reponse"],
+            note=row["note"],
+            commentaire=row["commentaire"],
+            chunks=_decode_chunks(row["chunks"]),
+        )
+        for row in rows
+    ]
 
 
 def is_usage_admin(current_user: AuthenticatedUser) -> bool:
@@ -270,3 +330,23 @@ def _normalize_optional_email(email: str | None) -> str | None:
     normalized_email = email.strip().lower()
 
     return normalized_email or None
+
+
+def _normalize_optional_comment(comment: str | None) -> str | None:
+    if comment is None:
+        return None
+
+    normalized_comment = comment.strip()
+
+    return normalized_comment or None
+
+
+def _decode_chunks(raw_chunks) -> list[dict]:
+    if isinstance(raw_chunks, list):
+        return raw_chunks
+
+    if isinstance(raw_chunks, str):
+        loaded_chunks = json.loads(raw_chunks)
+        return loaded_chunks if isinstance(loaded_chunks, list) else []
+
+    return []

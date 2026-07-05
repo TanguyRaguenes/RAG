@@ -1,4 +1,5 @@
 import os
+from datetime import date
 from dataclasses import dataclass
 from typing import Any
 
@@ -137,6 +138,27 @@ def update_admin_quota_usage(
     return data
 
 
+def list_admin_interaction_feedbacks(
+    config: ChatApiConfig,
+    access_token: str | None,
+    start_date: date,
+    end_date: date,
+) -> list[dict[str, Any]]:
+    data = _authenticated_get(
+        _usage_url(config, "/usage/admin/interactions/feedbacks"),
+        access_token,
+        params={
+            "start_date": start_date.isoformat(),
+            "end_date": end_date.isoformat(),
+        },
+    )
+
+    if not isinstance(data, list):
+        raise RagApiError("Le service a retourné un format inattendu.")
+
+    return data
+
+
 def get_my_preferences(
     config: ChatApiConfig,
     access_token: str | None,
@@ -158,6 +180,25 @@ def update_my_preferences(
         _usage_url(config, "/usage/preferences/me"),
         access_token,
         {"theme_preference": theme_preference},
+    )
+
+    if not isinstance(data, dict):
+        raise RagApiError("Le service a retourné un format inattendu.")
+
+    return data
+
+
+def submit_interaction_feedback(
+    config: ChatApiConfig,
+    access_token: str | None,
+    interaction_id: int,
+    note: int,
+    commentaire: str | None,
+) -> dict[str, Any]:
+    data = _authenticated_post(
+        _usage_url(config, f"/usage/interactions/{interaction_id}/feedback"),
+        access_token,
+        {"note": note, "commentaire": commentaire},
     )
 
     if not isinstance(data, dict):
@@ -193,13 +234,40 @@ def _usage_url(config: ChatApiConfig, path: str) -> str:
     return f"{base_url}{path}"
 
 
-def _authenticated_get(url: str, access_token: str | None):
+def _authenticated_get(
+    url: str,
+    access_token: str | None,
+    params: dict[str, Any] | None = None,
+):
     if not access_token:
         raise RagApiError("La session a expiré. Reconnecte-toi pour continuer.")
 
     try:
         response = requests.get(
             url,
+            params=params,
+            headers={"Authorization": f"Bearer {access_token}"},
+            timeout=30,
+        )
+    except requests.exceptions.Timeout as exception:
+        raise RagApiError("Le service met trop de temps à répondre.") from exception
+    except requests.exceptions.ConnectionError as exception:
+        raise RagApiError("Le service est injoignable pour le moment.") from exception
+    except requests.RequestException as exception:
+        raise RagApiError("La demande n'a pas pu être envoyée au service RAG.") from exception
+
+    _raise_for_error_response(response)
+    return _response_json_any(response)
+
+
+def _authenticated_post(url: str, access_token: str | None, payload: dict[str, Any]):
+    if not access_token:
+        raise RagApiError("La session a expiré. Reconnecte-toi pour continuer.")
+
+    try:
+        response = requests.post(
+            url,
+            json=payload,
             headers={"Authorization": f"Bearer {access_token}"},
             timeout=30,
         )

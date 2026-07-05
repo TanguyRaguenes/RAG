@@ -237,6 +237,16 @@ def apply_theme() -> None:
             opacity: 1 !important;
             border-radius: 14px !important;
             box-shadow: none !important;
+            display: inline-flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+        }}
+
+        [data-testid="stChatInputSubmitButton"] button div,
+        [data-testid="stChatInputSubmitButton"] button span,
+        [data-testid="stChatInputSubmitButton"] button [data-testid] {{
+            background: transparent !important;
+            box-shadow: none !important;
         }}
 
         [data-testid="stChatInputSubmitButton"] svg,
@@ -244,10 +254,93 @@ def apply_theme() -> None:
             color: #FFFFFF !important;
             fill: #FFFFFF !important;
             stroke: #FFFFFF !important;
+            opacity: 1 !important;
         }}
 
-        [data-testid="stChatInputSubmitButton"] svg rect {{
-            display: none !important;
+        .stButton [data-testid="baseButton-secondary"],
+        [data-testid="stFormSubmitButton"] [data-testid="baseButton-secondary"] {{
+            border-radius: 12px !important;
+            border: 1px solid {palette["border"]} !important;
+            background: {palette["button"]} !important;
+            color: {palette["text"]} !important;
+            box-shadow: none !important;
+            opacity: 1 !important;
+        }}
+
+        .stButton button:hover,
+        .stButton [data-testid="baseButton-secondary"]:hover,
+        [data-testid="stFormSubmitButton"] button:hover,
+        [data-testid="stFormSubmitButton"] [data-testid="baseButton-secondary"]:hover {{
+            border-color: #FF6D5A !important;
+            color: #FF6D5A !important;
+        }}
+
+        .stButton [data-testid="baseButton-primary"],
+        [data-testid="stFormSubmitButton"] [data-testid="baseButton-primary"] {{
+            border-radius: 12px !important;
+            border-color: #FF6D5A !important;
+            background: #FF6D5A !important;
+            color: #FFFFFF !important;
+            box-shadow: none !important;
+            opacity: 1 !important;
+        }}
+
+        .stButton [data-testid="baseButton-primary"]:hover,
+        [data-testid="stFormSubmitButton"] [data-testid="baseButton-primary"]:hover {{
+            border-color: #FF6D5A !important;
+            background: #FF6D5A !important;
+            color: #FFFFFF !important;
+        }}
+
+        .stButton [data-testid="baseButton-primary"] *,
+        [data-testid="stFormSubmitButton"] [data-testid="baseButton-primary"] * {{
+            color: #FFFFFF !important;
+        }}
+
+        div[class*="st-key-feedback_like_"] button,
+        div[class*="st-key-feedback_dislike_"] button {{
+            min-width: 2.5rem !important;
+            width: 2.5rem !important;
+            height: 2.5rem !important;
+            padding: 0 !important;
+            border-radius: 999px !important;
+            font-size: 1.05rem !important;
+        }}
+
+        div[class*="st-key-feedback_like_"][class*="_selected"] button,
+        div[class*="st-key-feedback_dislike_"][class*="_selected"] button {{
+            background: #FF6D5A !important;
+            border-color: #FF6D5A !important;
+            color: #FFFFFF !important;
+        }}
+
+        div[class*="st-key-feedback_like_"][class*="_selected"] button *,
+        div[class*="st-key-feedback_dislike_"][class*="_selected"] button * {{
+            color: #FFFFFF !important;
+        }}
+
+        [data-testid="stToast"],
+        [data-testid="stToastContainer"] [data-testid="stToast"] {{
+            background: {palette["surface"]} !important;
+            border: 1px solid {palette["border"]} !important;
+            box-shadow: {palette["shadow"]} !important;
+        }}
+
+        [data-testid="stToast"] *,
+        [data-testid="stToastContainer"] [data-testid="stToast"] * {{
+            color: {palette["text"]} !important;
+            fill: {palette["text"]} !important;
+            stroke: {palette["text"]} !important;
+        }}
+
+        [data-baseweb="tooltip"],
+        [data-baseweb="tooltip"] *,
+        [role="tooltip"],
+        [role="tooltip"] * {{
+            background: {palette["surface"]} !important;
+            color: {palette["text"]} !important;
+            border-color: {palette["border"]} !important;
+            opacity: 1 !important;
         }}
 
         [data-testid="stDataFrame"] * {{
@@ -256,6 +349,18 @@ def apply_theme() -> None:
 
         [data-testid="stDataFrame"] input,
         [data-testid="stDataFrame"] textarea {{
+            background: #FFFFFF !important;
+            color: #211A2E !important;
+            caret-color: #FF6D5A !important;
+        }}
+
+        [data-testid="stDataFrame"] input *,
+        [data-testid="stDataFrame"] textarea *,
+        [data-testid="stDataFrame"] [contenteditable="true"],
+        [data-testid="stDataFrame"] [data-baseweb="input"],
+        [data-testid="stDataFrame"] [data-baseweb="textarea"],
+        [data-testid="stDataFrame"] [data-baseweb="input"] *,
+        [data-testid="stDataFrame"] [data-baseweb="textarea"] * {{
             background: #FFFFFF !important;
             color: #211A2E !important;
             caret-color: #FF6D5A !important;
@@ -271,9 +376,47 @@ def apply_theme() -> None:
             opacity: 1 !important;
         }}
 
+        [data-testid="stDataFrame"] [data-testid="stElementToolbar"],
+        [data-testid="stElementToolbar"] {{
+            z-index: 10000 !important;
+        }}
+
+        .dataframe-toolbar-safe-space {{
+            height: 2.25rem;
+        }}
+
         [data-baseweb="select"] *,
         [data-baseweb="popover"] * {{
             color: #211A2E !important;
+        }}
+
+        [data-baseweb="popover"],
+        [data-baseweb="popover"] > div,
+        [data-baseweb="popover"] [role="menu"],
+        [data-baseweb="popover"] [role="dialog"],
+        [data-baseweb="popover"] label,
+        [data-baseweb="popover"] ul,
+        [data-baseweb="popover"] li {{
+            background: #F8F5F0 !important;
+            color: #211A2E !important;
+            border-color: #D8D1C8 !important;
+        }}
+
+        [data-baseweb="popover"] button,
+        [data-baseweb="popover"] input,
+        [data-baseweb="popover"] textarea,
+        [data-baseweb="popover"] [contenteditable="true"] {{
+            background: #FFFFFF !important;
+            color: #211A2E !important;
+            caret-color: #FF6D5A !important;
+            border-color: #D8D1C8 !important;
+        }}
+
+        [data-baseweb="popover"] svg {{
+            color: #211A2E !important;
+            fill: #211A2E !important;
+            stroke: #211A2E !important;
+            opacity: 1 !important;
         }}
 
         textarea::selection,
@@ -369,7 +512,7 @@ def apply_theme() -> None:
         }}
 
         .auth-shell {{
-            min-height: 70vh;
+            min-height: 92vh;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -423,6 +566,13 @@ def apply_theme() -> None:
         .auth-button:hover {{
             filter: brightness(1.05);
             color: #FFFFFF !important;
+        }}
+
+        .auth-button-standalone {{
+            width: min(460px, 90vw);
+            min-height: 4.5rem;
+            font-size: 1.35rem;
+            border-radius: 20px;
         }}
 
         blockquote {{

@@ -205,15 +205,15 @@ def require_authenticated_user() -> dict[str, Any] | None:
     login_url = html.escape(build_login_url(), quote=True)
     st.markdown(
         f"""
+        <style>
+        [data-testid="stSidebar"],
+        [data-testid="collapsedControl"],
+        [data-testid="stSidebarNav"] {{
+            display: none !important;
+        }}
+        </style>
         <div class="auth-shell">
-            <div class="auth-card">
-                <div class="auth-eyebrow">RAG interne</div>
-                <div class="auth-title">IsiDore</div>
-                <div class="auth-copy">
-                    Connecte-toi avec Pocket ID pour accéder à la documentation interne.
-                </div>
-                <a class="auth-button" href="{login_url}" target="_self">Se connecter avec Pocket ID</a>
-            </div>
+            <a class="auth-button auth-button-standalone" href="{login_url}" target="_self">Se connecter</a>
         </div>
         """,
         unsafe_allow_html=True,

@@ -4,6 +4,7 @@ from pydantic import BaseModel
 
 
 class AskQuestionResponseBase(BaseModel):
+    interaction_id: int | None = None
     llm_response: str
     retrieved_chunks: list[dict[str, Any]]
     retrieved_documents: dict[str, int]
