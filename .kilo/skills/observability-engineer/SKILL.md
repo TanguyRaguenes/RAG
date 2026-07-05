@@ -26,6 +26,8 @@ Utiliser cette skill quand la demande principale concerne :
 Ne pas utiliser cette skill pour :
 
 - un refactoring Python général : utiliser `code-refactorer` ;
+- une génération ou réorganisation de tests comme objectif principal : utiliser `test-generator` ;
+- une documentation comme objectif principal : utiliser `documentation-writer` ;
 - une demande principalement Streamlit/UX : utiliser `streamlit-ui-designer` ;
 - une revue sans modification : utiliser `code-reviewer`.
 
@@ -132,7 +134,7 @@ Avant de modifier : identifier le service, lire l'observabilité existante, rep�
 
 Pendant la modification : ajouter uniquement les logs, métriques et spans utiles, préserver le comportement, garder une cardinalité faible et adapter Prometheus/Grafana si nécessaire.
 
-Après modification : vérifier les tests pertinents, `/metrics` si exposé, l'absence de données sensibles, la cardinalité des labels et la lisibilité dans Grafana/Loki/Tempo lorsque la stack est disponible.
+Après modification : vérifier les tests pertinents en respectant l'organisation `rag_embedder` (`tests/unit_tests`, `tests/integration_tests`, `tests/conftest.py`), `/metrics` si exposé, l'absence de données sensibles, la cardinalité des labels et la lisibilité dans Grafana/Loki/Tempo lorsque la stack est disponible.
 
 ## Commandes utiles
 

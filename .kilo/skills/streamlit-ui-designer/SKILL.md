@@ -28,6 +28,8 @@ Utiliser cette skill quand la demande principale concerne :
 Ne pas utiliser cette skill pour :
 
 - un refactoring Python backend : utiliser `code-refactorer` ;
+- une génération ou réorganisation de tests comme objectif principal : utiliser `test-generator` ;
+- une documentation comme objectif principal : utiliser `documentation-writer` ;
 - des logs/métriques/traces : utiliser `observability-engineer` ;
 - une revue sans modification : utiliser `code-reviewer`.
 
@@ -171,7 +173,7 @@ Avant de modifier : lire la page ciblée, identifier le parcours utilisateur, le
 
 Pendant la modification : améliorer la clarté, ajouter les feedbacks utiles, simplifier si nécessaire, préserver l'auth et le comportement existant.
 
-Après modification : vérifier que la page charge, que les interactions principales répondent, que l'affichage reste utilisable sur mobile et que les états d'erreur sont compréhensibles.
+Après modification : vérifier que la page charge, que les interactions principales répondent, que l'affichage reste utilisable sur mobile, que les états d'erreur sont compréhensibles et que les tests ajoutés respectent l'organisation `rag_embedder` si la demande inclut des tests.
 
 ## Commandes utiles
 

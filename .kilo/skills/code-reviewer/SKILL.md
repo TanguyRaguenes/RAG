@@ -1,6 +1,6 @@
 ---
 name: code-reviewer
-description: "Cette skill doit être utilisée lorsque la demande concerne une revue de code, une analyse de fichier, une correction de raisonnement, une recommandation technique ou un avis sur la qualité du code, sans modification automatique. Elle ne doit pas être utilisée pour générer ou refactoriser du code sauf demande explicite."
+description: "Cette skill doit être utilisée lorsque la demande concerne une revue de code, une analyse de fichier, une correction de raisonnement, une recommandation technique ou un avis sur la qualité du code, sans modification automatique. Elle ne doit pas être utilisée pour générer des tests, générer de la documentation, générer du code ou refactoriser du code sauf demande explicite."
 ---
 
 # Code Reviewer
@@ -23,7 +23,7 @@ Utiliser cette skill quand la demande principale concerne :
 - une correction de raisonnement ;
 - une recommandation technique sans modification immédiate.
 
-Ne pas utiliser cette skill comme skill principale si l'utilisateur demande explicitement de modifier le code. Dans ce cas, utiliser la skill spécialisée adaptée : `code-refactorer`, `observability-engineer` ou `streamlit-ui-designer`.
+Ne pas utiliser cette skill comme skill principale si l'utilisateur demande explicitement de modifier le code ou la documentation. Dans ce cas, utiliser la skill spécialisée adaptée : `documentation-writer`, `test-generator`, `code-refactorer`, `observability-engineer` ou `streamlit-ui-designer`.
 
 ## Comportement attendu
 

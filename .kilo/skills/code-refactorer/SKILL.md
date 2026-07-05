@@ -1,6 +1,6 @@
 ---
 name: code-refactorer
-description: "Cette skill doit être utilisée lorsque la demande concerne explicitement le refactoring de code Python du RAG : architecture, typage, POO simple, docstrings, exceptions ou tests. Elle ne doit pas être utilisée pour une simple revue, une demande principalement UI ou une demande d'observabilité."
+description: "Cette skill doit être utilisée lorsque la demande concerne explicitement le refactoring de code Python du RAG : architecture, typage, POO simple, docstrings, exceptions ou amélioration des tests liés au code refactorisé. Elle ne doit pas être utilisée pour une simple revue, une génération de tests comme objectif principal, une documentation comme objectif principal, une demande principalement UI ou une demande d'observabilité."
 ---
 
 # Code Refactorer
@@ -27,6 +27,8 @@ Utiliser cette skill quand la demande principale concerne :
 Ne pas utiliser cette skill pour :
 
 - une revue sans modification : utiliser `code-reviewer` ;
+- une génération ou réorganisation de tests comme objectif principal : utiliser `test-generator` ;
+- une documentation comme objectif principal : utiliser `documentation-writer` ;
 - une demande principalement Streamlit/UX : utiliser `streamlit-ui-designer` ;
 - une demande principalement logs/métriques/traces : utiliser `observability-engineer`.
 
@@ -119,7 +121,7 @@ Règles :
 
 ## Packages, modules et imports
 
-En Python, l'équivalent pratique d'un namespace est l'organisation en packages et modules.
+Organisation en packages et modules.
 
 Exemple : `app/services/auth_service.py` correspond au module `app.services.auth_service`.
 
@@ -148,9 +150,11 @@ Toujours chaîner l'exception originale avec `raise ... from exception`.
 
 ## Tests
 
-Tout refactoring significatif doit préserver ou améliorer les tests du code modifié.
+Tout refactoring significatif doit préserver ou améliorer les tests du code modifié. Si la demande principale est de créer, corriger ou organiser des tests, utiliser `test-generator` comme skill principale.
 
 Viser une couverture élevée sur les nouvelles parties critiques, sans élargir inutilement le scope de la tâche. Ne pas transformer l'objectif de couverture en refonte complète non demandée.
+
+Respecter l'organisation de tests utilisée par `rag_embedder` : `tests/unit_tests/test_*_unit.py`, `tests/integration_tests/test_*_integration.py` et `tests/conftest.py` pour les fixtures partagées.
 
 Commandes utiles selon le service :
 
@@ -166,6 +170,8 @@ uv run ruff format .
 Si le code contient des logs, métriques ou traces, ne pas les supprimer sans remplacement équivalent. Pour une demande principalement observabilité, utiliser `observability-engineer`.
 
 Si le code concerne `rag_ihm`, préserver les feedbacks utilisateur, l'auth Streamlit/OIDC et les clés `st.session_state`. Pour une demande principalement UX/design, utiliser `streamlit-ui-designer`.
+
+Si la demande concerne principalement `docs/index.md`, `mkdocs.yml`, `README.md` ou la documentation développeur, utiliser `documentation-writer`.
 
 ## Workflow
 
