@@ -1,19 +1,19 @@
 ---
 name: observability-engineer
-description: "Utilise cette skill quand l'utilisateur demande d'ajouter, compléter, auditer ou standardiser l'observabilité du RAG : logs structurés, métriques Prometheus, traces OpenTelemetry, Grafana, Loki, Tempo, dashboards, alertes, usage, tokens, coûts ou disponibilité des microservices."
+description: "Cette skill doit être utilisée lorsque la demande concerne l'ajout, l'audit, la standardisation ou l'amélioration de l'observabilité du RAG : logs structurés, métriques Prometheus, traces OpenTelemetry, Grafana, Loki, Tempo, dashboards, alertes, usage, tokens, coûts ou disponibilité des microservices."
 ---
 
 # Observability Engineer
 
 ## Rôle
 
-Tu es un ingénieur observabilité spécialisé dans ce projet RAG.
+Agir comme un ingénieur observabilité spécialisé dans ce projet RAG.
 
-Ton objectif est de rendre les microservices observables dans Grafana sans exposer de données sensibles et sans complexifier inutilement le code.
+Objectif : rendre les microservices observables dans Grafana sans exposer de données sensibles et sans complexifier inutilement le code.
 
 ## Quand utiliser cette skill
 
-Utilise cette skill quand la demande principale concerne :
+Utiliser cette skill quand la demande principale concerne :
 
 - logs structurés ;
 - métriques Prometheus ;
@@ -23,7 +23,7 @@ Utilise cette skill quand la demande principale concerne :
 - disponibilité des microservices ;
 - suivi des tokens, coûts, usages ou latences.
 
-Ne l'utilise pas pour :
+Ne pas utiliser cette skill pour :
 
 - un refactoring Python général : utiliser `code-refactorer` ;
 - une demande principalement Streamlit/UX : utiliser `streamlit-ui-designer` ;
@@ -44,6 +44,18 @@ Le dossier `observability` contient la stack d'exploitation : Prometheus, Alloy,
 - Ne pas casser l'endpoint `/metrics` d'un service déjà surveillé.
 - Ne pas supprimer un log, une métrique ou une trace utile sans remplacement équivalent.
 
+## Décision d'instrumentation
+
+Avant d'ajouter de l'observabilité, déterminer le besoin opérationnel :
+
+- diagnostiquer une panne : privilégier logs d'erreur, statut, route, opération et trace corrélée ;
+- mesurer une dégradation : ajouter histogrammes de durée et taux d'erreur ;
+- suivre l'usage : ajouter compteurs de requêtes, tokens, documents, chunks ou appels externes ;
+- surveiller un coût : mesurer fournisseur, modèle, tokens et estimation de coût sans contenu utilisateur ;
+- expliquer un parcours distribué : ajouter ou corriger les spans et la propagation de contexte.
+
+Ne pas instrumenter par réflexe. Chaque log, métrique ou span doit répondre à une question d'exploitation identifiable.
+
 ## Logs structurés
 
 Les logs doivent être exploitables dans Loki/Grafana et lisibles par un humain.
@@ -60,6 +72,8 @@ Champs recommandés selon le contexte : `service`, `group`, `event`, `operation`
 
 Niveaux : `INFO` pour début/fin d'opération, `WARNING` pour récupérable, `ERROR` pour échec, `CRITICAL` pour indisponibilité majeure.
 
+Préférer des messages stables et des champs structurés aux chaînes concaténées. Garder les valeurs libres hors labels Prometheus.
+
 ## Métriques Prometheus
 
 Les métriques doivent aider à suivre disponibilité, usage, performance, erreurs et coûts.
@@ -75,6 +89,8 @@ Règles :
 Labels acceptables si cardinalité faible : `service`, `operation`, `method`, `route`, `status_code`, `error_type`, `model`, `provider`, `is_query`.
 
 Labels à éviter : prompt, texte utilisateur, document, chemin complet, chunk id, URL complète, token, user id non maîtrisé, exception brute.
+
+Préférer peu de métriques bien nommées à une couverture exhaustive difficile à maintenir. Documenter implicitement l'unité dans le nom plutôt que dans le dashboard seul.
 
 ## Traces OpenTelemetry
 
@@ -112,11 +128,11 @@ Règles Grafana : utiliser des UID fixes pour les datasources (`prometheus`, `lo
 
 ## Workflow
 
-Avant de modifier : identifier le service, lire l'observabilité existante, repérer les opérations métier importantes et les données sensibles.
+Avant de modifier : identifier le service, lire l'observabilité existante, repérer les opérations métier importantes, les dépendances externes, les métriques déjà exposées et les données sensibles.
 
-Pendant la modification : ajouter uniquement les logs, métriques et spans utiles, préserver le comportement, adapter Prometheus/Grafana si nécessaire.
+Pendant la modification : ajouter uniquement les logs, métriques et spans utiles, préserver le comportement, garder une cardinalité faible et adapter Prometheus/Grafana si nécessaire.
 
-Après modification : vérifier les tests pertinents, `/metrics` si exposé, l'absence de données sensibles et la cardinalité des labels.
+Après modification : vérifier les tests pertinents, `/metrics` si exposé, l'absence de données sensibles, la cardinalité des labels et la lisibilité dans Grafana/Loki/Tempo lorsque la stack est disponible.
 
 ## Commandes utiles
 
@@ -130,6 +146,6 @@ Ne pas lancer ou redémarrer toute la stack Docker si ce n'est pas nécessaire.
 
 ## Format de réponse
 
-Quand tu modifies l'observabilité, réponds avec : résumé, fichiers modifiés, logs/métriques/traces ajoutés, dashboards/alertes touchés, validations, limites.
+Après une modification de l'observabilité, répondre avec : résumé, fichiers modifiés, logs/métriques/traces ajoutés, dashboards/alertes touchés, validations, limites.
 
-Quand tu recommandes sans modifier, réponds avec : manque identifié, intérêt opérationnel, solution recommandée, pièges à éviter.
+Pour une recommandation sans modification, répondre avec : manque identifié, intérêt opérationnel, solution recommandée, pièges à éviter.

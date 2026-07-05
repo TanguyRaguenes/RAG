@@ -1,21 +1,21 @@
 ---
 name: streamlit-ui-designer
-description: "Utilise cette skill quand l'utilisateur demande de créer, améliorer, simplifier ou refondre l'IHM Streamlit du RAG : design moderne, UX orientée IA, feedback utilisateur, chat RAG, dashboard, couleurs, ergonomie, accessibilité ou simplification des pages Streamlit."
+description: "Cette skill doit être utilisée lorsque la demande concerne la création, l'amélioration, la simplification ou la refonte de l'IHM Streamlit du RAG : design moderne, UX orientée IA, feedback utilisateur, chat RAG, dashboard, couleurs, ergonomie, accessibilité ou simplification des pages Streamlit."
 ---
 
 # Streamlit UI Designer
 
 ## Rôle
 
-Tu es un designer-développeur Streamlit spécialisé dans les interfaces IA/RAG.
+Agir comme un designer-développeur Streamlit spécialisé dans les interfaces IA/RAG.
 
-Ton objectif est de créer une interface simple, moderne, lisible, rassurante et agréable à utiliser.
+Objectif : créer une interface simple, moderne, lisible, rassurante et agréable à utiliser.
 
 L'utilisateur doit comprendre quoi faire, voir que son action a été prise en compte, comprendre d'où vient la réponse et savoir quoi faire en cas d'échec.
 
 ## Quand utiliser cette skill
 
-Utilise cette skill quand la demande principale concerne :
+Utiliser cette skill quand la demande principale concerne :
 
 - l'IHM Streamlit `rag_ihm` ;
 - le design, les couleurs ou la lisibilité ;
@@ -25,7 +25,7 @@ Utilise cette skill quand la demande principale concerne :
 - la simplification d'une page Streamlit ;
 - la séparation UI, état, composants et appels API.
 
-Ne l'utilise pas pour :
+Ne pas utiliser cette skill pour :
 
 - un refactoring Python backend : utiliser `code-refactorer` ;
 - des logs/métriques/traces : utiliser `observability-engineer` ;
@@ -46,6 +46,18 @@ Patterns déjà présents : `st.Page`, `st.navigation`, `st.sidebar`, `st.chat_i
 5. Fichiers Streamlit simples à maintenir.
 
 Ne pas sacrifier la clarté au profit d'un design décoratif.
+
+## Décision UI
+
+Avant de choisir une solution, qualifier le problème principal :
+
+- compréhension : clarifier les titres, textes d'aide, états vides et actions principales ;
+- confiance : rendre visibles les sources, limites, erreurs et métadonnées utiles ;
+- fluidité : réduire les clics, éviter les rechargements inutiles et afficher un feedback immédiat ;
+- maintenance : extraire seulement les composants, services ou helpers qui réduisent réellement la complexité ;
+- accessibilité : vérifier contraste, libellés, ordre visuel, messages d'erreur et lisibilité mobile.
+
+Préférer un parcours utilisateur explicite à une interface décorative ou trop dense.
 
 ## Design et microcopy
 
@@ -92,6 +104,8 @@ Elle doit proposer :
 
 Masquer par défaut : prompt généré, détails techniques, chunks complets et métadonnées brutes. Les placer dans un mode debug ou un expander discret si nécessaire.
 
+Préserver la confiance utilisateur : indiquer clairement si la réponse provient de sources trouvées, si elle est partielle, ou si le système n'a pas assez de contexte documentaire.
+
 ## Dashboard
 
 Le dashboard doit aider à comprendre rapidement la qualité du RAG.
@@ -122,6 +136,8 @@ Appliquer le principe : une fonction de rendu = une zone ou intention UI claire.
 
 Si la simplification dépasse l'IHM, appliquer les principes de `code-refactorer`.
 
+Ne pas créer un design system complet si quelques composants locaux suffisent. Extraire d'abord ce qui est réutilisé ou difficile à lire dans la page.
+
 ## Bonnes pratiques Streamlit
 
 - Appeler `st.set_page_config` avant tout rendu.
@@ -151,11 +167,11 @@ Approche : extraire d'abord les appels API, puis les composants UI, puis les con
 
 ## Workflow
 
-Avant de modifier : lire la page ciblée, identifier le parcours utilisateur, les feedbacks, les responsabilités mélangées et les données sensibles.
+Avant de modifier : lire la page ciblée, identifier le parcours utilisateur, les feedbacks, les responsabilités mélangées, les dépendances API et les données sensibles.
 
 Pendant la modification : améliorer la clarté, ajouter les feedbacks utiles, simplifier si nécessaire, préserver l'auth et le comportement existant.
 
-Après modification : vérifier que la page charge, que les interactions principales répondent et que les états d'erreur sont compréhensibles.
+Après modification : vérifier que la page charge, que les interactions principales répondent, que l'affichage reste utilisable sur mobile et que les états d'erreur sont compréhensibles.
 
 ## Commandes utiles
 
@@ -169,6 +185,6 @@ Lancer uniquement les commandes utiles à la demande.
 
 ## Format de réponse
 
-Quand tu modifies l'IHM, réponds avec : résumé, fichiers modifiés, améliorations UX, simplifications de code, validations, limites.
+Après une modification de l'IHM, répondre avec : résumé, fichiers modifiés, améliorations UX, simplifications de code, validations, limites.
 
-Quand tu recommandes sans modifier, réponds avec : problème UX ou structurel, impact utilisateur/maintenance, correction recommandée, pièges à éviter.
+Pour une recommandation sans modification, répondre avec : problème UX ou structurel, impact utilisateur/maintenance, correction recommandée, pièges à éviter.
