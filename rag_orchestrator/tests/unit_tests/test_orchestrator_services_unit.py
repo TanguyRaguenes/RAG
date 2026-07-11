@@ -42,21 +42,28 @@ async def test_retrieve_chunks_service_embeds_question_then_retrieves_chunks(mon
         calls.append(("retrieve", embedding))
         return [{"document": "doc"}]
 
+    async def fake_rerank_chunks_client(question: str, chunks: list[dict]) -> list[dict]:
+        calls.append(("rerank", question, chunks))
+        return [{"document": "reranked"}]
+
     monkeypatch.setattr(retrieve_chunks_service, "embed_question", fake_embed_question)
     monkeypatch.setattr(retrieve_chunks_service, "retrieve_chunks_client", fake_retrieve_chunks_client)
+    monkeypatch.setattr(retrieve_chunks_service, "rerank_chunks_client", fake_rerank_chunks_client)
 
     response = await retrieve_chunks_service.retrieve_chunks("Question", {})
 
-    assert response.retrieved_chunks == [{"document": "doc"}]
-    assert calls == [("embed", "Question"), ("retrieve", [0.1])]
+    assert response.retrieved_chunks == [{"document": "reranked"}]
+    assert calls == [
+        ("embed", "Question"),
+        ("retrieve", [0.1]),
+        ("rerank", "Question", [{"document": "doc"}]),
+    ]
 
 
 @pytest.mark.asyncio
 async def test_ask_question_to_local_model_builds_payload_and_response(monkeypatch: pytest.MonkeyPatch) -> None:
-    async def fake_embed_question(question: str) -> list[float]:
-        return [0.1]
-
-    async def fake_retrieve_chunks(embedding: list[float]) -> list[dict]:
+    async def fake_retrieve_and_rerank_chunks(question: str) -> list[dict]:
+        assert question == "Question"
         return [{"document": "doc", "metadata": {"title": "Doc"}}]
 
     async def fake_llm_client(payload: dict, timeout_seconds: int, url: str) -> dict:
@@ -66,8 +73,7 @@ async def test_ask_question_to_local_model_builds_payload_and_response(monkeypat
         assert url == "http://ollama/v1/chat/completions"
         return {"choices": [{"message": {"content": "answer"}}]}
 
-    monkeypatch.setattr(ask_question_service, "embed_question", fake_embed_question)
-    monkeypatch.setattr(ask_question_service, "retrieve_chunks", fake_retrieve_chunks)
+    monkeypatch.setattr(ask_question_service, "retrieve_and_rerank_chunks", fake_retrieve_and_rerank_chunks)
     monkeypatch.setattr(ask_question_service, "ask_question_to_llm_client", fake_llm_client)
 
     response = await ask_question_service.ask_question_to_local_model("Question", _config())
@@ -79,10 +85,8 @@ async def test_ask_question_to_local_model_builds_payload_and_response(monkeypat
 
 @pytest.mark.asyncio
 async def test_ask_question_to_api_builds_payload_tokens_and_cost(monkeypatch: pytest.MonkeyPatch) -> None:
-    async def fake_embed_question(question: str) -> list[float]:
-        return [0.1]
-
-    async def fake_retrieve_chunks(embedding: list[float]) -> list[dict]:
+    async def fake_retrieve_and_rerank_chunks(question: str) -> list[dict]:
+        assert question == "Question"
         return [{"document": "doc", "metadata": {"title": "Doc"}}]
 
     async def fake_api_client(payload: dict, endpoint: str, api_key: str | None) -> dict:
@@ -96,8 +100,7 @@ async def test_ask_question_to_api_builds_payload_tokens_and_cost(monkeypatch: p
     async def fake_calculate_cost(**kwargs) -> float:
         return 0.123456
 
-    monkeypatch.setattr(ask_question_service, "embed_question", fake_embed_question)
-    monkeypatch.setattr(ask_question_service, "retrieve_chunks", fake_retrieve_chunks)
+    monkeypatch.setattr(ask_question_service, "retrieve_and_rerank_chunks", fake_retrieve_and_rerank_chunks)
     monkeypatch.setattr(ask_question_service, "ask_question_to_api_client", fake_api_client)
     monkeypatch.setattr(ask_question_service, "calculate_cost", fake_calculate_cost)
 

@@ -6,3 +6,8 @@ scrape_configs:
     metrics_path: "/metrics/"
     static_configs:
       - targets: ["rag_embedder:8000"]
+
+  - job_name: "rag_reranker"
+    metrics_path: "/metrics/"
+    static_configs:
+      - targets: ["rag_reranker:8000"]

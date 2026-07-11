@@ -5,13 +5,12 @@ from typing import Any
 
 import asyncpg
 
-from app.dal.clients.embedder_client import embed_question
 from app.dal.clients.llm_client import ask_question_to_api as ask_question_to_api_client
 from app.dal.clients.llm_client import ask_question_to_llm as ask_question_to_llm_client
-from app.dal.clients.retriever_client import retrieve_chunks
 from app.dal.repositories.usage_repository import UsageRepository
 from app.schemas.ask_question_response_schema import AskQuestionResponseBase
 from app.services.prompt_builder_service import build_prompt
+from app.services.retrieve_chunks_service import retrieve_and_rerank_chunks
 
 
 async def ask_question_to_local_model(
@@ -28,9 +27,7 @@ async def ask_question_to_local_model(
     context_window_tokens: int = config["llm"]["local"]["context_window_tokens"]
     max_prompt_chars = config["llm"]["local"]["max_prompt_chars"]
 
-    embeded_question: list[float] = await embed_question(question)
-
-    retrieved_chunks: list[dict[str, Any]] = await retrieve_chunks(embeded_question)
+    retrieved_chunks: list[dict[str, Any]] = await retrieve_and_rerank_chunks(question)
 
     prompt: list[dict[str, str]] = build_prompt(
         question, retrieved_chunks, max_prompt_chars
@@ -77,9 +74,7 @@ async def ask_question_to_api(
     max_output_tokens: int = config["llm"]["api"]["max_output_tokens"]
     max_prompt_chars = config["llm"]["api"]["max_prompt_chars"]
 
-    embeded_question: list[float] = await embed_question(question)
-
-    retrieved_chunks: list[dict[str, Any]] = await retrieve_chunks(embeded_question)
+    retrieved_chunks: list[dict[str, Any]] = await retrieve_and_rerank_chunks(question)
 
     prompt: list[dict[str, str]] = build_prompt(
         question, retrieved_chunks, max_prompt_chars

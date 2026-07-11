@@ -39,6 +39,15 @@
       ]
     },
     {
+      "name": "Attach rag_reranker",
+      "type": "debugpy",
+      "request": "attach",
+      "connect": { "host": "localhost", "port": 5684 },
+      "pathMappings": [
+        { "localRoot": "${workspaceFolder}/rag_reranker", "remoteRoot": "/app" }
+      ]
+    },
+    {
       "name": "Attach rag_evaluator",
       "type": "debugpy",
       "request": "attach",

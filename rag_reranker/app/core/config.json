@@ -1,0 +1,10 @@
+{
+    "reranking": {
+        "provider": "ollama",
+        "url": "http://ollama:11434/api/generate",
+        "model": "qwen3:0.6b",
+        "top_k": 8,
+        "timeout_seconds": 180,
+        "max_chunk_chars": 1600
+    }
+}

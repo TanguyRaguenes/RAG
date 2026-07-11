@@ -1,7 +1,7 @@
 import pytest
 
-from app.core.exceptions import RetrieverContainerException
-from app.dal.clients import embedder_client, retriever_client
+from app.core.exceptions import RetrieverContainerException, RerankerContainerException
+from app.dal.clients import embedder_client, reranker_client, retriever_client
 
 
 class FakeResponse:
@@ -31,6 +31,8 @@ class FakeAsyncClient:
         self.calls.append({"url": url, "json": json, "timeout": self.timeout})
         if "embed" in url:
             return FakeResponse({"embeded_text": [0.1, 0.2]})
+        if "rerank" in url:
+            return FakeResponse({"reranked_chunks": [{"document": "reranked"}]})
         return FakeResponse({"chunks": [{"document": "doc"}]})
 
 
@@ -70,3 +72,32 @@ async def test_retrieve_chunks_raises_domain_exception_when_url_is_missing(monke
         await retriever_client.retrieve_chunks([0.1])
 
     assert exc_info.value.details == {"env_var": "RAG_RETRIEVER_RETRIEVE_CHUNKS_URL"}
+
+
+@pytest.mark.asyncio
+async def test_rerank_chunks_posts_question_and_chunks(monkeypatch: pytest.MonkeyPatch) -> None:
+    FakeAsyncClient.calls = []
+    monkeypatch.setenv("RAG_RERANKER_RERANK_CHUNKS_URL", "http://reranker/rerank_chunks")
+    monkeypatch.setattr(reranker_client.httpx, "AsyncClient", FakeAsyncClient)
+
+    chunks = [{"id": "1", "document": "doc", "metadata": {}, "similarity": 0.8}]
+    result = await reranker_client.rerank_chunks("Question", chunks)
+
+    assert result == [{"document": "reranked"}]
+    assert FakeAsyncClient.calls == [
+        {
+            "url": "http://reranker/rerank_chunks",
+            "json": {"question": "Question", "chunks": chunks},
+            "timeout": 180,
+        }
+    ]
+
+
+@pytest.mark.asyncio
+async def test_rerank_chunks_raises_domain_exception_when_url_is_missing(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("RAG_RERANKER_RERANK_CHUNKS_URL", raising=False)
+
+    with pytest.raises(RerankerContainerException) as exc_info:
+        await reranker_client.rerank_chunks("Question", [])
+
+    assert exc_info.value.details == {"env_var": "RAG_RERANKER_RERANK_CHUNKS_URL"}

@@ -6,6 +6,7 @@ class ErrorSlug(str, Enum):
 
     EMBEDDING_CONTAINER_ERROR = "ERR_EMBEDDING_SERVICE"
     RETRIEVER_CONTAINER_ERROR = "ERR_RETRIEVER_SERVICE"
+    RERANKER_CONTAINER_ERROR = "ERR_RERANKER_SERVICE"
     LLM_API_ERROR = "ERR_LLM_API"
 
 
@@ -56,6 +57,13 @@ class RetrieverContainerException(OrchestratorContainerCustomException):
 
     STATUS_CODE = 503
     SLUG = ErrorSlug.RETRIEVER_CONTAINER_ERROR
+
+
+class RerankerContainerException(OrchestratorContainerCustomException):
+    """Erreur lors de l'interaction avec le container 'reranker'"""
+
+    STATUS_CODE = 503
+    SLUG = ErrorSlug.RERANKER_CONTAINER_ERROR
 
 
 class LlmApiException(OrchestratorContainerCustomException):

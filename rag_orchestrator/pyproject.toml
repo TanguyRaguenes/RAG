@@ -18,6 +18,8 @@ dependencies = [
 dev = [
     "httpx>=0.28.1",
     "pytest>=9.0.2",
+    "pytest-asyncio>=1.4.0",
+    "ruff>=0.15.21",
 ]
 
 [tool.coverage.run]
