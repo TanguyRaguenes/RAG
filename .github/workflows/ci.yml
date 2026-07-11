@@ -1,28 +1,88 @@
 # Nom visible dans l'onglet "Actions" de GitHub
 name: CI
 
-# Déclenche la pipeline :
-# - à chaque push
-# - à chaque Pull Request
+# Lance la CI a chaque push et a chaque Pull Request
 on:
   push:
   pull_request:
 
 jobs:
-  tests:
-
-    # GitHub démarre une VM Ubuntu temporaire
+  python-checks:
+    # Ce job est lance une fois par microservice Python.
+    # Cela evite de copier/coller les memes etapes 6 fois.
+    name: Python checks - ${{ matrix.service }}
     runs-on: ubuntu-latest
 
-    steps:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - service: rag_embedder
+            coverage: app
+          - service: rag_retriever
+            coverage: app
+          - service: rag_orchestrator
+            coverage: app
+          - service: rag_evaluator
+            coverage: app
+          - service: rag_ihm
+            coverage: app
+          - service: rag_mcp
+            coverage: .
 
-      # 1° Récupère le code du dépôt GitHub dans la VM
+    steps:
+      # 1. Recupere le code du depot dans la VM GitHub
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # 2° Prépare les fichiers/dossiers attendus par docker-compose
-      # Les fichiers .env sont ignorés par GitHub (.gitignore)
-      # donc ils n'existent pas dans GitHub Actions.
+      # 2. Installe uv pour gerer Python et les dependances
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+
+      # 3. Installe Python 3.12 dans la VM
+      - name: Install Python
+        run: uv python install 3.12
+
+      # 4. Installe les dependances du microservice courant
+      - name: Install dependencies
+        working-directory: ${{ matrix.service }}
+        run: uv sync --dev
+
+      # 5. Verifie la qualite du code Python avec Ruff
+      - name: Run Ruff linter
+        working-directory: ${{ matrix.service }}
+        run: uv run --with ruff ruff check .
+
+      # 6. Verifie que le code est bien formate avec Ruff
+      - name: Run Ruff format check
+        working-directory: ${{ matrix.service }}
+        run: uv run --with ruff ruff format --check .
+
+      # 7. Lance les tests unitaires avec un seuil de couverture minimal
+      - name: Run unit tests
+        working-directory: ${{ matrix.service }}
+        run: |
+          uv run --with pytest-cov --with pytest-asyncio pytest -q tests/unit_tests \
+            --cov=${{ matrix.coverage }} \
+            --cov-report=term-missing \
+            --cov-fail-under=70
+
+  docker-checks:
+    # Ce job demarre la stack complete pour tester les interactions entre services.
+    name: Docker stack checks
+    runs-on: ubuntu-latest
+    needs: python-checks
+    env:
+      # Force un nom d'image Docker stable pour les scans Trivy.
+      COMPOSE_PROJECT_NAME: rag
+
+    steps:
+      # 1. Recupere le code du depot dans la VM GitHub
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # 2. Prepare les fichiers attendus par docker-compose
+      # Les vrais fichiers .env ne sont pas versionnes dans GitHub.
       - name: Prepare Docker Compose files
         run: |
           mkdir -p ../wikis
@@ -45,45 +105,23 @@ jobs:
           touch rag_mcp/.env
           touch pocket-id/.env
 
-      # 3° Installe uv
-      # uv sert à gérer Python + dépendances
+          # GitHub Actions est sensible a la casse des noms de fichiers.
+          # docker-compose attend Dockerfile pour rag_mcp.
+          cp rag_mcp/dockerfile rag_mcp/Dockerfile
+
+      # 3. Installe uv pour lancer les tests d'integration Python
       - name: Install uv
         uses: astral-sh/setup-uv@v5
 
-      # 4° Installe Python 3.12 dans la VM
+      # 4. Installe Python 3.12 dans la VM
       - name: Install Python
         run: uv python install 3.12
 
-      # 5° Installe les dépendances du microservice rag_embedder
-      # + les dépendances de dev (pytest, ruff, etc.)
-      - name: Install rag_embedder dependencies
-        working-directory: rag_embedder
-        run: uv sync --dev
-
-      # 6° Vérifie la qualité du code Python
-      # Ruff joue le rôle de linter
-      - name: Run rag_embedder Ruff linter
-        working-directory: rag_embedder
-        run: uv run ruff check .
-
-      # 7° Vérifie le formatage du code Python
-      # Si le code n'est pas bien formaté → la CI échoue
-      - name: Run rag_embedder Ruff format check
-        working-directory: rag_embedder
-        run: uv run ruff format --check .
-
-      # 8° Lance les tests unitaires
-      # Les tests unitaires testent des fonctions isolées
-      - name: Run rag_embedder unit tests
-        working-directory: rag_embedder
-        run: uv run pytest -q tests/unit_tests --cov=app --cov-report=term-missing --cov-fail-under=70
-
-      # 9° Démarre toute la stack Docker
-      # (ollama, chroma, retriever, orchestrator, etc.)
+      # 5. Construit et demarre tous les conteneurs du RAG
       - name: Start Docker stack
         run: docker compose up -d --build
 
-      # Scanne l'image Docker du microservice rag_embedder
+      # 6. Scanne l'image Docker du microservice rag_embedder
       - name: Scan rag_embedder image with Trivy
         uses: aquasecurity/trivy-action@master
         with:
@@ -92,10 +130,52 @@ jobs:
           severity: CRITICAL,HIGH
           exit-code: 0
 
-      # 10° Attend que le modèle d'embedding soit disponible
-      # Tant que le modèle n'est pas téléchargé :
-      # → on attend 10 secondes
-      # → puis on réessaie
+      # 7. Scanne l'image Docker du microservice rag_retriever
+      - name: Scan rag_retriever image with Trivy
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: rag-rag_retriever:latest
+          format: table
+          severity: CRITICAL,HIGH
+          exit-code: 0
+
+      # 8. Scanne l'image Docker du microservice rag_orchestrator
+      - name: Scan rag_orchestrator image with Trivy
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: rag-rag_orchestrator:latest
+          format: table
+          severity: CRITICAL,HIGH
+          exit-code: 0
+
+      # 9. Scanne l'image Docker du microservice rag_evaluator
+      - name: Scan rag_evaluator image with Trivy
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: rag-rag_evaluator:latest
+          format: table
+          severity: CRITICAL,HIGH
+          exit-code: 0
+
+      # 10. Scanne l'image Docker du microservice rag_ihm
+      - name: Scan rag_ihm image with Trivy
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: rag-rag_ihm:latest
+          format: table
+          severity: CRITICAL,HIGH
+          exit-code: 0
+
+      # 11. Scanne l'image Docker du microservice rag_mcp
+      - name: Scan rag_mcp image with Trivy
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: rag-rag_mcp:latest
+          format: table
+          severity: CRITICAL,HIGH
+          exit-code: 0
+
+      # 12. Attend que le modele d'embedding soit disponible dans Ollama
       - name: Wait for Ollama embedding model
         run: |
           until curl -s http://localhost:11434/api/tags | grep -q "bge-m3:567m"; do
@@ -103,20 +183,24 @@ jobs:
             sleep 10
           done
 
-      # 11° Lance les tests d'intégration
-      # Ici les tests parlent à de vrais services Docker
-      - name: Run rag_embedder integration tests
-        working-directory: rag_embedder
-        run: uv run pytest -q tests/integration_tests
+      # 13. Lance les tests d'integration presents dans les microservices
+      - name: Run integration tests
+        run: |
+          for service in rag_embedder rag_retriever rag_orchestrator rag_evaluator rag_ihm rag_mcp; do
+            if [ -d "$service/tests/integration_tests" ]; then
+              echo "Running integration tests for $service"
+              (cd "$service" && uv sync --dev && uv run --with pytest-asyncio pytest -q tests/integration_tests)
+            else
+              echo "No integration tests for $service"
+            fi
+          done
 
-      # 12° Si une étape échoue :
-      # affiche les logs Docker pour aider au debug
+      # 14. Affiche les logs Docker si une etape echoue
       - name: Show Docker logs on failure
         if: failure()
         run: docker compose logs
 
-      # 13° Arrête les containers même si un test échoue
-      # always() = cette étape s'exécute toujours
+      # 15. Arrete les conteneurs meme si une etape precedente echoue
       - name: Stop Docker stack
         if: always()
         run: docker compose down
