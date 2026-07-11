@@ -9,8 +9,8 @@
         }
     },
     "chunking":{
-        "size_chars": 2000, 
-        "overlap_chars": 400
+        "size_chars": 1400, 
+        "overlap_chars": 240
     }
 
 }

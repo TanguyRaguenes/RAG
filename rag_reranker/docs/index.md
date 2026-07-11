@@ -11,7 +11,7 @@ Il intervient après la recherche vectorielle et avant la construction du prompt
 ### 1.2 Objectif
 
 - **Recevoir une question et des chunks candidats** : l'orchestrateur transmet la question originale et les chunks du retriever.
-- **Scorer les chunks** : le service interroge un modèle Ollama local.
+- **Scorer les chunks** : le service interroge un serveur TEI local avec un modèle BGE de reranking.
 - **Réordonner les chunks** : les résultats sont triés par score de reranking décroissant.
 - **Limiter le contexte** : le paramètre `top_k` permet de ne conserver que les meilleurs chunks.
 
@@ -34,7 +34,7 @@ flowchart TD
     end
 
     subgraph External Services
-        G[Ollama<br/>/api/generate]
+        G[TEI Reranker<br/>/rerank]
     end
 
     A --> C
@@ -62,7 +62,7 @@ rag_reranker/
 │   │   └── rerank_chunks_service.py     # Tri et application du top_k
 │   ├── dal/
 │   │   └── clients/
-│   │       └── reranking_client.py      # Client HTTP Ollama
+│   │       └── reranking_client.py      # Client HTTP TEI
 │   ├── domain/models/
 │   │   └── rerank_chunks_request_model.py
 │   ├── schemas/
@@ -93,10 +93,10 @@ rag_reranker/
 ```json
 {
     "reranking": {
-        "provider": "ollama",
-        "url": "http://ollama:11434/api/generate",
-        "model": "qwen3:0.6b",
-        "top_k": 8,
+        "provider": "tei",
+        "url": "http://tei_reranker:80/rerank",
+        "model": "BAAI/bge-reranker-base",
+        "top_k": 10,
         "timeout_seconds": 180,
         "max_chunk_chars": 1600
     }
@@ -107,14 +107,14 @@ rag_reranker/
 
 | Paramètre | Description | Valeur par défaut |
 |-----------|-------------|-------------------|
-| `reranking.provider` | Fournisseur utilisé par le reranker | `ollama` |
-| `reranking.url` | URL de l'API Ollama appelée par le service | `http://ollama:11434/api/generate` |
-| `reranking.model` | Modèle Ollama local utilisé pour scorer les chunks | `qwen3:0.6b` |
-| `reranking.top_k` | Nombre maximal de chunks renvoyés après reranking | `8` |
-| `reranking.timeout_seconds` | Timeout HTTP de l'appel à Ollama | `180` secondes |
+| `reranking.provider` | Fournisseur utilisé par le reranker | `tei` |
+| `reranking.url` | URL de l'API TEI appelée par le service | `http://tei_reranker:80/rerank` |
+| `reranking.model` | Modèle TEI utilisé pour scorer les chunks | `BAAI/bge-reranker-base` |
+| `reranking.top_k` | Nombre maximal de chunks renvoyés après reranking | `10` |
+| `reranking.timeout_seconds` | Timeout HTTP de l'appel à TEI | `180` secondes |
 | `reranking.max_chunk_chars` | Nombre maximal de caractères transmis par chunk au modèle | `1600` |
 
-Le modèle est volontairement configurable. Tu peux remplacer `qwen3:0.6b` par un modèle Ollama plus adapté au reranking si tu en ajoutes un localement.
+Le modèle est déclaré dans `docker-compose.yml` sur le service `tei_reranker`. Si tu changes `reranking.model`, change aussi l'argument `--model-id` du conteneur TEI.
 
 ---
 
@@ -194,7 +194,7 @@ sequenceDiagram
     participant Embedder as rag_embedder
     participant Retriever as rag_retriever
     participant Reranker as rag_reranker
-    participant Ollama
+    participant TEI as tei_reranker
     participant LLM
 
     Client->>Orchestrator: POST /ask_question
@@ -203,8 +203,8 @@ sequenceDiagram
     Orchestrator->>Retriever: POST /retrieve_chunks
     Retriever-->>Orchestrator: Chunks candidats
     Orchestrator->>Reranker: POST /rerank_chunks
-    Reranker->>Ollama: POST /api/generate
-    Ollama-->>Reranker: Scores JSON
+    Reranker->>TEI: POST /rerank
+    TEI-->>Reranker: Scores par chunk
     Reranker-->>Orchestrator: Chunks réordonnés
     Orchestrator->>LLM: Prompt avec chunks rerankés
     LLM-->>Orchestrator: Réponse
@@ -239,18 +239,17 @@ Responsabilités :
 
 Responsabilités :
 
-- construire un prompt de scoring pour Ollama ;
+- construire une requête TEI `/rerank` avec `query` et `texts` ;
 - limiter la taille de chaque chunk avec `max_chunk_chars` ;
-- appeler `reranking.url` avec `stream=false` et `format=json` ;
-- parser la réponse JSON du modèle ;
-- lever une exception métier si Ollama est indisponible ou si la réponse est invalide.
+- parser la réponse JSON TEI ;
+- lever une exception métier si TEI est indisponible ou si la réponse est invalide.
 
 ### 7.3 Exceptions Métier
 
 | Exception | Slug | Code HTTP | Cas |
 |-----------|------|-----------|-----|
-| `RerankingServiceException` | `ERR_RERANKING_SERVICE` | `503` | Erreur réseau, timeout ou erreur HTTP Ollama |
-| `RerankingResponseFormatException` | `ERR_RERANKING_RESPONSE_FORMAT` | `502` | Réponse Ollama non exploitable |
+| `RerankingServiceException` | `ERR_RERANKING_SERVICE` | `503` | Erreur réseau, timeout ou erreur HTTP TEI |
+| `RerankingResponseFormatException` | `ERR_RERANKING_RESPONSE_FORMAT` | `502` | Réponse TEI non exploitable |
 
 ---
 
@@ -266,7 +265,7 @@ Champs utiles :
 |-------|-------------|
 | `group` | Groupe fonctionnel, ici `reranking` |
 | `event` | `request_started`, `request_completed`, `request_failed`, `business_exception` |
-| `model` | Modèle Ollama utilisé |
+| `model` | Modèle TEI utilisé |
 | `chunk_count` | Nombre de chunks scorés |
 | `duration_ms` | Durée de l'appel de reranking |
 | `error_type` | Type d'erreur réseau ou applicative |
@@ -294,25 +293,27 @@ Les traces sont envoyées vers Tempo avec `service.name=rag_reranker`.
 Depuis la racine du dépôt :
 
 ```bash
-docker compose up --build rag_reranker
+docker compose up --build tei_reranker rag_reranker
 ```
 
 Le service est exposé sur :
 
 | Port host | Port container | Usage |
 |-----------|----------------|-------|
-| `8006` | `8000` | API FastAPI |
-| `5684` | `5678` | Debug Python |
+| `8006` | `8000` | API FastAPI `rag_reranker` |
+| `5684` | `5678` | Debug Python `rag_reranker` |
+| `8081` | `80` | API TEI `/rerank` |
 
-### 9.2 Modèle Ollama
+### 9.2 Modèle TEI
 
-Docker Compose télécharge le modèle configuré par défaut :
+Docker Compose démarre le serveur TEI CPU avec le modèle configuré par défaut :
 
-```bash
-ollama pull qwen3:0.6b
+```yaml
+image: ghcr.io/huggingface/text-embeddings-inference:cpu-1.9
+command: --model-id BAAI/bge-reranker-base --port 80
 ```
 
-Si tu changes `reranking.model` dans `config.json`, ajoute aussi le `ollama pull <model>` correspondant dans `docker-compose.yml`.
+Le modèle est téléchargé automatiquement depuis Hugging Face et stocké dans le volume `tei_reranker_data`.
 
 ---
 
@@ -327,7 +328,7 @@ uv run pytest tests/integration_tests
 uv run pytest --cov=app --cov-report=term-missing --cov-fail-under=80
 ```
 
-Le test d'intégration Ollama est désactivé par défaut. Pour l'exécuter :
+Le test d'intégration TEI est désactivé par défaut. Pour l'exécuter, démarre `tei_reranker`, puis lance :
 
 ```bash
 RAG_RERANKER_RUN_INTEGRATION=1 uv run pytest tests/integration_tests
@@ -351,7 +352,7 @@ Avec Docker Compose, la documentation est exposée sur le port `8106`.
 ## 12. Bonnes Pratiques
 
 - Garde `top_k` inférieur ou égal au nombre de chunks réellement utiles pour le prompt.
-- Ajuste `max_chunk_chars` pour éviter des prompts de reranking trop longs.
+- Ajuste `max_chunk_chars` pour éviter des requêtes de reranking trop volumineuses.
 - Surveille `reranking_duration_seconds` si tu augmentes `top_k` ou changes de modèle.
 - Ne rends pas le retriever responsable du reranking : le retriever doit rester dédié à la recherche vectorielle.
-- Si le modèle retourne souvent un JSON invalide, change de modèle ou simplifie le prompt de scoring.
+- Si TEI retourne une erreur de format, vérifie la compatibilité du modèle avec l'endpoint `/rerank`.

@@ -7,12 +7,12 @@ from app.dal.clients.reranking_client import score_chunks
 
 
 @pytest.mark.asyncio
-async def test_score_chunks_returns_scores_with_local_ollama():
+async def test_score_chunks_returns_scores_with_local_tei():
     if os.getenv("RAG_RERANKER_RUN_INTEGRATION") != "1":
-        pytest.skip("Set RAG_RERANKER_RUN_INTEGRATION=1 with Ollama running locally")
+        pytest.skip("Set RAG_RERANKER_RUN_INTEGRATION=1 with TEI running locally")
 
     config = load_config()
-    config["reranking"]["url"] = "http://localhost:11434/api/generate"
+    config["reranking"]["url"] = "http://localhost:8081/rerank"
 
     scores = await score_chunks(
         "Comment configurer Docker ?",

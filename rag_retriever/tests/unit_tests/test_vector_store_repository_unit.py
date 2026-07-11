@@ -1,8 +1,11 @@
 from app.dal.repositories.vector_store_repository import (
+    VectorStoreRepository,
     build_enriched_chunks,
     extract_related_links,
     filter_by_similarity,
+    sort_chunks_by_index,
 )
+from app.schemas.vector_db_items_schema import VectorStoreItemsBase
 
 
 def test_build_enriched_chunks_calculates_cosine_similarity() -> None:
@@ -69,15 +72,25 @@ def test_extract_related_links_keeps_highest_parent_score() -> None:
         "wiki/a.md": 0.9,
         "wiki/b.md": 0.6,
     }
-from app.dal.repositories.vector_store_repository import (
-    VectorStoreRepository,
-    build_enriched_chunks,
-    extract_related_links,
-    filter_by_similarity,
-)
-from app.schemas.vector_db_items_schema import VectorStoreItemsBase
 
 
+def test_sort_chunks_by_index_orders_document_chunks() -> None:
+    result = sort_chunks_by_index(
+        [
+            {
+                "document": "B",
+                "metadata": {"path": "doc.md", "title": "Doc", "chunk_index": 2},
+                "similarity": 1.0,
+            },
+            {
+                "document": "A",
+                "metadata": {"path": "doc.md", "title": "Doc", "chunk_index": 1},
+                "similarity": 1.0,
+            },
+        ],
+    )
+
+    assert [chunk["document"] for chunk in result] == ["A", "B"]
 class FakeCollection:
     def __init__(self):
         self.upsert_calls = []
@@ -98,7 +111,18 @@ class FakeCollection:
     def get(self, **kwargs):
         self.get_calls.append(kwargs)
         if kwargs.get("where"):
-            return {"documents": ["related"], "metadatas": [{"path": "b.md", "title": "B"}]}
+            return {
+                "documents": [
+                    "CONTEXT : Guide > API\nCONTENT : A",
+                    "CONTEXT : Guide > API\nCONTENT : B",
+                    "CONTEXT : Guide > CLI\nCONTENT : C",
+                ],
+                "metadatas": [
+                    {"path": "a.md", "title": "A", "chunk_index": 0},
+                    {"path": "a.md", "title": "A", "chunk_index": 1},
+                    {"path": "a.md", "title": "A", "chunk_index": 2},
+                ],
+            }
         if kwargs:
             return {"ids": ["id"], "documents": ["doc"], "metadatas": [{"path": "doc.md"}]}
         return {"ids": ["id"]}
@@ -154,7 +178,7 @@ def test_delete_all_items_deletes_existing_ids() -> None:
     assert collection.delete_calls == [{"ids": ["id"]}]
 
 
-def test_retrieve_chunks_filtered_filters_falls_back_and_adds_related_chunks() -> None:
+def test_retrieve_chunks_filtered_filters_and_does_not_add_related_chunks() -> None:
     collection = FakeCollection()
 
     result = _repository().retrieve_chunks_filtered(
@@ -163,13 +187,24 @@ def test_retrieve_chunks_filtered_filters_falls_back_and_adds_related_chunks() -
         top_k=2,
         minimum_similarity=0.95,
         minimum_number_of_chunks=1,
-        max_related_links=1,
     )
 
     assert result[0]["document"] == "doc-a"
     assert result[0]["similarity"] == 0.9
-    assert result[1]["document"].startswith("CONTEXTE : DOCUMENT LIÉ")
+    assert len(result) == 1
     assert collection.query_call["include"] == ["documents", "metadatas", "distances"]
+
+
+def test_retrieve_document_chunks_by_paths_deduplicates_paths_and_sorts_chunks() -> None:
+    collection = FakeCollection()
+
+    result = _repository().retrieve_document_chunks_by_paths(
+        collection,
+        ["a.md", "a.md"],
+    )
+
+    assert [chunk["metadata"]["chunk_index"] for chunk in result] == [0, 1, 2]
+    assert [call["where"] for call in collection.get_calls] == [{"path": "a.md"}]
 
 
 def test_build_enriched_chunks_and_filter_by_similarity_sort_results() -> None:

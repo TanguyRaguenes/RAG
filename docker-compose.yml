@@ -16,11 +16,21 @@ services:
         echo 'Waiting for ollama...'; sleep 1;
       done;
       ollama pull bge-m3:567m;
-      ollama pull qwen3:0.6b;
       ollama pull qwen2.5:3b;
       echo 'Models pulled.';
       wait
       "
+
+  # tei_reranker : serveur d'inférence Hugging Face TEI pour le modèle de reranking BGE.
+  tei_reranker:
+    image: ghcr.io/huggingface/text-embeddings-inference:cpu-1.9
+    container_name: tei_reranker_container
+    command: --model-id cross-encoder/mmarco-mMiniLMv2-L12-H384-v1 --port 80
+    ports:
+      - "8081:80"
+    volumes:
+      - tei_reranker_data:/data
+    restart: unless-stopped
 
   # Chroma : stocke les embeddings dans une base vectorielle.
   chroma:
@@ -89,7 +99,7 @@ services:
     volumes:
       - ./rag_reranker:/app # HotReload : Montage du code source pour que les modifs soient prises en compte sans rebuild
     depends_on:
-      - ollama
+      - tei_reranker
    
   # rag_orchestrator : coordonne les appels entre embedder, retriever, LLM et base SQL.
   rag_orchestrator:
@@ -106,6 +116,7 @@ services:
       - DEBUG=1
       - RAG_EMBEDDER_EMBED_QUESTION_URL=http://rag_embedder:8000/embed_text
       - RAG_RETRIEVER_RETRIEVE_CHUNKS_URL=http://rag_retriever:8000/retrieve_chunks
+      - RAG_RETRIEVER_RETRIEVE_DOCUMENT_CHUNKS_URL=http://rag_retriever:8000/retrieve_document_chunks
       - RAG_RERANKER_RERANK_CHUNKS_URL=http://rag_reranker:8000/rerank_chunks
       - RAG_USAGE_ADMIN_GROUPS=rag_admin
     volumes:
@@ -323,6 +334,7 @@ services:
 
 volumes:
   ollama_data:
+  tei_reranker_data:
   chroma_data:
   prometheus_data:
   grafana_data:

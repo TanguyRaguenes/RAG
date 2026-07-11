@@ -31,7 +31,7 @@ def _config() -> dict:
 
 
 @pytest.mark.asyncio
-async def test_retrieve_chunks_service_embeds_question_then_retrieves_chunks(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_retrieve_chunks_service_embeds_retrieves_reranks_then_fetches_document_chunks(monkeypatch: pytest.MonkeyPatch) -> None:
     calls = []
 
     async def fake_embed_question(question: str) -> list[float]:
@@ -44,20 +44,45 @@ async def test_retrieve_chunks_service_embeds_question_then_retrieves_chunks(mon
 
     async def fake_rerank_chunks_client(question: str, chunks: list[dict]) -> list[dict]:
         calls.append(("rerank", question, chunks))
-        return [{"document": "reranked"}]
+        return [
+            {"document": "reranked-a", "metadata": {"path": "a.md"}},
+            {"document": "reranked-a-duplicate", "metadata": {"path": "a.md"}},
+            {"document": "reranked-b", "metadata": {"path": "b.md"}},
+        ]
+
+    async def fake_retrieve_document_chunks_client(paths: list[str]) -> list[dict]:
+        calls.append(("documents", paths))
+        return [{"document": "document chunks"}]
 
     monkeypatch.setattr(retrieve_chunks_service, "embed_question", fake_embed_question)
     monkeypatch.setattr(retrieve_chunks_service, "retrieve_chunks_client", fake_retrieve_chunks_client)
     monkeypatch.setattr(retrieve_chunks_service, "rerank_chunks_client", fake_rerank_chunks_client)
+    monkeypatch.setattr(
+        retrieve_chunks_service,
+        "retrieve_document_chunks_client",
+        fake_retrieve_document_chunks_client,
+    )
 
     response = await retrieve_chunks_service.retrieve_chunks("Question", {})
 
-    assert response.retrieved_chunks == [{"document": "reranked"}]
+    assert response.retrieved_chunks == [{"document": "document chunks"}]
     assert calls == [
         ("embed", "Question"),
         ("retrieve", [0.1]),
         ("rerank", "Question", [{"document": "doc"}]),
+        ("documents", ["a.md", "b.md"]),
     ]
+
+
+def test_extract_unique_paths_keeps_first_occurrence_order() -> None:
+    chunks = [
+        {"metadata": {"path": "a.md"}},
+        {"metadata": {"path": "a.md"}},
+        {"metadata": {"path": "b.md"}},
+        {"metadata": {}},
+    ]
+
+    assert retrieve_chunks_service.extract_unique_paths(chunks) == ["a.md", "b.md"]
 
 
 @pytest.mark.asyncio

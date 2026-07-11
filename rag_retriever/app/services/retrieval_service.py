@@ -12,7 +12,6 @@ def retrieve_chunks(
     top_k: int = config["retriever"]["top_k"]
     minimum_similarity: float = config["retriever"]["minimum_similarity"]
     minimum_number_of_chunks: int = config["retriever"]["minimum_number_of_chunks"]
-    max_related_links: int = config["retriever"]["max_related_links"]
 
     retrieved_chunks: list[dict[str, Any]] = (
         vector_store_repository.retrieve_chunks_filtered(
@@ -21,12 +20,26 @@ def retrieve_chunks(
             top_k,
             minimum_similarity,
             minimum_number_of_chunks,
-            max_related_links,
         )
     )
 
     return RetrievedChunksModelBase(
         chunks=[format_retrieved_chunk(chunk) for chunk in retrieved_chunks]
+    )
+
+
+def retrieve_document_chunks(
+    collection,
+    paths: list[str],
+    vector_store_repository,
+) -> RetrievedChunksModelBase:
+    document_chunks = vector_store_repository.retrieve_document_chunks_by_paths(
+        collection,
+        paths,
+    )
+
+    return RetrievedChunksModelBase(
+        chunks=[format_retrieved_chunk(chunk) for chunk in document_chunks]
     )
 
 

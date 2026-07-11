@@ -85,7 +85,6 @@ class VectorStoreRepository:
         top_k: int,
         minimum_similarity: float,
         minimum_number_of_chunks: int,
-        max_related_links: int,
     ) -> list[RetrievedChunk]:
         # 1° Récupération des chunks bruts depuis Chroma
         retrieved_chunks: QueryResult = collection.query(
@@ -110,13 +109,36 @@ class VectorStoreRepository:
             enriched_chunks.sort(key=lambda x: x["similarity"], reverse=True)
             kept_chunks = enriched_chunks[:minimum_number_of_chunks]
 
-        # 6° On va chercher les chunks liés
-        enriched_kept_chunks = self.retrieve_related_chunks(
-            kept_chunks, collection, max_related_links
-        )
-        enriched_kept_chunks.sort(key=lambda x: x["similarity"], reverse=True)
+        kept_chunks.sort(key=lambda x: x["similarity"], reverse=True)
 
-        return enriched_kept_chunks
+        return kept_chunks
+
+    def retrieve_document_chunks_by_paths(
+        self,
+        collection: Collection,
+        paths: list[str],
+    ) -> list[RetrievedChunk]:
+        document_chunks: list[RetrievedChunk] = []
+        seen_paths: set[str] = set()
+
+        for path in paths:
+            if path in seen_paths:
+                continue
+            seen_paths.add(path)
+
+            path_chunks = collection.get(
+                where={"path": path},
+                include=["documents", "metadatas"],
+            )
+
+            chunks = build_enriched_chunks(
+                path_chunks.get("documents", []) or [],
+                path_chunks.get("metadatas", []) or [],
+                [0.0 for _ in path_chunks.get("documents", []) or []],
+            )
+            document_chunks.extend(sort_chunks_by_index(chunks))
+
+        return document_chunks
 
     def filter_by_similarity(
         self, chunks: list[RetrievedChunk], minimum_similarity: float
@@ -197,6 +219,13 @@ def filter_by_similarity(
         (chunk for chunk in chunks if chunk["similarity"] >= minimum_similarity),
         key=lambda chunk: chunk["similarity"],
         reverse=True,
+    )
+
+
+def sort_chunks_by_index(chunks: list[RetrievedChunk]) -> list[RetrievedChunk]:
+    return sorted(
+        chunks,
+        key=lambda chunk: chunk["metadata"].get("chunk_index", 0),
     )
 
 

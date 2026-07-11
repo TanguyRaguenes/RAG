@@ -1,6 +1,10 @@
 from typing import Any
 
-from app.services.retrieval_service import format_retrieved_chunk, retrieve_chunks
+from app.services.retrieval_service import (
+    format_retrieved_chunk,
+    retrieve_chunks,
+    retrieve_document_chunks,
+)
 
 
 class FakeVectorStoreRepository:
@@ -15,7 +19,6 @@ class FakeVectorStoreRepository:
         top_k: int,
         minimum_similarity: float,
         minimum_number_of_chunks: int,
-        max_related_links: int,
     ) -> list[dict[str, Any]]:
         self.call_args = (
             collection,
@@ -23,8 +26,15 @@ class FakeVectorStoreRepository:
             top_k,
             minimum_similarity,
             minimum_number_of_chunks,
-            max_related_links,
         )
+        return self.chunks
+
+    def retrieve_document_chunks_by_paths(
+        self,
+        collection: object,
+        paths: list[str],
+    ) -> list[dict[str, Any]]:
+        self.call_args = (collection, paths)
         return self.chunks
 
 
@@ -72,7 +82,7 @@ def test_retrieve_chunks_uses_config_and_formats_repository_results() -> None:
 
     response = retrieve_chunks(config, collection, [0.1, 0.2], repository)
 
-    assert repository.call_args == (collection, [0.1, 0.2], 10, 0.5, 2, 3)
+    assert repository.call_args == (collection, [0.1, 0.2], 10, 0.5, 2)
     assert len(response.chunks) == 1
     assert response.chunks[0].id == "Titre | wiki/page.md | 1"
 
@@ -91,6 +101,29 @@ def test_retrieve_chunks_returns_empty_response_when_repository_returns_no_chunk
     response = retrieve_chunks(config, object(), [0.1], repository)
 
     assert response.chunks == []
+
+
+def test_retrieve_document_chunks_formats_repository_results() -> None:
+    collection = object()
+    paths = ["wiki/page.md"]
+    repository = FakeVectorStoreRepository(
+        [
+            {
+                "document": "document chunk",
+                "metadata": {
+                    "title": "Titre",
+                    "path": "wiki/page.md",
+                    "chunk_index": 1,
+                },
+                "similarity": 0.75,
+            }
+        ]
+    )
+
+    response = retrieve_document_chunks(collection, paths, repository)
+
+    assert repository.call_args == (collection, paths)
+    assert response.chunks[0].document == "document chunk"
 
 
 def test_format_retrieved_chunk_raises_key_error_when_required_metadata_is_missing() -> None:

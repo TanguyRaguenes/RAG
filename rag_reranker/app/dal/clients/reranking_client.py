@@ -1,4 +1,3 @@
-import json
 import logging
 import time
 from typing import Any
@@ -44,13 +43,7 @@ async def score_chunks(
         },
     )
 
-    payload = {
-        "model": model,
-        "prompt": _build_prompt(question, chunks, max_chunk_chars),
-        "stream": False,
-        "format": "json",
-        "options": {"temperature": 0},
-    }
+    payload = _build_payload(question, chunks, max_chunk_chars)
 
     try:
         with tracer.start_as_current_span("reranking.call_model") as span:
@@ -132,6 +125,13 @@ async def score_chunks(
             details={"url": url, "error": str(e)},
         ) from e
 
+    except ValueError as e:
+        reranking_errors_total.inc()
+        raise RerankingResponseFormatException(
+            message="La réponse TEI n'est pas un JSON valide",
+            details={"url": url},
+        ) from e
+
     try:
         scores = _parse_scores(data, len(chunks))
     except RerankingResponseFormatException:
@@ -166,53 +166,25 @@ async def score_chunks(
     return scores
 
 
-def _build_prompt(
+def _build_payload(
     question: str,
     chunks: list[dict[str, Any]],
     max_chunk_chars: int,
-) -> str:
-    candidates = [
-        {
-            "index": index,
-            "title": chunk.get("metadata", {}).get("title", ""),
-            "path": chunk.get("metadata", {}).get("path", ""),
-            "text": chunk.get("document", "")[:max_chunk_chars],
-        }
-        for index, chunk in enumerate(chunks)
-    ]
-
-    return (
-        "Tu es un reranker pour un système RAG. "
-        "Score chaque chunk selon sa pertinence pour répondre à la question. "
-        "Utilise un score entre 0 et 1. "
-        "Retourne uniquement un JSON valide au format "
-        '{"scores":[{"index":0,"score":0.95}]}.\n\n'
-        f"Question:\n{question}\n\n"
-        f"Chunks:\n{json.dumps(candidates, ensure_ascii=False)}"
-    )
+) -> dict[str, Any]:
+    return {
+        "query": question,
+        "texts": [chunk.get("document", "")[:max_chunk_chars] for chunk in chunks],
+        "raw_scores": False,
+        "return_text": False,
+    }
 
 
-def _parse_scores(data: dict[str, Any], expected_chunk_count: int) -> dict[int, float]:
-    raw_response = data.get("response")
-    if not isinstance(raw_response, str):
-        raise RerankingResponseFormatException(
-            message="La réponse Ollama ne contient pas de champ 'response' exploitable",
-            details={"response_keys": list(data.keys())},
-        )
-
-    try:
-        parsed_response = json.loads(raw_response)
-    except json.JSONDecodeError as e:
-        raise RerankingResponseFormatException(
-            message="La réponse du modèle de reranking n'est pas un JSON valide",
-            details={"response": raw_response},
-        ) from e
-
-    raw_scores = parsed_response.get("scores")
+def _parse_scores(data: Any, expected_chunk_count: int) -> dict[int, float]:
+    raw_scores = data.get("results") if isinstance(data, dict) else data
     if not isinstance(raw_scores, list):
         raise RerankingResponseFormatException(
-            message="La réponse du modèle de reranking ne contient pas de liste 'scores'",
-            details={"response": parsed_response},
+            message="La réponse TEI ne contient pas de liste de scores exploitable",
+            details={"response": data},
         )
 
     scores: dict[int, float] = {}

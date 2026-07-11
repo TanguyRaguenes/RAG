@@ -33,6 +33,8 @@ class FakeAsyncClient:
             return FakeResponse({"embeded_text": [0.1, 0.2]})
         if "rerank" in url:
             return FakeResponse({"reranked_chunks": [{"document": "reranked"}]})
+        if "document_chunks" in url:
+            return FakeResponse({"chunks": [{"document": "document chunks"}]})
         return FakeResponse({"chunks": [{"document": "doc"}]})
 
 
@@ -72,6 +74,42 @@ async def test_retrieve_chunks_raises_domain_exception_when_url_is_missing(monke
         await retriever_client.retrieve_chunks([0.1])
 
     assert exc_info.value.details == {"env_var": "RAG_RETRIEVER_RETRIEVE_CHUNKS_URL"}
+
+
+@pytest.mark.asyncio
+async def test_retrieve_document_chunks_posts_paths(monkeypatch: pytest.MonkeyPatch) -> None:
+    FakeAsyncClient.calls = []
+    monkeypatch.setenv(
+        "RAG_RETRIEVER_RETRIEVE_DOCUMENT_CHUNKS_URL",
+        "http://retriever/retrieve_document_chunks",
+    )
+    monkeypatch.setattr(retriever_client.httpx, "AsyncClient", FakeAsyncClient)
+
+    paths = ["doc.md"]
+    result = await retriever_client.retrieve_document_chunks(paths)
+
+    assert result == [{"document": "document chunks"}]
+    assert FakeAsyncClient.calls == [
+        {
+            "url": "http://retriever/retrieve_document_chunks",
+            "json": {"paths": paths},
+            "timeout": 180,
+        }
+    ]
+
+
+@pytest.mark.asyncio
+async def test_retrieve_document_chunks_raises_domain_exception_when_url_is_missing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("RAG_RETRIEVER_RETRIEVE_DOCUMENT_CHUNKS_URL", raising=False)
+
+    with pytest.raises(RetrieverContainerException) as exc_info:
+        await retriever_client.retrieve_document_chunks([])
+
+    assert exc_info.value.details == {
+        "env_var": "RAG_RETRIEVER_RETRIEVE_DOCUMENT_CHUNKS_URL"
+    }
 
 
 @pytest.mark.asyncio

@@ -28,6 +28,16 @@ def test_chunk_text_returns_chunks_with_markdown_context():
     assert "Voici comment installer le projet." in chunks[0]
 
 
+def test_chunk_text_repeats_markdown_context_on_each_split_chunk():
+    text = "# Guide RAG\n\n## Installation\n\n" + "Phrase longue. " * 80
+    config = {"chunking": {"size_chars": 120, "overlap_chars": 20}}
+
+    chunks = chunk_text(text, config)
+
+    assert len(chunks) > 1
+    assert all(chunk.startswith("CONTEXT : Guide RAG > Installation") for chunk in chunks)
+
+
 def test_chunk_text_removes_toc_and_images():
     text = """
         [[_TOC_]]
@@ -51,4 +61,3 @@ def test_chunk_text_returns_empty_list_when_text_is_empty():
     chunks = chunk_text("", get_test_config())
 
     assert chunks == []
-    # assert 1 == 2
