@@ -1,8 +1,8 @@
 services:
 
-  # 1° Service qui permet d'installer OnPremise les models
+  # Ollama : execute les modeles IA en local pour les embeddings et le LLM.
   ollama:
-    image: ollama/ollama:latest
+    image: ollama/ollama:0.31.2
     container_name: ollama_container
     ports:
       - "11434:11434"
@@ -21,9 +21,9 @@ services:
       wait
       "
 
-  # 2° Service qui permet de stocker des données vectorielles puis de les récupérer (retriever)
+  # Chroma : stocke les embeddings dans une base vectorielle.
   chroma:
-    image: chromadb/chroma:latest
+    image: chromadb/chroma:1.5.9
     container_name: chroma_container
     ports:
     - "8000:8000"
@@ -33,7 +33,7 @@ services:
       - PERSIST_DIRECTORY=/data
     restart: unless-stopped
 
-  # 3° Service en charge de faire le crud avec la bdd vectorielle
+  # rag_retriever : lit et ecrit les chunks dans la base vectorielle Chroma.
   rag_retriever:
     build:
       context: ./rag_retriever
@@ -50,7 +50,7 @@ services:
       - chroma
   
 
-  # 4° Service en charge de convertir en vecteur les wikis et les questions des utilisateurs
+  # rag_embedder : transforme les documents et questions en vecteurs.
   rag_embedder:
     build:
       context: ./rag_embedder
@@ -72,7 +72,7 @@ services:
       - ollama
       - rag_retriever
   
-  # 5° Service en charge d'orchestrer l'appel aux différents services du RAG
+  # rag_orchestrator : coordonne les appels entre embedder, retriever, LLM et base SQL.
   rag_orchestrator:
     build:
       context: ./rag_orchestrator
@@ -87,6 +87,7 @@ services:
       - DEBUG=1
       - RAG_EMBEDDER_EMBED_QUESTION_URL=http://rag_embedder:8000/embed_text
       - RAG_RETRIEVER_RETRIEVE_CHUNKS_URL=http://rag_retriever:8000/retrieve_chunks
+      - RAG_USAGE_ADMIN_GROUPS=rag_admin
     volumes:
       - ./rag_orchestrator:/app # HotReload : Montage du code source pour que les modifs soient prises en compte sans rebuild
     depends_on:
@@ -95,7 +96,7 @@ services:
       - rag_retriever
       - postgres
 
-   # 6° Service en charge d'évaluer la qualité du RAG
+  # rag_evaluator : mesure la qualite des reponses et des documents recuperes.
   rag_evaluator:
     build:
       context: ./rag_evaluator
@@ -116,7 +117,7 @@ services:
     depends_on:
       - rag_orchestrator
 
-  # 7° Service en charge de l'affichage de l'interface utilisateur (basé sur la bibliothèque streamlit)
+  # rag_ihm : affiche l'interface utilisateur Streamlit du RAG.
   rag_ihm:
     build:
       context: ./rag_ihm
@@ -144,7 +145,7 @@ services:
       - rag_evaluator
       - pocket-id
 
-  # 8° Service MCP pour l'IA dans VS Code
+  # rag_mcp : expose le RAG a Kilo Code via le protocole MCP.
   rag_mcp:
     build:
       context: ./rag_mcp
@@ -165,8 +166,9 @@ services:
     depends_on:
       - rag_orchestrator
 
+  # Prometheus : collecte les metriques exposees par les microservices.
   prometheus:
-    image: prom/prometheus:latest
+    image: prom/prometheus:v3.13.1
     container_name: prometheus_container
     ports:
       - "9090:9090"
@@ -180,8 +182,9 @@ services:
       - rag_orchestrator
       - pocket-id
 
+  # Loki : stocke les logs applicatifs pour les consulter dans Grafana.
   loki:
-    image: grafana/loki:latest
+    image: grafana/loki:3.7.3
     container_name: loki_container
     ports:
       - "3100:3100"
@@ -189,8 +192,9 @@ services:
     volumes:
       - loki_data:/loki
 
+  # Alloy : collecte les logs des containers et les envoie vers Loki.
   alloy:
-    image: grafana/alloy:latest
+    image: grafana/alloy:v1.17.1
     container_name: alloy_container
     ports:
       - "12345:12345"
@@ -204,8 +208,9 @@ services:
     depends_on:
       - loki
 
+  # Tempo : stocke les traces distribuees OpenTelemetry.
   tempo:
-    image: grafana/tempo:latest
+    image: grafana/tempo:3.0.2
     container_name: tempo_container
     command: ["-config.file=/etc/tempo.yml"]
     ports:
@@ -216,9 +221,9 @@ services:
       - ./observability/tempo.yml:/etc/tempo.yml:ro
       - tempo_data:/var/tempo
 
-
+  # Grafana : affiche les dashboards de metriques, logs et traces.
   grafana:
-    image: grafana/grafana:latest
+    image: grafana/grafana:13.1.0
     container_name: grafana_container
     ports:
       - "3000:3000"
@@ -233,6 +238,7 @@ services:
       - loki
       - tempo
 
+  # Pocket ID : gere l'authentification OIDC utilisee par l'application.
   pocket-id:
     image: ghcr.io/pocket-id/pocket-id:v2
     container_name: pocket_id_container
@@ -244,6 +250,7 @@ services:
     volumes:
       - pocket_id_data:/app/data
 
+  # Postgres : stocke les donnees relationnelles du RAG.
   postgres:
     image: postgres:16-alpine
     container_name: postgres_container
@@ -258,6 +265,7 @@ services:
       - postgres_data:/var/lib/postgresql/data
       - ./database/postgres/init:/docker-entrypoint-initdb.d:ro
   
+  # Adminer : fournit une interface web simple pour consulter Postgres.
   adminer:
     image: adminer:4.8.1
     container_name: adminer_container
@@ -267,6 +275,7 @@ services:
     depends_on:
       - postgres
 
+  # rag_embedder_docs : sert la documentation MkDocs du microservice embedder.
   rag_embedder_docs:
       build:
         context: ./rag_embedder
