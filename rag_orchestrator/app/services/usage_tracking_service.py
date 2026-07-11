@@ -314,7 +314,7 @@ def _quota_row_to_response(row) -> QuotaUsageResponse:
 
 
 def _get_admin_groups() -> set[str]:
-    raw_groups = os.getenv("RAG_USAGE_ADMIN_GROUPS", "admin,admins,rag-admin")
+    raw_groups = os.getenv("RAG_USAGE_ADMIN_GROUPS", "rag_admin")
 
     return _normalize_groups(raw_groups.split(","))
 

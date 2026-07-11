@@ -11,7 +11,7 @@ class AuthService:
 
         is_machine_token = claims.get("sub", "").startswith("client-")
 
-        if claims.get("type") == "oauth-access-token" and not is_machine_token:
+        if not is_machine_token:
             userinfo = await self.oidc_client.get_userinfo(token)
             claims = {**claims, **userinfo}
 

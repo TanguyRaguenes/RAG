@@ -139,5 +139,5 @@ def _ensure_usage_admin(current_user: AuthenticatedUser) -> None:
 
     raise HTTPException(
         status_code=status.HTTP_403_FORBIDDEN,
-        detail="Usage administration is restricted to administrators",
+        detail="Restriction aux profils administateurs.",
     )

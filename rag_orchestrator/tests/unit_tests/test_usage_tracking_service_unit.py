@@ -52,7 +52,7 @@ def test_quota_row_to_response_calculates_remaining_tokens_and_ratio() -> None:
 
 
 def test_normalize_groups_trims_and_lowercases_values() -> None:
-    assert _normalize_groups([" Admin ", "", "RAG-Admin"]) == {"admin", "rag-admin"}
+    assert _normalize_groups([" Admin ", "", "RAG_Admin"]) == {"admin", "rag_admin"}
 
 
 def test_normalize_optional_values_return_none_for_empty_values() -> None:
