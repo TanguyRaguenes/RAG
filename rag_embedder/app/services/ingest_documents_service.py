@@ -1,7 +1,8 @@
 import re
+from typing import Any
 from urllib.parse import unquote
 
-from app.dal.clients.embedding_client import embed_text as client_embed_text
+from app.dal.clients.embedding_client import embed as client_embed
 from app.dal.clients.retriever_client import save_items as client_save_items
 from app.domain.models.document_model import DocumentBase, DocumentsBase
 from app.domain.models.vector_store_item_model import VectorStoreItemsBase
@@ -78,6 +79,8 @@ async def prepare_document_to_ingest(
     # on découpe le fichier en chunks
     chunks: list[str] = chunk_text(document.content, config)
     document_context: str = clean_title(document.path.split("/")[-1])
+    texts_to_embed: list[str] = []
+    chunks_metadata: list[dict[str, Any]] = []
 
     for i, chunk in enumerate(chunks):
         # 1. EXTRACTION DES LIENS
@@ -100,22 +103,30 @@ async def prepare_document_to_ingest(
         # -> découplage (Decoupling) entre la sémantique (le sens) et le contenu (le texte)
         # text_to_embed = f"Contexte du document : {document_context}\nContenu : {chunk}"
         text_to_embed = f"TITLE={document_context} | PATH={document.path}\n{chunk}"
-
-        # on convertit les chunks en float
-        embed_text: list[float] = await client_embed_text(text_to_embed, config, False)
-
-        # On génère le formalisme attendu par ChromaDB
-        chunk_to_ingest: ChunkToIngest = ChunkToIngest(
-            id=f"{document_context}#chunk_{i}#{document.path}",
-            chunk=chunk,
-            embeded_text=embed_text,
-            metadatas={
+        texts_to_embed.append(text_to_embed)
+        chunks_metadata.append(
+            {
                 "path": document.path,
                 "title": document_context,
                 "chunk_index": i,
                 "related_links": links_metadata,
                 "has_links": len(raw_links) > 0,
-            },
+            }
+        )
+
+    if not texts_to_embed:
+        return document_to_ingest
+
+    # on convertit les chunks en float en un seul appel batch
+    embeddings: list[list[float]] = await client_embed(texts_to_embed, config, False)
+
+    for i, chunk in enumerate(chunks):
+        # On génère le formalisme attendu par ChromaDB
+        chunk_to_ingest: ChunkToIngest = ChunkToIngest(
+            id=f"{document_context}#chunk_{i}#{document.path}",
+            chunk=chunk,
+            embeded_text=embeddings[i],
+            metadatas=chunks_metadata[i],
         )
 
         document_to_ingest.chunks.append(chunk_to_ingest)

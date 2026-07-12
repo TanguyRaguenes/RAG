@@ -81,6 +81,7 @@ def _render_sidebar(config) -> tuple[str, bool]:
         details_mode = st.radio(
             "Détails techniques",
             ["Masqués", "Affichés"],
+            index=1,
             horizontal=True,
             help="À réserver au diagnostic : prompt généré et détails d'erreur.",
         )

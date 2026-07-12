@@ -30,7 +30,7 @@ class FakeAsyncClient:
     async def post(self, url: str, json: dict) -> FakeResponse:
         self.calls.append({"url": url, "json": json, "timeout": self.timeout})
         if "embed" in url:
-            return FakeResponse({"embeded_text": [0.1, 0.2]})
+            return FakeResponse({"embeded_texts": [[0.1, 0.2]]})
         if "rerank" in url:
             return FakeResponse({"reranked_chunks": [{"document": "reranked"}]})
         if "document_chunks" in url:
@@ -39,20 +39,20 @@ class FakeAsyncClient:
 
 
 @pytest.mark.asyncio
-async def test_embed_question_posts_text_and_returns_embedding(
+async def test_embed_posts_texts_and_returns_embeddings(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     FakeAsyncClient.calls = []
-    monkeypatch.setenv("RAG_EMBEDDER_EMBED_QUESTION_URL", "http://embedder/embed_text")
+    monkeypatch.setenv("RAG_EMBEDDER_EMBED_URL", "http://embedder/embed")
     monkeypatch.setattr(embedder_client.httpx, "AsyncClient", FakeAsyncClient)
 
-    result = await embedder_client.embed_question("Question")
+    result = await embedder_client.embed(["Question"])
 
-    assert result == [0.1, 0.2]
+    assert result == [[0.1, 0.2]]
     assert FakeAsyncClient.calls == [
         {
-            "url": "http://embedder/embed_text",
-            "json": {"text": "Question"},
+            "url": "http://embedder/embed",
+            "json": {"texts": ["Question"]},
             "timeout": 120,
         }
     ]

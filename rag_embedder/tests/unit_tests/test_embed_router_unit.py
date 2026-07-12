@@ -2,28 +2,28 @@ import pytest
 
 from app.api.routers import embed_router
 from app.domain.models.document_model import DocumentBase, DocumentsBase
-from app.domain.models.embed_text_request_model import EmbedTextRequestBase
+from app.domain.models.embed_request_model import EmbedRequestBase
 from app.schemas.save_items_response_schema import SaveItemsResponseBase
 
 
 @pytest.mark.asyncio
-async def test_embed_text_route_returns_embedding_and_duration(
+async def test_embed_route_returns_embeddings_and_duration(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    async def fake_service_embed_text(text: str, config: dict) -> list[float]:
-        assert text == "question"
+    async def fake_service_embed(texts: list[str], config: dict) -> list[list[float]]:
+        assert texts == ["question", "autre question"]
         assert config == {"config": True}
-        return [0.1, 0.2]
+        return [[0.1, 0.2], [0.3, 0.4]]
 
-    monkeypatch.setattr(embed_router, "service_embed_text", fake_service_embed_text)
+    monkeypatch.setattr(embed_router, "service_embed", fake_service_embed)
     monkeypatch.setattr(embed_router.time, "perf_counter", iter([1.0, 2.2]).__next__)
 
-    response = await embed_router.embed_text_route(
-        EmbedTextRequestBase(text="question"),
+    response = await embed_router.embed_route(
+        EmbedRequestBase(texts=["question", "autre question"]),
         {"config": True},
     )
 
-    assert response.embeded_text == [0.1, 0.2]
+    assert response.embeded_texts == [[0.1, 0.2], [0.3, 0.4]]
     assert response.duration_ms == 1200.0
     assert response.duration_human == "00:01"
 

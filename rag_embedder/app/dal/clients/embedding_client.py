@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 tracer = trace.get_tracer(__name__)
 
 
-async def embed_text(text: str, config: dict, is_query: bool) -> list[float]:
+async def embed(texts: list[str], config: dict, is_query: bool) -> list[list[float]]:
     embedding_requests_total.inc()
     start_time = time.perf_counter()
 
@@ -29,19 +29,25 @@ async def embed_text(text: str, config: dict, is_query: bool) -> list[float]:
             "group": "embedding",
             "event": "request_started",
             "is_query": is_query,
-            "text_length": len(text),
+            "text_count": len(texts),
+            "total_text_length": sum(len(text) for text in texts),
             "model": model,
         },
     )
 
-    text_to_embed = f"{prefix_query}{text}" if is_query else f"{prefix_document}{text}"
-    payload = {"model": model, "input": text_to_embed}
+    prefix = prefix_query if is_query else prefix_document
+    texts_to_embed = [f"{prefix}{text}" for text in texts]
+    payload = {"model": model, "input": texts_to_embed}
 
     try:
         with tracer.start_as_current_span("embedding.call_model") as span:
             span.set_attribute("embedding.model", model)
             span.set_attribute("embedding.is_query", is_query)
-            span.set_attribute("embedding.text_length", len(text))
+            span.set_attribute("embedding.text_count", len(texts))
+            span.set_attribute(
+                "embedding.total_text_length",
+                sum(len(text) for text in texts),
+            )
             span.set_attribute("http.url", url)
 
             async with httpx.AsyncClient(timeout=120) as client:
@@ -129,8 +135,9 @@ async def embed_text(text: str, config: dict, is_query: bool) -> list[float]:
             "event": "request_completed",
             "duration_ms": duration_ms,
             "model": model,
+            "embedding_count": len(data["embeddings"]),
             "embedding_size": len(data["embeddings"][0]),
         },
     )
 
-    return data["embeddings"][0]
+    return data["embeddings"]

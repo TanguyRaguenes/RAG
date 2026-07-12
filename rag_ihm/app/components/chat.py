@@ -10,9 +10,9 @@ FEEDBACK_TOAST_PREFIX = "chat_feedback_toast_"
 
 
 EXAMPLE_QUESTIONS = [
-    "Comment fonctionne l'architecture microservices ?",
-    "Quels sont les prérequis d'installation ?",
-    "Où trouver la procédure de déploiement ?",
+    "Quelles sont les bonnes pratiques pour un développeur ?",
+    "Comment rédiger un commentaire ?",
+    "Donne moi le listing des VM avec leur url ?",
 ]
 
 

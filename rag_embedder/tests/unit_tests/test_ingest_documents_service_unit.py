@@ -59,13 +59,15 @@ async def test_prepare_document_to_ingest_embeds_chunks_with_document_context(
         assert config == {"chunking": {}}
         return ["Premier chunk avec [lien](./Autre-page)", "Second chunk"]
 
-    async def fake_embed_text(text: str, config: dict, is_query: bool) -> list[float]:
-        captured_texts.append(text)
+    async def fake_embed(
+        texts: list[str], config: dict, is_query: bool
+    ) -> list[list[float]]:
+        captured_texts.extend(texts)
         assert not is_query
-        return [float(len(captured_texts))]
+        return [[float(index)] for index, _ in enumerate(texts, start=1)]
 
     monkeypatch.setattr(service, "chunk_text", fake_chunk_text)
-    monkeypatch.setattr(service, "client_embed_text", fake_embed_text)
+    monkeypatch.setattr(service, "client_embed", fake_embed)
 
     result = await service.prepare_document_to_ingest(
         DocumentBase(path="docs/Guide%20API.md", content="source"),
@@ -84,7 +86,10 @@ async def test_prepare_document_to_ingest_embeds_chunks_with_document_context(
         "has_links": True,
     }
     assert result.chunks[1].metadatas["has_links"] is False
+    assert result.chunks[0].embeded_text == [1.0]
+    assert result.chunks[1].embeded_text == [2.0]
     assert captured_texts[0].startswith("TITLE=Guide API | PATH=docs/Guide%20API.md")
+    assert len(captured_texts) == 2
 
 
 @pytest.mark.asyncio

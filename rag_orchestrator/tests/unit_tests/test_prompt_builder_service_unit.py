@@ -1,4 +1,9 @@
-from app.services.prompt_builder_service import build_context, build_prompt
+from app.services.prompt_builder_service import (
+    build_context,
+    build_prompt,
+    format_chunk_as_markdown,
+    parse_chunk_document,
+)
 
 
 def test_build_context_includes_chunk_metadata_and_stops_at_character_limit() -> None:
@@ -13,12 +18,48 @@ def test_build_context_includes_chunk_metadata_and_stops_at_character_limit() ->
         },
     ]
 
-    context = build_context(chunks, max_prompt_chars=80)
+    context = build_context(chunks, max_prompt_chars=230)
 
-    assert "SOURCE: Doc A" in context
-    assert "PATH: a.md" in context
-    assert "CHUNK: 0" in context
+    assert "## Chunk 1 - Doc A" in context
+    assert "### Métadonnées" in context
+    assert "- **Source** : Doc A" in context
+    assert "- **Chemin** : `a.md`" in context
+    assert "- **Index du chunk** : 0" in context
+    assert "### Extrait documentaire" in context
     assert "Doc B" not in context
+
+
+def test_format_chunk_as_markdown_uses_readable_fallbacks() -> None:
+    chunk = {"metadata": {}, "document": "Info"}
+
+    block = format_chunk_as_markdown(1, chunk)
+
+    assert "## Chunk 1" in block
+    assert "- **Source** : Non renseigné" in block
+    assert "- **Chemin** : `Non renseigné`" in block
+    assert "- **Index du chunk** : Non renseigné" in block
+    assert "### Extrait documentaire\n\nInfo" in block
+
+
+def test_format_chunk_as_markdown_splits_context_and_content_labels() -> None:
+    chunk = {
+        "metadata": {"title": "Commentaires", "path": "Commentaires.md", "chunk_index": 0},
+        "document": "CONTEXT : Introduction\nCONTENT : Le code doit être commenté utilement.",
+    }
+
+    block = format_chunk_as_markdown(1, chunk)
+
+    assert "CONTEXT :" not in block
+    assert "CONTENT :" not in block
+    assert "### Section documentaire\n\nIntroduction" in block
+    assert "### Extrait documentaire\n\nLe code doit être commenté utilement." in block
+
+
+def test_parse_chunk_document_falls_back_to_raw_document() -> None:
+    section, content = parse_chunk_document("Info brute")
+
+    assert section is None
+    assert content == "Info brute"
 
 
 def test_build_prompt_uses_context_and_refusal_instruction_when_chunks_exist() -> None:
@@ -34,8 +75,11 @@ def test_build_prompt_uses_context_and_refusal_instruction_when_chunks_exist() -
     )
 
     assert prompt[0]["role"] == "system"
-    assert "Je ne sais pas" in prompt[0]["content"]
-    assert "CONTEXTE:" in prompt[1]["content"]
+    assert "La réponse ne se trouve pas" in prompt[0]["content"]
+    assert "# Question" in prompt[1]["content"]
+    assert "# Contexte documentaire" in prompt[1]["content"]
+    assert "# Attendu" in prompt[1]["content"]
+    assert "## Chunk 1" in prompt[1]["content"]
     assert "Question ?" in prompt[1]["content"]
 
 

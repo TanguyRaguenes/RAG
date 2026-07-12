@@ -114,7 +114,7 @@ services:
       - "5680:5678" # port debug côté host (évite conflit avec rag_embedder:5678)
     environment:
       - DEBUG=1
-      - RAG_EMBEDDER_EMBED_QUESTION_URL=http://rag_embedder:8000/embed_text
+      - RAG_EMBEDDER_EMBED_URL=http://rag_embedder:8000/embed
       - RAG_RETRIEVER_RETRIEVE_CHUNKS_URL=http://rag_retriever:8000/retrieve_chunks
       - RAG_RETRIEVER_RETRIEVE_DOCUMENT_CHUNKS_URL=http://rag_retriever:8000/retrieve_document_chunks
       - RAG_RERANKER_RERANK_CHUNKS_URL=http://rag_reranker:8000/rerank_chunks

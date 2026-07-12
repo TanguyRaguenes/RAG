@@ -27,7 +27,9 @@ async def ask_question_to_local_model(
     context_window_tokens: int = config["llm"]["local"]["context_window_tokens"]
     max_prompt_chars = config["llm"]["local"]["max_prompt_chars"]
 
-    retrieved_chunks: list[dict[str, Any]] = await retrieve_and_rerank_chunks(question)
+    retrieved_chunks: list[dict[str, Any]] = await retrieve_and_rerank_chunks(
+        question, config
+    )
 
     prompt: list[dict[str, str]] = build_prompt(
         question, retrieved_chunks, max_prompt_chars
@@ -74,7 +76,9 @@ async def ask_question_to_api(
     max_output_tokens: int = config["llm"]["api"]["max_output_tokens"]
     max_prompt_chars = config["llm"]["api"]["max_prompt_chars"]
 
-    retrieved_chunks: list[dict[str, Any]] = await retrieve_and_rerank_chunks(question)
+    retrieved_chunks: list[dict[str, Any]] = await retrieve_and_rerank_chunks(
+        question, config
+    )
 
     prompt: list[dict[str, str]] = build_prompt(
         question, retrieved_chunks, max_prompt_chars

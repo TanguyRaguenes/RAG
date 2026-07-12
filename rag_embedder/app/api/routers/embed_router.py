@@ -5,11 +5,11 @@ from fastapi import APIRouter, Depends
 
 from app.api.dependencies import get_config
 from app.domain.models.document_model import DocumentsBase
-from app.domain.models.embed_text_request_model import EmbedTextRequestBase
+from app.domain.models.embed_request_model import EmbedRequestBase
 from app.schemas.embed_text_response_schema import EmbedTextResponseBase
 from app.schemas.ingest_bulk_response_schema import IngestBulkResponseBase
 from app.schemas.save_items_response_schema import SaveItemsResponseBase
-from app.services.embed_text_service import embed_text as service_embed_text
+from app.services.embed_service import embed as service_embed
 from app.services.ingest_documents_service import ingest_documents
 from app.services.load_documents_service import load_documents
 
@@ -18,15 +18,15 @@ router = APIRouter()
 ConfigDep = Annotated[dict, Depends(get_config)]
 
 
-@router.post("/embed_text")
-async def embed_text_route(
-    payload: EmbedTextRequestBase,
+@router.post("/embed")
+async def embed_route(
+    payload: EmbedRequestBase,
     config: ConfigDep,
 ) -> EmbedTextResponseBase:
 
     start: float = time.perf_counter()
 
-    embeded_text: list[float] = await service_embed_text(payload.text, config)
+    embeded_texts: list[list[float]] = await service_embed(payload.texts, config)
 
     elapsed: float = time.perf_counter() - start
 
@@ -38,7 +38,7 @@ async def embed_text_route(
     response: EmbedTextResponseBase = EmbedTextResponseBase(
         duration_ms=duration_ms,
         duration_human=duration_human,
-        embeded_text=embeded_text,
+        embeded_texts=embeded_texts,
     )
 
     return response

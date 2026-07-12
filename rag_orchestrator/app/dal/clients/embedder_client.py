@@ -1,15 +1,14 @@
 import os
-from typing import Any
 
 import httpx
 
 from app.core.exceptions import EmbedderContainerException
 
 
-async def embed_question(question: str) -> Any:
-    url = os.getenv("RAG_EMBEDDER_EMBED_QUESTION_URL")
+async def embed(texts: list[str]) -> list[list[float]]:
+    url = os.getenv("RAG_EMBEDDER_EMBED_URL")
 
-    payload = {"text": question}
+    payload = {"texts": texts}
 
     try:
         async with httpx.AsyncClient(timeout=120) as client:
@@ -46,4 +45,4 @@ async def embed_question(question: str) -> Any:
             details={"url": url, "error": str(e)},
         ) from e
 
-    return data["embeded_text"]
+    return data["embeded_texts"]
