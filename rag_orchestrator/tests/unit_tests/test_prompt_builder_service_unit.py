@@ -43,7 +43,11 @@ def test_format_chunk_as_markdown_uses_readable_fallbacks() -> None:
 
 def test_format_chunk_as_markdown_splits_context_and_content_labels() -> None:
     chunk = {
-        "metadata": {"title": "Commentaires", "path": "Commentaires.md", "chunk_index": 0},
+        "metadata": {
+            "title": "Commentaires",
+            "path": "Commentaires.md",
+            "chunk_index": 0,
+        },
         "document": "CONTEXT : Introduction\nCONTENT : Le code doit être commenté utilement.",
     }
 
@@ -83,10 +87,14 @@ def test_build_prompt_uses_context_and_refusal_instruction_when_chunks_exist() -
     assert "Question ?" in prompt[1]["content"]
 
 
-def test_build_prompt_falls_back_to_generic_assistant_without_context() -> None:
+def test_build_prompt_keeps_grounding_instructions_without_context() -> None:
     prompt = build_prompt("Question ?", [], max_prompt_chars=500)
 
-    assert prompt == [
-        {"role": "system", "content": "Tu es un assistant utile et concis."},
-        {"role": "user", "content": "Question ?"},
-    ]
+    assert prompt[0]["role"] == "system"
+    assert (
+        "Réponds uniquement à partir du contexte documentaire" in prompt[0]["content"]
+    )
+    assert "La réponse ne se trouve pas" in prompt[0]["content"]
+    assert prompt[1]["role"] == "user"
+    assert "# Question\n\nQuestion ?" in prompt[1]["content"]
+    assert "# Contexte documentaire" in prompt[1]["content"]

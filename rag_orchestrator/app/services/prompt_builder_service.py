@@ -1,4 +1,5 @@
 import re
+from textwrap import dedent
 from typing import Any
 
 # SCÉNARIO : Le Retriever a trouvé 5 chunks de 1000 caractères chacun.
@@ -38,9 +39,7 @@ def format_chunk_as_markdown(index: int, chunk: dict[str, Any]) -> str:
     chunk_index_value = chunk_index if chunk_index is not None else "Non renseigné"
     section, content = parse_chunk_document(chunk.get("document") or "")
 
-    section_block = (
-        f"### Section documentaire\n\n{section}\n\n" if section else ""
-    )
+    section_block = f"### Section documentaire\n\n{section}\n\n" if section else ""
 
     return (
         f"## Chunk {index} - {title}\n\n"
@@ -73,7 +72,7 @@ def build_prompt(
 ) -> list[dict[str, str]]:
     context = build_context(retrieve_chunks, max_prompt_chars)
 
-    system = """
+    system = dedent("""
     # Rôle
 
     Tu es un assistant qui répond aux questions des développeurs.
@@ -84,8 +83,8 @@ def build_prompt(
     - Si le contexte documentaire ne contient pas l'information, réponds exactement :
     **« La réponse ne se trouve pas dans le contexte fourni par le RAG. »**
     - N'invente aucune information.
-    """.strip()
-    
+    """).strip()
+
     user_content = (
         f"# Question\n\n{question}\n\n"
         f"# Contexte documentaire\n\n{context}\n\n"
@@ -96,4 +95,3 @@ def build_prompt(
         {"role": "system", "content": system},
         {"role": "user", "content": user_content},
     ]
-    

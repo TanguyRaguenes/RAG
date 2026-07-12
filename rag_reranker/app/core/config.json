@@ -3,7 +3,7 @@
         "provider": "tei",
         "url": "http://tei_reranker:80/rerank",
         "model": "cross-encoder/mmarco-mMiniLMv2-L12-H384-v1",
-        "top_k": 4,
+        "top_k": 10,
         "timeout_seconds": 180,
         "max_chunk_chars": 1600
     }

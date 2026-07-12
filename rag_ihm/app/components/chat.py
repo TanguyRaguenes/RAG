@@ -66,7 +66,7 @@ def render_chat_message(
 
         if debug_enabled and message.get("generated_prompt"):
             with st.expander("Prompt généré"):
-                st.json(message["generated_prompt"])
+                _render_generated_prompt(message["generated_prompt"])
 
         if on_submit_feedback:
             _render_feedback_form(message, on_submit_feedback)
@@ -87,6 +87,23 @@ def _render_assistant_metadata(message: dict[str, Any]) -> None:
         st.caption(" | ".join(metadata))
 
 
+def _render_generated_prompt(generated_prompt: Any) -> None:
+    if not isinstance(generated_prompt, list):
+        st.json(generated_prompt)
+        return
+
+    for index, prompt_message in enumerate(generated_prompt, start=1):
+        if not isinstance(prompt_message, dict):
+            st.json(prompt_message)
+            continue
+
+        role = prompt_message.get("role", f"message {index}")
+        content = prompt_message.get("content", "")
+
+        st.markdown(f"**{role}**")
+        st.markdown(str(content))
+
+
 def _render_source_summary(documents: Any) -> None:
     if not isinstance(documents, dict) or not documents:
         return
@@ -98,7 +115,7 @@ def _render_source_summary(documents: Any) -> None:
 
 def _render_sources(chunks: Any, debug_enabled: bool) -> None:
     if not isinstance(chunks, list) or not chunks:
-        st.caption("Aucune source détaillée retournée par le RAG.")
+        st.caption("Le RAG n'a retourné aucune source.")
         return
 
     with st.expander(f"Extraits pertinents ({len(chunks)})"):

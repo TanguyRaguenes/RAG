@@ -49,7 +49,7 @@ async def get_current_user(
     if credentials is None:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Missing bearer token",
+            detail="Il manque le bearer token",
         )
 
     try:
@@ -57,5 +57,5 @@ async def get_current_user(
     except jwt.PyJWTError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid authentication token",
+            detail="Le token d'authentification n'est pas valide.",
         )
