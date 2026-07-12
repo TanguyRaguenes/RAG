@@ -2,13 +2,9 @@ import json
 
 import pytest
 
-from server import (
-    McpConfigError,
-    cache_access_token,
-    format_retrieved_chunks_response,
-    is_cached_token_valid,
-    load_mcp_config,
-)
+from auth_client import cache_access_token, is_cached_token_valid
+from config import McpConfigError, load_mcp_config
+from rag_client import format_retrieved_chunks_response
 
 
 def test_is_cached_token_valid_requires_safety_window() -> None:
