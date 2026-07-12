@@ -18,7 +18,9 @@ def test_design_source_counts_documents_sorted_by_occurrence() -> None:
 
 
 @pytest.mark.asyncio
-async def test_calculate_cost_uses_model_pricing(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_calculate_cost_uses_model_pricing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     class FakeUsageRepository:
         def __init__(self, db_pool: Any):
             self.db_pool = db_pool

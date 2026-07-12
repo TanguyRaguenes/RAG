@@ -20,7 +20,12 @@ class FakeResponse:
 
 def test_ask_question_requires_access_token() -> None:
     with pytest.raises(RagApiError, match="session a expiré"):
-        client.ask_question(ChatApiConfig("http://health", "http://rag/ask_question"), "?", "local", None)
+        client.ask_question(
+            ChatApiConfig("http://health", "http://rag/ask_question"),
+            "?",
+            "local",
+            None,
+        )
 
 
 def test_ask_question_posts_streamlit_channel_and_bearer_token(monkeypatch) -> None:
@@ -50,11 +55,22 @@ def test_ask_question_posts_streamlit_channel_and_bearer_token(monkeypatch) -> N
     ]
 
 
-def test_admin_feedbacks_request_sends_iso_dates_and_expects_a_list(monkeypatch) -> None:
+def test_admin_feedbacks_request_sends_iso_dates_and_expects_a_list(
+    monkeypatch,
+) -> None:
     calls = []
 
     def fake_request(method, url, params, json, headers, timeout):
-        calls.append({"method": method, "url": url, "params": params, "json": json, "headers": headers, "timeout": timeout})
+        calls.append(
+            {
+                "method": method,
+                "url": url,
+                "params": params,
+                "json": json,
+                "headers": headers,
+                "timeout": timeout,
+            }
+        )
         return FakeResponse(payload=[])
 
     monkeypatch.setattr(client.requests, "request", fake_request)

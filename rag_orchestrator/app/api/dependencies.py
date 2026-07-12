@@ -9,12 +9,14 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from app.dal.clients.oidc_client import OidcClient
 from app.services.auth_service import AuthService
 
+
 def get_config(request: Request) -> dict:
     return request.app.state.config
 
 
 def get_db_pool(request: Request) -> asyncpg.Pool:
     return request.app.state.db_pool
+
 
 # Déclare un mécanisme d'authentification HTTP Bearer.
 # Il va lire automatiquement le header :
@@ -29,12 +31,12 @@ security = HTTPBearer(auto_error=False)
 def get_auth_service() -> AuthService:
 
     allowed_audiences = os.environ["OIDC_ALLOWED_AUDIENCES"].split(",")
-    
+
     oidc_client = OidcClient(
         issuer=os.environ["OIDC_ISSUER"],
         jwks_uri=os.environ["OIDC_JWKS_URI"],
         audience=allowed_audiences,
-        userinfo_url=os.environ.get("OIDC_USERINFO_URL")
+        userinfo_url=os.environ.get("OIDC_USERINFO_URL"),
     )
 
     return AuthService(oidc_client)

@@ -7,7 +7,10 @@ from app.schemas.retrieve_chunks_response_schema import (
 
 
 def retrieve_chunks(
-    config: dict[str, Any], collection, embeded_question: list[float], vector_store_repository
+    config: dict[str, Any],
+    collection,
+    embeded_question: list[float],
+    vector_store_repository,
 ) -> RetrievedChunksModelBase:
     top_k: int = config["retriever"]["top_k"]
     minimum_similarity: float = config["retriever"]["minimum_similarity"]

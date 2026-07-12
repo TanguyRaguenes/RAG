@@ -1,6 +1,10 @@
 import streamlit as st
 
-from app.services.rag_api_client import RagApiError, get_my_preferences, update_my_preferences
+from app.services.rag_api_client import (
+    RagApiError,
+    get_my_preferences,
+    update_my_preferences,
+)
 from app.state.session_state import (
     UI_THEME_KEY,
     get_persisted_theme_mode,

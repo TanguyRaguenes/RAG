@@ -48,7 +48,9 @@ async def ensure_usage_user_exists(
     )
 
     usage_repository = UsageRepository(db_pool)
-    await usage_repository.upsert_user(user_id, _normalize_optional_email(current_user.email))
+    await usage_repository.upsert_user(
+        user_id, _normalize_optional_email(current_user.email)
+    )
     await usage_repository.ensure_default_quota_rule(
         user_id=user_id,
         max_tokens_per_month=_get_default_user_monthly_token_quota(),
@@ -77,7 +79,9 @@ async def finish_usage_session(db_pool: asyncpg.Pool, session_id: int) -> None:
 
 async def check_user_token_quota(db_pool: asyncpg.Pool, user_id: str) -> None:
     usage_repository = UsageRepository(db_pool)
-    max_tokens, consumed_tokens, active = await usage_repository.get_active_quota_usage(user_id)
+    max_tokens, consumed_tokens, active = await usage_repository.get_active_quota_usage(
+        user_id
+    )
 
     if not active:
         raise QuotaInactiveError()
@@ -286,7 +290,9 @@ def _get_default_user_monthly_token_quota() -> int:
     try:
         max_tokens = int(raw_value)
     except ValueError as exception:
-        raise ValueError("DEFAULT_USER_MONTHLY_TOKEN_QUOTA must be an integer") from exception
+        raise ValueError(
+            "DEFAULT_USER_MONTHLY_TOKEN_QUOTA must be an integer"
+        ) from exception
 
     if max_tokens <= 0:
         raise ValueError("DEFAULT_USER_MONTHLY_TOKEN_QUOTA must be greater than 0")

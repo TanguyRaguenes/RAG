@@ -1,9 +1,7 @@
 import base64
 import json
-from types import SimpleNamespace
 
 import pytest
-import requests
 
 from app.services import auth_service
 from app.services.auth_service import OidcConfig
@@ -41,11 +39,15 @@ class FakeStreamlit:
 
 
 def _jwt_payload(payload: dict) -> str:
-    encoded = base64.urlsafe_b64encode(json.dumps(payload).encode()).decode().rstrip("=")
+    encoded = (
+        base64.urlsafe_b64encode(json.dumps(payload).encode()).decode().rstrip("=")
+    )
     return f"header.{encoded}.signature"
 
 
-def test_get_oidc_config_reads_required_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_get_oidc_config_reads_required_environment(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.setenv("RAG_IHM_OIDC_AUTHORIZE_URL", "http://authorize")
     monkeypatch.setenv("RAG_IHM_OIDC_TOKEN_URL", "http://token")
     monkeypatch.setenv("RAG_IHM_OIDC_CLIENT_ID", "client")
@@ -69,19 +71,37 @@ def test_get_required_env_stops_when_missing(monkeypatch: pytest.MonkeyPatch) ->
     assert fake_st.errors == ["Variable d'environnement manquante : MISSING_ENV"]
 
 
-def test_build_login_url_stores_state_and_encodes_authorization_params(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_build_login_url_stores_state_and_encodes_authorization_params(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     fake_st = FakeStreamlit()
     monkeypatch.setattr(auth_service, "st", fake_st)
-    monkeypatch.setattr(auth_service, "get_oidc_config", lambda: OidcConfig("http://authorize", "http://token", "client", "secret", "http://redirect", "openid"))
+    monkeypatch.setattr(
+        auth_service,
+        "get_oidc_config",
+        lambda: OidcConfig(
+            "http://authorize",
+            "http://token",
+            "client",
+            "secret",
+            "http://redirect",
+            "openid",
+        ),
+    )
     monkeypatch.setattr(auth_service.secrets, "token_urlsafe", lambda size: "state")
 
     url = auth_service.build_login_url()
 
     assert fake_st.session_state[auth_service.STATE_KEY] == "state"
-    assert url == "http://authorize?response_type=code&client_id=client&redirect_uri=http%3A%2F%2Fredirect&scope=openid&state=state"
+    assert (
+        url
+        == "http://authorize?response_type=code&client_id=client&redirect_uri=http%3A%2F%2Fredirect&scope=openid&state=state"
+    )
 
 
-def test_exchange_code_for_tokens_posts_oidc_form(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_exchange_code_for_tokens_posts_oidc_form(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     calls = []
 
     class Response:
@@ -95,7 +115,18 @@ def test_exchange_code_for_tokens_posts_oidc_form(monkeypatch: pytest.MonkeyPatc
         calls.append({"url": url, "data": data, "headers": headers, "timeout": timeout})
         return Response()
 
-    monkeypatch.setattr(auth_service, "get_oidc_config", lambda: OidcConfig("http://authorize", "http://token", "client", "secret", "http://redirect", "openid"))
+    monkeypatch.setattr(
+        auth_service,
+        "get_oidc_config",
+        lambda: OidcConfig(
+            "http://authorize",
+            "http://token",
+            "client",
+            "secret",
+            "http://redirect",
+            "openid",
+        ),
+    )
     monkeypatch.setattr(auth_service.requests, "post", fake_post)
 
     assert auth_service._exchange_code_for_tokens("code") == {"access_token": "token"}
@@ -103,7 +134,9 @@ def test_exchange_code_for_tokens_posts_oidc_form(monkeypatch: pytest.MonkeyPatc
     assert calls[0]["data"]["code"] == "code"
 
 
-def test_handle_oidc_callback_stores_tokens_and_user_claims(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_handle_oidc_callback_stores_tokens_and_user_claims(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     fake_st = FakeStreamlit()
     fake_st.query_params.update({"code": "code", "state": "state"})
     fake_st.session_state[auth_service.STATE_KEY] = "state"
@@ -127,7 +160,9 @@ def test_handle_oidc_callback_stores_tokens_and_user_claims(monkeypatch: pytest.
     assert fake_st.rerun_called
 
 
-def test_handle_oidc_callback_stops_on_invalid_state(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_handle_oidc_callback_stops_on_invalid_state(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     fake_st = FakeStreamlit()
     fake_st.query_params.update({"code": "code", "state": "bad"})
     fake_st.session_state[auth_service.STATE_KEY] = "expected"
@@ -151,7 +186,9 @@ def test_logout_removes_auth_session_keys(monkeypatch: pytest.MonkeyPatch) -> No
     assert fake_st.session_state == {}
 
 
-def test_auth_session_accessors_and_admin_detection(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_auth_session_accessors_and_admin_detection(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     fake_st = FakeStreamlit()
     fake_st.session_state[auth_service.ACCESS_TOKEN_KEY] = "token"
     fake_st.session_state[auth_service.USER_KEY] = {"groups": ["rag_admin"]}

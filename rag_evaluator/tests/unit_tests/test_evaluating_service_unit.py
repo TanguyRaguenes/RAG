@@ -92,7 +92,9 @@ def test_quality_average_uses_safe_divisor_without_judgements() -> None:
 
 
 @pytest.mark.asyncio
-async def test_evaluate_rag_averages_retrieval_and_valid_answer_judgements(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_evaluate_rag_averages_retrieval_and_valid_answer_judgements(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.setattr(
         evaluating_service,
         "load_dataset",
@@ -105,7 +107,9 @@ async def test_evaluate_rag_averages_retrieval_and_valid_answer_judgements(monke
     async def fake_ask_question(question: str):
         return {
             "llm_response": f"answer {question}",
-            "retrieved_chunks": [{"document": "doc", "metadata": {"title": "T"}, "similarity": 0.9}],
+            "retrieved_chunks": [
+                {"document": "doc", "metadata": {"title": "T"}, "similarity": 0.9}
+            ],
             "retrieved_documents": {"T": 1},
             "model": "model",
             "generated_prompt": [],
@@ -116,10 +120,14 @@ async def test_evaluate_rag_averages_retrieval_and_valid_answer_judgements(monke
         return RetrievalEvaluationBase(mrr=1, ndcg=0.5, recall=0.25, precision=0.75)
 
     async def fake_evaluate_answer(**kwargs):
-        return AnswerEvaluationBase(feedback="ok", accuracy=4, completeness=3, relevance=5)
+        return AnswerEvaluationBase(
+            feedback="ok", accuracy=4, completeness=3, relevance=5
+        )
 
     monkeypatch.setattr(evaluating_service, "ask_question", fake_ask_question)
-    monkeypatch.setattr(evaluating_service, "evaluate_retrieval", fake_evaluate_retrieval)
+    monkeypatch.setattr(
+        evaluating_service, "evaluate_retrieval", fake_evaluate_retrieval
+    )
     monkeypatch.setattr(evaluating_service, "evaluate_answer", fake_evaluate_answer)
 
     result = await evaluating_service.evaluate_rag({})
@@ -130,8 +138,14 @@ async def test_evaluate_rag_averages_retrieval_and_valid_answer_judgements(monke
 
 
 @pytest.mark.asyncio
-async def test_evaluate_rag_continues_when_orchestrator_fails(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(evaluating_service, "load_dataset", lambda: [{"question": "Q", "reference_answer": "R"}])
+async def test_evaluate_rag_continues_when_orchestrator_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        evaluating_service,
+        "load_dataset",
+        lambda: [{"question": "Q", "reference_answer": "R"}],
+    )
 
     async def failing_ask_question(question: str):
         raise RuntimeError("rag down")
@@ -146,7 +160,9 @@ async def test_evaluate_rag_continues_when_orchestrator_fails(monkeypatch: pytes
         raise RuntimeError("judge down")
 
     monkeypatch.setattr(evaluating_service, "ask_question", failing_ask_question)
-    monkeypatch.setattr(evaluating_service, "evaluate_retrieval", fake_evaluate_retrieval)
+    monkeypatch.setattr(
+        evaluating_service, "evaluate_retrieval", fake_evaluate_retrieval
+    )
     monkeypatch.setattr(evaluating_service, "evaluate_answer", failing_evaluate_answer)
 
     result = await evaluating_service.evaluate_rag({})

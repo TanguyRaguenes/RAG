@@ -86,7 +86,9 @@ def fake_repository(monkeypatch: pytest.MonkeyPatch):
 async def test_start_and_finish_usage_session_use_repository() -> None:
     db_pool = {}
 
-    user_id, session_id = await service.start_usage_session(_user(), db_pool, "streamlit")
+    user_id, session_id = await service.start_usage_session(
+        _user(), db_pool, "streamlit"
+    )
     await service.finish_usage_session(db_pool, session_id)
 
     assert session_id == 42
@@ -109,9 +111,15 @@ async def test_check_user_token_quota_raises_when_inactive_or_exceeded() -> None
 async def test_preferences_feedback_and_admin_feedbacks_are_mapped() -> None:
     db_pool = {}
 
-    preferences = await service.update_current_user_preferences(_user(), db_pool, "Clair")
-    feedback = await service.save_current_user_feedback(_user(), db_pool, 1, 1, "  ok  ")
-    rows = await service.list_admin_interaction_feedbacks(db_pool, date(2026, 1, 1), date(2026, 1, 31))
+    preferences = await service.update_current_user_preferences(
+        _user(), db_pool, "Clair"
+    )
+    feedback = await service.save_current_user_feedback(
+        _user(), db_pool, 1, 1, "  ok  "
+    )
+    rows = await service.list_admin_interaction_feedbacks(
+        db_pool, date(2026, 1, 1), date(2026, 1, 31)
+    )
 
     assert preferences.theme_preference == "Clair"
     assert feedback.commentaire == "ok"
@@ -121,4 +129,6 @@ async def test_preferences_feedback_and_admin_feedbacks_are_mapped() -> None:
         await service.update_current_user_preferences(_user(), db_pool, "Invalid")
 
     with pytest.raises(ValueError):
-        await service.list_admin_interaction_feedbacks(db_pool, date(2026, 2, 1), date(2026, 1, 1))
+        await service.list_admin_interaction_feedbacks(
+            db_pool, date(2026, 2, 1), date(2026, 1, 1)
+        )

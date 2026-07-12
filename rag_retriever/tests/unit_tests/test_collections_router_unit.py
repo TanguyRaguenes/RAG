@@ -17,7 +17,9 @@ def test_save_items_route_delegates_to_service(monkeypatch) -> None:
         )
 
     monkeypatch.setattr(collections_router, "save_items", fake_save_items)
-    items = VectorStoreItemsBase(ids=["id"], documents=["doc"], embeddings=[[0.1]], metadatas=[{}])
+    items = VectorStoreItemsBase(
+        ids=["id"], documents=["doc"], embeddings=[[0.1]], metadatas=[{}]
+    )
     repository = object()
 
     response = collections_router.save_items_route(items, repository)
@@ -59,5 +61,8 @@ def test_delete_collection_route_returns_contract_message(monkeypatch) -> None:
     config = {"collection": {"name": "wiki"}}
     repository = object()
 
-    assert collections_router.delete_collection_route(repository, config) == "Collection : bien supprimée."
+    assert (
+        collections_router.delete_collection_route(repository, config)
+        == "Collection : bien supprimée."
+    )
     assert calls == [(config, repository)]

@@ -29,9 +29,7 @@ async def judge_client_api_openia(
     return format_judge_response(data)
 
 
-def build_judge_payload(
-    config: dict, messages: list[dict[str, str]]
-) -> dict[str, Any]:
+def build_judge_payload(config: dict, messages: list[dict[str, str]]) -> dict[str, Any]:
     return {
         "model": config["llm"]["model"],
         "messages": messages,

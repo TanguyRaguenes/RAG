@@ -87,7 +87,9 @@ def ask_question(
             "Le service de réponse est injoignable pour le moment."
         ) from exception
     except requests.RequestException as exception:
-        raise RagApiError("La demande n'a pas pu être envoyée au service RAG.") from exception
+        raise RagApiError(
+            "La demande n'a pas pu être envoyée au service RAG."
+        ) from exception
 
     _raise_for_error_response(response)
     return _response_json(response)
@@ -109,7 +111,9 @@ def list_admin_quota_usages(
     config: ChatApiConfig,
     access_token: str | None,
 ) -> list[dict[str, Any]]:
-    data = _authenticated_get(_usage_url(config, "/usage/quota/admin/users"), access_token)
+    data = _authenticated_get(
+        _usage_url(config, "/usage/quota/admin/users"), access_token
+    )
 
     if not isinstance(data, list):
         raise RagApiError("Le service a retourné un format inattendu.")
@@ -211,9 +215,13 @@ def run_evaluation(config: EvaluatorApiConfig) -> dict[str, Any]:
     try:
         response = requests.post(config.evaluate_url, timeout=300)
     except requests.exceptions.Timeout as exception:
-        raise RagApiError("L'évaluation prend trop de temps. Réessaie plus tard.") from exception
+        raise RagApiError(
+            "L'évaluation prend trop de temps. Réessaie plus tard."
+        ) from exception
     except requests.exceptions.ConnectionError as exception:
-        raise RagApiError("Le service d'évaluation est injoignable pour le moment.") from exception
+        raise RagApiError(
+            "Le service d'évaluation est injoignable pour le moment."
+        ) from exception
     except requests.RequestException as exception:
         raise RagApiError("L'évaluation n'a pas pu être lancée.") from exception
 
@@ -300,7 +308,9 @@ def _authenticated_request(
     except requests.exceptions.ConnectionError as exception:
         raise RagApiError("Le service est injoignable pour le moment.") from exception
     except requests.RequestException as exception:
-        raise RagApiError("La demande n'a pas pu être envoyée au service RAG.") from exception
+        raise RagApiError(
+            "La demande n'a pas pu être envoyée au service RAG."
+        ) from exception
 
     _raise_for_error_response(response)
     return response

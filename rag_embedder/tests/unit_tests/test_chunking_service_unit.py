@@ -35,7 +35,9 @@ def test_chunk_text_repeats_markdown_context_on_each_split_chunk():
     chunks = chunk_text(text, config)
 
     assert len(chunks) > 1
-    assert all(chunk.startswith("CONTEXT : Guide RAG > Installation") for chunk in chunks)
+    assert all(
+        chunk.startswith("CONTEXT : Guide RAG > Installation") for chunk in chunks
+    )
 
 
 def test_chunk_text_removes_toc_and_images():

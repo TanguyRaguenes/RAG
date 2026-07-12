@@ -62,7 +62,9 @@ def render_summary_cards(result: dict) -> None:
 def render_retrieval_scores(retrieval: dict) -> None:
     metrics = [
         ScoreMetric("MRR", _as_float(retrieval.get("mrr")), 1.0, RETRIEVAL_HELP["MRR"]),
-        ScoreMetric("nDCG", _as_float(retrieval.get("ndcg")), 1.0, RETRIEVAL_HELP["nDCG"]),
+        ScoreMetric(
+            "nDCG", _as_float(retrieval.get("ndcg")), 1.0, RETRIEVAL_HELP["nDCG"]
+        ),
         ScoreMetric(
             "Recall",
             _as_float(retrieval.get("recall")),

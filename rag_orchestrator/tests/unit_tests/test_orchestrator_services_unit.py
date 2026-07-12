@@ -31,7 +31,9 @@ def _config() -> dict:
 
 
 @pytest.mark.asyncio
-async def test_retrieve_chunks_service_embeds_retrieves_reranks_then_fetches_document_chunks(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_retrieve_chunks_service_embeds_retrieves_reranks_then_fetches_document_chunks(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     calls = []
 
     async def fake_embed_question(question: str) -> list[float]:
@@ -42,7 +44,9 @@ async def test_retrieve_chunks_service_embeds_retrieves_reranks_then_fetches_doc
         calls.append(("retrieve", embedding))
         return [{"document": "doc"}]
 
-    async def fake_rerank_chunks_client(question: str, chunks: list[dict]) -> list[dict]:
+    async def fake_rerank_chunks_client(
+        question: str, chunks: list[dict]
+    ) -> list[dict]:
         calls.append(("rerank", question, chunks))
         return [
             {"document": "reranked-a", "metadata": {"path": "a.md"}},
@@ -55,8 +59,12 @@ async def test_retrieve_chunks_service_embeds_retrieves_reranks_then_fetches_doc
         return [{"document": "document chunks"}]
 
     monkeypatch.setattr(retrieve_chunks_service, "embed_question", fake_embed_question)
-    monkeypatch.setattr(retrieve_chunks_service, "retrieve_chunks_client", fake_retrieve_chunks_client)
-    monkeypatch.setattr(retrieve_chunks_service, "rerank_chunks_client", fake_rerank_chunks_client)
+    monkeypatch.setattr(
+        retrieve_chunks_service, "retrieve_chunks_client", fake_retrieve_chunks_client
+    )
+    monkeypatch.setattr(
+        retrieve_chunks_service, "rerank_chunks_client", fake_rerank_chunks_client
+    )
     monkeypatch.setattr(
         retrieve_chunks_service,
         "retrieve_document_chunks_client",
@@ -86,7 +94,9 @@ def test_extract_unique_paths_keeps_first_occurrence_order() -> None:
 
 
 @pytest.mark.asyncio
-async def test_ask_question_to_local_model_builds_payload_and_response(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_ask_question_to_local_model_builds_payload_and_response(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     async def fake_retrieve_and_rerank_chunks(question: str) -> list[dict]:
         assert question == "Question"
         return [{"document": "doc", "metadata": {"title": "Doc"}}]
@@ -98,10 +108,18 @@ async def test_ask_question_to_local_model_builds_payload_and_response(monkeypat
         assert url == "http://ollama/v1/chat/completions"
         return {"choices": [{"message": {"content": "answer"}}]}
 
-    monkeypatch.setattr(ask_question_service, "retrieve_and_rerank_chunks", fake_retrieve_and_rerank_chunks)
-    monkeypatch.setattr(ask_question_service, "ask_question_to_llm_client", fake_llm_client)
+    monkeypatch.setattr(
+        ask_question_service,
+        "retrieve_and_rerank_chunks",
+        fake_retrieve_and_rerank_chunks,
+    )
+    monkeypatch.setattr(
+        ask_question_service, "ask_question_to_llm_client", fake_llm_client
+    )
 
-    response = await ask_question_service.ask_question_to_local_model("Question", _config())
+    response = await ask_question_service.ask_question_to_local_model(
+        "Question", _config()
+    )
 
     assert response.llm_response == "answer"
     assert response.retrieved_documents == {"Doc": 1}
@@ -109,12 +127,16 @@ async def test_ask_question_to_local_model_builds_payload_and_response(monkeypat
 
 
 @pytest.mark.asyncio
-async def test_ask_question_to_api_builds_payload_tokens_and_cost(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_ask_question_to_api_builds_payload_tokens_and_cost(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     async def fake_retrieve_and_rerank_chunks(question: str) -> list[dict]:
         assert question == "Question"
         return [{"document": "doc", "metadata": {"title": "Doc"}}]
 
-    async def fake_api_client(payload: dict, endpoint: str, api_key: str | None) -> dict:
+    async def fake_api_client(
+        payload: dict, endpoint: str, api_key: str | None
+    ) -> dict:
         assert payload["model"] == "api-model"
         assert endpoint == "http://api/v1/responses"
         return {
@@ -125,11 +147,19 @@ async def test_ask_question_to_api_builds_payload_tokens_and_cost(monkeypatch: p
     async def fake_calculate_cost(**kwargs) -> float:
         return 0.123456
 
-    monkeypatch.setattr(ask_question_service, "retrieve_and_rerank_chunks", fake_retrieve_and_rerank_chunks)
-    monkeypatch.setattr(ask_question_service, "ask_question_to_api_client", fake_api_client)
+    monkeypatch.setattr(
+        ask_question_service,
+        "retrieve_and_rerank_chunks",
+        fake_retrieve_and_rerank_chunks,
+    )
+    monkeypatch.setattr(
+        ask_question_service, "ask_question_to_api_client", fake_api_client
+    )
     monkeypatch.setattr(ask_question_service, "calculate_cost", fake_calculate_cost)
 
-    response = await ask_question_service.ask_question_to_api("Question", _config(), db_pool=object())
+    response = await ask_question_service.ask_question_to_api(
+        "Question", _config(), db_pool=object()
+    )
 
     assert response.llm_response == "api answer"
     assert response.input_tokens == 10
@@ -176,7 +206,9 @@ async def test_auth_service_does_not_call_userinfo_for_machine_token() -> None:
 
 
 def test_user_identity_hashes_normalized_identifier_and_rejects_empty_values() -> None:
-    assert build_user_id_from_email(" USER@Example.COM ", "secret") == build_user_id_from_identifier("user@example.com", "secret")
+    assert build_user_id_from_email(
+        " USER@Example.COM ", "secret"
+    ) == build_user_id_from_identifier("user@example.com", "secret")
 
     with pytest.raises(ValueError):
         build_user_id_from_identifier("", "secret")

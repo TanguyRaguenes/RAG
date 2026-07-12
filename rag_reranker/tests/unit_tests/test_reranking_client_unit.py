@@ -47,7 +47,9 @@ def _config() -> dict:
 
 
 @pytest.mark.asyncio
-async def test_score_chunks_posts_prompt_and_returns_scores(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_score_chunks_posts_prompt_and_returns_scores(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     FakeAsyncClient.calls = []
     monkeypatch.setattr(reranking_client.httpx, "AsyncClient", FakeAsyncClient)
 

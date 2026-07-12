@@ -14,7 +14,9 @@ from app.schemas.authenticated_user_schema import AuthenticatedUser
 def test_get_config_and_db_pool_return_app_state_values() -> None:
     config = {"llm": {}}
     db_pool = object()
-    request = SimpleNamespace(app=SimpleNamespace(state=SimpleNamespace(config=config, db_pool=db_pool)))
+    request = SimpleNamespace(
+        app=SimpleNamespace(state=SimpleNamespace(config=config, db_pool=db_pool))
+    )
 
     assert dependencies.get_config(request) is config
     assert dependencies.get_db_pool(request) is db_pool
@@ -44,7 +46,9 @@ async def test_get_current_user_maps_jwt_errors_to_401() -> None:
 
     with pytest.raises(HTTPException) as exc_info:
         await dependencies.get_current_user(
-            credentials=HTTPAuthorizationCredentials(scheme="Bearer", credentials="bad"),
+            credentials=HTTPAuthorizationCredentials(
+                scheme="Bearer", credentials="bad"
+            ),
             auth_service=FailingAuthService(),
         )
 

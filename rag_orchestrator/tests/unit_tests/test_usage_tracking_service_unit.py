@@ -12,7 +12,9 @@ from app.services.usage_tracking_service import (
 )
 
 
-def test_get_default_user_monthly_token_quota_uses_default(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_get_default_user_monthly_token_quota_uses_default(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.delenv("DEFAULT_USER_MONTHLY_TOKEN_QUOTA", raising=False)
 
     assert _get_default_user_monthly_token_quota() == 100000

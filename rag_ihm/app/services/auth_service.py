@@ -167,7 +167,9 @@ def handle_oidc_callback() -> None:
             exception.response.status_code if exception.response is not None else "?"
         )
         response_text = (
-            exception.response.text if exception.response is not None else str(exception)
+            exception.response.text
+            if exception.response is not None
+            else str(exception)
         )
         st.error(f"Échec de l'échange OAuth : {status_code} - {response_text}")
         st.stop()
@@ -183,7 +185,9 @@ def handle_oidc_callback() -> None:
     st.session_state[ACCESS_TOKEN_KEY] = access_token
     st.session_state[ID_TOKEN_KEY] = token_response.get("id_token")
     st.session_state[REFRESH_TOKEN_KEY] = token_response.get("refresh_token")
-    id_claims = _decode_jwt_payload_without_verification(token_response.get("id_token", ""))
+    id_claims = _decode_jwt_payload_without_verification(
+        token_response.get("id_token", "")
+    )
     access_claims = _decode_jwt_payload_without_verification(access_token)
     st.session_state[USER_KEY] = _merge_user_claims(id_claims, access_claims)
 

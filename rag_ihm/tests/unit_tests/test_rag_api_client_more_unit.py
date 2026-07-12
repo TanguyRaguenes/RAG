@@ -26,26 +26,45 @@ def test_load_api_configs_read_environment(monkeypatch: pytest.MonkeyPatch) -> N
     assert client.load_evaluator_api_config().evaluate_url == "http://eval/evaluate_rag"
 
 
-def test_check_api_health_raises_displayable_error_for_non_200(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(client.requests, "get", lambda url, timeout: FakeResponse(503, {"detail": "down"}))
+def test_check_api_health_raises_displayable_error_for_non_200(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        client.requests,
+        "get",
+        lambda url, timeout: FakeResponse(503, {"detail": "down"}),
+    )
 
     with pytest.raises(RagApiError, match="503"):
         client.check_api_health("http://service")
 
 
-def test_quota_preferences_and_feedback_endpoints_use_authenticated_requests(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_quota_preferences_and_feedback_endpoints_use_authenticated_requests(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     calls = []
-    payloads = iter([
-        {"quota": True},
-        [{"user": "u"}],
-        {"updated": True},
-        {"theme_preference": "Sombre"},
-        {"theme_preference": "Clair"},
-        {"feedback": True},
-    ])
+    payloads = iter(
+        [
+            {"quota": True},
+            [{"user": "u"}],
+            {"updated": True},
+            {"theme_preference": "Sombre"},
+            {"theme_preference": "Clair"},
+            {"feedback": True},
+        ]
+    )
 
     def fake_request(method, url, params, json, headers, timeout):
-        calls.append({"method": method, "url": url, "params": params, "json": json, "headers": headers, "timeout": timeout})
+        calls.append(
+            {
+                "method": method,
+                "url": url,
+                "params": params,
+                "json": json,
+                "headers": headers,
+                "timeout": timeout,
+            }
+        )
         return FakeResponse(payload=next(payloads))
 
     monkeypatch.setattr(client.requests, "request", fake_request)
@@ -53,10 +72,16 @@ def test_quota_preferences_and_feedback_endpoints_use_authenticated_requests(mon
 
     assert client.get_my_quota_usage(config, "token") == {"quota": True}
     assert client.list_admin_quota_usages(config, "token") == [{"user": "u"}]
-    assert client.update_admin_quota_usage(config, "token", "user", 100, True) == {"updated": True}
+    assert client.update_admin_quota_usage(config, "token", "user", 100, True) == {
+        "updated": True
+    }
     assert client.get_my_preferences(config, "token") == {"theme_preference": "Sombre"}
-    assert client.update_my_preferences(config, "token", "Clair") == {"theme_preference": "Clair"}
-    assert client.submit_interaction_feedback(config, "token", 1, 1, "ok") == {"feedback": True}
+    assert client.update_my_preferences(config, "token", "Clair") == {
+        "theme_preference": "Clair"
+    }
+    assert client.submit_interaction_feedback(config, "token", 1, 1, "ok") == {
+        "feedback": True
+    }
 
     assert calls[2]["method"] == "PATCH"
     assert calls[2]["json"] == {"max_tokens_par_mois": 100, "actif": True}
@@ -72,7 +97,9 @@ def test_run_evaluation_posts_to_evaluator(monkeypatch: pytest.MonkeyPatch) -> N
 
     monkeypatch.setattr(client.requests, "post", fake_post)
 
-    assert client.run_evaluation(EvaluatorApiConfig("http://health", "http://eval/evaluate")) == {"total_questions": 1}
+    assert client.run_evaluation(
+        EvaluatorApiConfig("http://health", "http://eval/evaluate")
+    ) == {"total_questions": 1}
     assert calls == [{"url": "http://eval/evaluate", "timeout": 300}]
 
 

@@ -6,7 +6,9 @@ from app.api.dependencies import (
     get_wikis_collection,
 )
 from app.domain.models.retrieve_chunks_request_model import RetrieveChunksRequestBase
-from app.domain.models.retrieve_chunks_request_model import RetrieveDocumentChunksRequestBase
+from app.domain.models.retrieve_chunks_request_model import (
+    RetrieveDocumentChunksRequestBase,
+)
 from app.domain.models.vector_store_item_model import VectorStoreItemsBase
 from app.schemas.retrieve_chunks_response_schema import RetrievedChunksModelBase
 from app.schemas.save_items_response_schema import SaveItemsResponseBase

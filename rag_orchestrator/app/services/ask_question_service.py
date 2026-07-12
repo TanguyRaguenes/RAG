@@ -134,9 +134,8 @@ async def calculate_cost(
     input_tokens = Decimal(llm_response["usage"]["input_tokens"])
     output_tokens = Decimal(llm_response["usage"]["output_tokens"])
 
-    cost = (
-        input_tokens * input_price / Decimal("1000000")
-        + output_tokens * output_price / Decimal("1000000")
-    )
+    cost = input_tokens * input_price / Decimal(
+        "1000000"
+    ) + output_tokens * output_price / Decimal("1000000")
 
     return float(cost.quantize(Decimal("0.000001")))

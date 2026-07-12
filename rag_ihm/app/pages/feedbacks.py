@@ -93,9 +93,7 @@ def _format_chunks(chunks: object) -> str:
         score = chunk.get("score")
         content = str(chunk.get("contenu") or "").strip()
         score_label = f" - score {float(score):.2f}" if score is not None else ""
-        formatted_chunks.append(
-            f"[{rank}] {title}{score_label}\n{path}\n{content}"
-        )
+        formatted_chunks.append(f"[{rank}] {title}{score_label}\n{path}\n{content}")
 
     return "\n\n".join(formatted_chunks) if formatted_chunks else "-"
 

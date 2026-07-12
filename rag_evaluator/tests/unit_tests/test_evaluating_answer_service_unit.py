@@ -16,7 +16,9 @@ class FakeParser:
 
 
 @pytest.mark.asyncio
-async def test_evaluate_answer_uses_local_judge_client(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_evaluate_answer_uses_local_judge_client(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     calls = []
 
     def fake_build_judge_messages(**kwargs):
@@ -41,11 +43,17 @@ async def test_evaluate_answer_uses_local_judge_client(monkeypatch: pytest.Monke
 
     assert isinstance(result, AnswerEvaluationBase)
     assert result.accuracy == 4
-    assert calls[1] == ("local", {"evaluation_method": {"use_api_openai": False}}, [{"role": "user", "content": "judge"}])
+    assert calls[1] == (
+        "local",
+        {"evaluation_method": {"use_api_openai": False}},
+        [{"role": "user", "content": "judge"}],
+    )
 
 
 @pytest.mark.asyncio
-async def test_evaluate_answer_uses_openai_judge_client(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_evaluate_answer_uses_openai_judge_client(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     calls = []
 
     async def fake_judge_client_api_openia(payload, timeout, base_url, api_key):
@@ -53,8 +61,14 @@ async def test_evaluate_answer_uses_openai_judge_client(monkeypatch: pytest.Monk
         return {"llm_answer": "raw-json"}
 
     monkeypatch.setenv("OPEN_API_KEY", "api-key")
-    monkeypatch.setattr(service, "build_judge_messages", lambda **kwargs: [{"role": "user", "content": "judge"}])
-    monkeypatch.setattr(service, "judge_client_api_openia", fake_judge_client_api_openia)
+    monkeypatch.setattr(
+        service,
+        "build_judge_messages",
+        lambda **kwargs: [{"role": "user", "content": "judge"}],
+    )
+    monkeypatch.setattr(
+        service, "judge_client_api_openia", fake_judge_client_api_openia
+    )
     monkeypatch.setattr(service, "judge_parser", FakeParser())
 
     result = await service.evaluate_answer(

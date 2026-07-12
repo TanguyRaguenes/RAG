@@ -1,5 +1,7 @@
 import pytest
+import httpx
 
+from app.dal.client import judge_client as client
 from app.core.exceptions import EvaluatorClientError
 from app.dal.client.judge_client import (
     build_auth_headers,
@@ -62,12 +64,6 @@ def test_format_judge_response_extracts_llm_answer() -> None:
 def test_format_judge_response_rejects_invalid_payload() -> None:
     with pytest.raises(EvaluatorClientError):
         format_judge_response({"choices": []})
-import httpx
-import pytest
-
-from app.core.exceptions import EvaluatorClientError
-from app.dal.client import judge_client as client
-
 
 class FakeResponse:
     def __init__(self, payload, status_code: int = 200, text: str = ""):
@@ -100,7 +96,9 @@ class FakeAsyncClient:
         return False
 
     async def post(self, url: str, json: dict, headers=None) -> FakeResponse:
-        self.calls.append({"url": url, "json": json, "headers": headers, "timeout": self.timeout})
+        self.calls.append(
+            {"url": url, "json": json, "headers": headers, "timeout": self.timeout}
+        )
         return self.response
 
 
@@ -110,14 +108,20 @@ async def test_post_json_returns_dict_payload(monkeypatch: pytest.MonkeyPatch) -
     FakeAsyncClient.response = FakeResponse({"choices": []})
     monkeypatch.setattr(client.httpx, "AsyncClient", FakeAsyncClient)
 
-    result = await client._post_json(url="http://judge", payload={"p": 1}, timeout_seconds=5, headers={"h": "v"})
+    result = await client._post_json(
+        url="http://judge", payload={"p": 1}, timeout_seconds=5, headers={"h": "v"}
+    )
 
     assert result == {"choices": []}
-    assert FakeAsyncClient.calls == [{"url": "http://judge", "json": {"p": 1}, "headers": {"h": "v"}, "timeout": 5}]
+    assert FakeAsyncClient.calls == [
+        {"url": "http://judge", "json": {"p": 1}, "headers": {"h": "v"}, "timeout": 5}
+    ]
 
 
 @pytest.mark.asyncio
-async def test_post_json_wraps_http_status_errors(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_post_json_wraps_http_status_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     FakeAsyncClient.response = FakeResponse({}, status_code=500, text="ko")
     monkeypatch.setattr(client.httpx, "AsyncClient", FakeAsyncClient)
 
@@ -126,9 +130,13 @@ async def test_post_json_wraps_http_status_errors(monkeypatch: pytest.MonkeyPatc
 
 
 @pytest.mark.asyncio
-async def test_judge_client_builds_local_endpoint_and_formats_response(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_judge_client_builds_local_endpoint_and_formats_response(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     FakeAsyncClient.calls = []
-    FakeAsyncClient.response = FakeResponse({"choices": [{"message": {"content": "answer"}}]})
+    FakeAsyncClient.response = FakeResponse(
+        {"choices": [{"message": {"content": "answer"}}]}
+    )
     monkeypatch.setattr(client.httpx, "AsyncClient", FakeAsyncClient)
 
     result = await client.judge_client(

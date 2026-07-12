@@ -136,7 +136,9 @@ async def retrieve_chunks_route(
         raise HTTPException(status_code=400, detail=str(exception)) from exception
 
     try:
-        answer: RetrieveChunksResponseBase = await retrieve_chunks(body.question, config)
+        answer: RetrieveChunksResponseBase = await retrieve_chunks(
+            body.question, config
+        )
 
         retrieval_completed = True
         duration_ms = _elapsed_ms(start)

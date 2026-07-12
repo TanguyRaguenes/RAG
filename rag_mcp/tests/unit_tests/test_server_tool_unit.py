@@ -22,7 +22,9 @@ async def test_interroger_documentation_interne_returns_rag_client_response(
 
     monkeypatch.setattr(server, "load_mcp_config", lambda: config)
     monkeypatch.setattr(server, "get_access_token", fake_get_access_token)
-    monkeypatch.setattr(server, "retrieve_documentation_chunks", fake_retrieve_documentation_chunks)
+    monkeypatch.setattr(
+        server, "retrieve_documentation_chunks", fake_retrieve_documentation_chunks
+    )
 
     result = await server.interroger_documentation_interne("question")
 
@@ -48,9 +50,15 @@ async def test_interroger_documentation_interne_formats_http_errors(
         response = httpx.Response(503, text="down", request=request)
         raise httpx.HTTPStatusError("failed", request=request, response=response)
 
-    monkeypatch.setattr(server, "load_mcp_config", lambda: McpConfig("http://rag", "http://oidc", "client", "secret"))
+    monkeypatch.setattr(
+        server,
+        "load_mcp_config",
+        lambda: McpConfig("http://rag", "http://oidc", "client", "secret"),
+    )
     monkeypatch.setattr(server, "get_access_token", fake_get_access_token)
-    monkeypatch.setattr(server, "retrieve_documentation_chunks", failing_retrieve_documentation_chunks)
+    monkeypatch.setattr(
+        server, "retrieve_documentation_chunks", failing_retrieve_documentation_chunks
+    )
 
     result = await server.interroger_documentation_interne("question")
 

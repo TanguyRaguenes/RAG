@@ -24,7 +24,12 @@ def test_build_context_includes_chunk_metadata_and_stops_at_character_limit() ->
 def test_build_prompt_uses_context_and_refusal_instruction_when_chunks_exist() -> None:
     prompt = build_prompt(
         "Question ?",
-        [{"metadata": {"title": "Doc", "path": "doc.md", "chunk_index": 0}, "document": "Info"}],
+        [
+            {
+                "metadata": {"title": "Doc", "path": "doc.md", "chunk_index": 0},
+                "document": "Info",
+            }
+        ],
         max_prompt_chars=500,
     )
 

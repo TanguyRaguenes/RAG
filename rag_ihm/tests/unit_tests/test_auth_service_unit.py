@@ -45,7 +45,9 @@ def test_normalize_groups_accepts_strings_and_dicts() -> None:
     }
 
 
-def test_merge_user_claims_preserves_access_groups_when_id_claims_do_not_define_them() -> None:
+def test_merge_user_claims_preserves_access_groups_when_id_claims_do_not_define_them() -> (
+    None
+):
     merged = _merge_user_claims(
         id_claims={"email": "user@example.com"},
         access_claims={"groups": ["rag_admin"], "sub": "123"},
@@ -63,5 +65,7 @@ def test_decode_jwt_payload_without_verification_reads_payload() -> None:
     assert _decode_jwt_payload_without_verification(token) == payload
 
 
-def test_decode_jwt_payload_without_verification_returns_empty_dict_on_invalid_token() -> None:
+def test_decode_jwt_payload_without_verification_returns_empty_dict_on_invalid_token() -> (
+    None
+):
     assert _decode_jwt_payload_without_verification("invalid") == {}

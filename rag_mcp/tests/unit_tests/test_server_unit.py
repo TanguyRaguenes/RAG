@@ -13,7 +13,9 @@ from server import (
 
 def test_is_cached_token_valid_requires_safety_window() -> None:
     assert is_cached_token_valid({"access_token": "abc", "expires_at": 150}, now=100)
-    assert not is_cached_token_valid({"access_token": "abc", "expires_at": 120}, now=100)
+    assert not is_cached_token_valid(
+        {"access_token": "abc", "expires_at": 120}, now=100
+    )
     assert not is_cached_token_valid({"expires_at": 150}, now=100)
 
 

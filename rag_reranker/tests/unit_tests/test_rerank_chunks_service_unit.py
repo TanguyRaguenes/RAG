@@ -30,7 +30,9 @@ def _chunks() -> list[dict]:
 async def test_rerank_chunks_orders_by_rerank_score_and_applies_top_k(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    async def fake_score_chunks(question: str, chunks: list[dict], config: dict) -> dict[int, float]:
+    async def fake_score_chunks(
+        question: str, chunks: list[dict], config: dict
+    ) -> dict[int, float]:
         assert question == "Question"
         assert len(chunks) == 3
         assert config == {"reranking": {"top_k": 2}}
@@ -63,7 +65,9 @@ async def test_rerank_chunks_returns_empty_list_when_chunks_are_empty() -> None:
 async def test_rerank_chunks_uses_similarity_when_scores_are_equal(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    async def fake_score_chunks(question: str, chunks: list[dict], config: dict) -> dict[int, float]:
+    async def fake_score_chunks(
+        question: str, chunks: list[dict], config: dict
+    ) -> dict[int, float]:
         return {0: 0.5, 1: 0.5, 2: 0.5}
 
     monkeypatch.setattr(rerank_chunks_service, "score_chunks", fake_score_chunks)

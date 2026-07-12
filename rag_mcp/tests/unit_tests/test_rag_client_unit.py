@@ -31,7 +31,9 @@ class FakeAsyncClient:
         return False
 
     async def post(self, url: str, json: dict, headers: dict) -> FakeResponse:
-        self.calls.append({"url": url, "json": json, "headers": headers, "timeout": self.timeout})
+        self.calls.append(
+            {"url": url, "json": json, "headers": headers, "timeout": self.timeout}
+        )
         return FakeResponse({"retrieved_chunks": [{"document": "doc"}]})
 
 
@@ -43,7 +45,9 @@ async def test_retrieve_documentation_chunks_posts_question_with_bearer_token(
     monkeypatch.setattr(rag_client.httpx, "AsyncClient", FakeAsyncClient)
 
     result = await rag_client.retrieve_documentation_chunks(
-        config=McpConfig("http://rag/retrieve_chunks", "http://oidc", "client", "secret"),
+        config=McpConfig(
+            "http://rag/retrieve_chunks", "http://oidc", "client", "secret"
+        ),
         question="Comment deployer ?",
         access_token="token",
     )

@@ -1,6 +1,6 @@
-
 from pydantic import BaseModel
 from typing import Any
+
 
 class VectorStoreItemsBase(BaseModel):
     ids: list[str]

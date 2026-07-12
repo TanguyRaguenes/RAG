@@ -36,16 +36,28 @@ class FakeAsyncClient:
         return False
 
     async def post(self, url: str, json: dict, headers=None) -> FakeResponse:
-        self.calls.append({"method": "POST", "url": url, "json": json, "headers": headers, "timeout": self.timeout})
+        self.calls.append(
+            {
+                "method": "POST",
+                "url": url,
+                "json": json,
+                "headers": headers,
+                "timeout": self.timeout,
+            }
+        )
         return self.response
 
     async def get(self, url: str, headers=None) -> FakeResponse:
-        self.calls.append({"method": "GET", "url": url, "headers": headers, "timeout": self.timeout})
+        self.calls.append(
+            {"method": "GET", "url": url, "headers": headers, "timeout": self.timeout}
+        )
         return self.response
 
 
 @pytest.mark.asyncio
-async def test_ask_question_to_llm_posts_payload(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_ask_question_to_llm_posts_payload(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     FakeAsyncClient.calls = []
     FakeAsyncClient.response = FakeResponse({"choices": []})
     monkeypatch.setattr(llm_client.httpx, "AsyncClient", FakeAsyncClient)
@@ -53,11 +65,21 @@ async def test_ask_question_to_llm_posts_payload(monkeypatch: pytest.MonkeyPatch
     result = await llm_client.ask_question_to_llm({"model": "m"}, 12, "http://llm")
 
     assert result == {"choices": []}
-    assert FakeAsyncClient.calls == [{"method": "POST", "url": "http://llm", "json": {"model": "m"}, "headers": None, "timeout": 12}]
+    assert FakeAsyncClient.calls == [
+        {
+            "method": "POST",
+            "url": "http://llm",
+            "json": {"model": "m"},
+            "headers": None,
+            "timeout": 12,
+        }
+    ]
 
 
 @pytest.mark.asyncio
-async def test_ask_question_to_api_sends_bearer_header(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_ask_question_to_api_sends_bearer_header(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     FakeAsyncClient.calls = []
     FakeAsyncClient.response = FakeResponse({"output": []})
     monkeypatch.setattr(llm_client.httpx, "AsyncClient", FakeAsyncClient)
@@ -65,11 +87,16 @@ async def test_ask_question_to_api_sends_bearer_header(monkeypatch: pytest.Monke
     result = await llm_client.ask_question_to_api({"model": "m"}, "http://api", "key")
 
     assert result == {"output": []}
-    assert FakeAsyncClient.calls[0]["headers"] == {"Content-Type": "application/json", "Authorization": "Bearer key"}
+    assert FakeAsyncClient.calls[0]["headers"] == {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer key",
+    }
 
 
 @pytest.mark.asyncio
-async def test_ask_question_to_llm_wraps_http_errors(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_ask_question_to_llm_wraps_http_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     FakeAsyncClient.response = FakeResponse({}, status_code=500, text="down")
     monkeypatch.setattr(llm_client.httpx, "AsyncClient", FakeAsyncClient)
 
@@ -85,11 +112,22 @@ async def test_oidc_get_userinfo_returns_empty_dict_without_url() -> None:
 
 
 @pytest.mark.asyncio
-async def test_oidc_get_userinfo_calls_userinfo_endpoint(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_oidc_get_userinfo_calls_userinfo_endpoint(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     FakeAsyncClient.calls = []
     FakeAsyncClient.response = FakeResponse({"email": "user@example.com"})
     monkeypatch.setattr(oidc_client.httpx, "AsyncClient", FakeAsyncClient)
-    client = oidc_client.OidcClient("issuer", "http://jwks", userinfo_url="http://userinfo")
+    client = oidc_client.OidcClient(
+        "issuer", "http://jwks", userinfo_url="http://userinfo"
+    )
 
     assert await client.get_userinfo("token") == {"email": "user@example.com"}
-    assert FakeAsyncClient.calls == [{"method": "GET", "url": "http://userinfo", "headers": {"Authorization": "Bearer token"}, "timeout": 10}]
+    assert FakeAsyncClient.calls == [
+        {
+            "method": "GET",
+            "url": "http://userinfo",
+            "headers": {"Authorization": "Bearer token"},
+            "timeout": 10,
+        }
+    ]

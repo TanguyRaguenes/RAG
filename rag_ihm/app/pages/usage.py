@@ -154,7 +154,10 @@ def _short_user_id(user_id: str) -> str:
 
 
 def _quota_label(quota: dict) -> str:
-    return quota.get("email") or f"Compte machine ({_short_user_id(quota['utilisateur_id'])})"
+    return (
+        quota.get("email")
+        or f"Compte machine ({_short_user_id(quota['utilisateur_id'])})"
+    )
 
 
 def _quota_by_user_id(quotas: list[dict], user_id: str) -> dict:

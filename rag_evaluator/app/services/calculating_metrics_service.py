@@ -2,18 +2,19 @@ import math
 
 
 # Rappel format du dataset :
-#{
-    #"question": "Quelle est la différence d'usage entre Kelio et Moffi ?",
-    #"keywords": ["Kelio", "Moffi", "badgeage", "réservation"],
-    #"reference_answer": "Kelio gère le badgeage et les absences. Moffi sert à la réservation de postes de travail en présentiel.",
-    #"category": "tools_usage"
-#}
+# {
+# "question": "Quelle est la différence d'usage entre Kelio et Moffi ?",
+# "keywords": ["Kelio", "Moffi", "badgeage", "réservation"],
+# "reference_answer": "Kelio gère le badgeage et les absences. Moffi sert à la réservation de postes de travail en présentiel.",
+# "category": "tools_usage"
+# }
 
-#_____________________________________________________________________________________________________________________
+# _____________________________________________________________________________________________________________________
+
 
 # MRR (Mean Reciprocal Rank)
 # On regarde la position du tout premier chunk pertinent. Puis on calule l'inverse.
-# rappel : L'inverse d'une fraction consiste à échanger le numérateur (le chiffre du haut) et le dénominateur (le chiffre du bas) 
+# rappel : L'inverse d'une fraction consiste à échanger le numérateur (le chiffre du haut) et le dénominateur (le chiffre du bas)
 # tout en conservant le même signe. Mathématiquement, si nous avons une fraction "a/b", son inverse est "b/a".
 #
 # Exemple :
@@ -30,18 +31,17 @@ def calculate_mrr(keywords: list[str], retrieved_chunks: list[str]) -> float:
     retrieved_chunks_lower = normalize_texts(retrieved_chunks)
 
     rr_scores = []
-    
-    for keyword in keywords_lower:
 
-        found = False 
-        
+    for keyword in keywords_lower:
+        found = False
+
         # On cherche le mot dans les chunks
         for rank, text in enumerate(retrieved_chunks_lower, start=1):
             if keyword in text.lower():
                 rr_scores.append(1.0 / rank)
                 found = True
                 break
-        
+
         if not found:
             rr_scores.append(0.0)
 
@@ -50,12 +50,13 @@ def calculate_mrr(keywords: list[str], retrieved_chunks: list[str]) -> float:
         return 0.0
     return sum(rr_scores) / len(rr_scores)
 
-#_____________________________________________________________________________________________________________________
+
+# _____________________________________________________________________________________________________________________
 
 # nDCG (Normalized Discounted Cumulative Gain)
 # On vérifie si les meilleurs chunks sont bien placés tout en haut de la liste.
 # On compare le score du classement du retriever avec le score d'un classement "Idéal" (parfait).
-# rappel : Le logarithme (log2) sert ici d'amortisseur. Contrairement à une division simple qui tue le score trop vite 
+# rappel : Le logarithme (log2) sert ici d'amortisseur. Contrairement à une division simple qui tue le score trop vite
 # (diviser par 2 fait perdre 50%), le log réduit le score plus doucement à mesure qu'on descend dans la liste (pour plus de détails voir plus bas).
 # C'est une "punition" progressive pour les bons chunks mal classés.
 #
@@ -64,6 +65,7 @@ def calculate_mrr(keywords: list[str], retrieved_chunks: list[str]) -> float:
 # - Classement [A, B, C] (Idéal) : Le meilleur est en 1er -> Score = 1.0 (100%)
 # - Classement [B, A, C] (Moyen) : Le meilleur est tombé en 2ème -> Score < 1.0 (ex: 0.85)
 # - Classement [C, B, A] (Mauvais): Les bons chunks sont à la fin -> Score très faible.
+
 
 def calculate_ndcg(keywords: list[str], retrieved_chunks: list[str], k: int) -> float:
 
@@ -78,10 +80,9 @@ def calculate_ndcg(keywords: list[str], retrieved_chunks: list[str], k: int) -> 
     relevances = []
 
     for chunk in retrieved_chunks_lower[:k]:
-
         # Est-ce que au moins un des mots-clés est dans ce texte ?
         is_relevant = contains_keyword(chunk, keywords_lower)
-        
+
         if is_relevant:
             relevances.append(1)
         else:
@@ -89,13 +90,14 @@ def calculate_ndcg(keywords: list[str], retrieved_chunks: list[str], k: int) -> 
 
     # 1. Score réel
     actual_dcg = calculate_dcg(relevances)
-    
+
     # 2. Score idéal (On trie les 1 d'abord)
     # sorted : Trie la liste.
     # reverse=True : Du plus grand au plus petit (Descendant).
     idcg = calculate_dcg(sorted(relevances, reverse=True))
-    
+
     return (actual_dcg / idcg) if idcg > 0 else 0.0
+
 
 def calculate_dcg(relevances: list[int]) -> float:
 
@@ -103,17 +105,18 @@ def calculate_dcg(relevances: list[int]) -> float:
     # On parcourt toute la liste de relevances fournie
     for i, rel in enumerate(relevances):
         # Rappel : i commence à 0, donc on divise par log2(i + 2)
-        # math.log2 parce que diviser par le rang (1, 2, 3...) tue le score trop vite. 
+        # math.log2 parce que diviser par le rang (1, 2, 3...) tue le score trop vite.
         # Le logarithme est un amortisseur (plus proche de la logique humaine) qui dit : "C'est moins bien d'être 2ème, mais c'est quand même bien."
         # log2(X) = Combien de fois dois-je multiplier 2 par lui-même pour arriver à X ?
-        # log2(2) = 1 (Car 2^1 = 2) -> Il faut un seul 2. 
+        # log2(2) = 1 (Car 2^1 = 2) -> Il faut un seul 2.
         # log2(4) = 2 (Car 2 * 2 = 4) -> Il faut deux 2.
         # log2(8) = 3 (Car 2 * 2 * 2 = 8) -> Il faut trois 2.
         # Donc 1/2 = 0.5 soit 50% alors que 1/log2(3)=0.63 soit 63%
         dcg += rel / math.log2(i + 2)
     return dcg
 
-#_____________________________________________________________________________________________________________________
+
+# _____________________________________________________________________________________________________________________
 
 # Recall@K (Rappel - Couverture de Mots-clés)
 # On regarde si on a trouvé TOUS les mots-clés demandés par l'utilisateur.
@@ -126,18 +129,18 @@ def calculate_dcg(relevances: list[int]) -> float:
 # - Trouvés = 2. Total attendu = 3.
 # - Score = 2/3 = 0.66 (66% de couverture).
 
+
 def calculate_recall(keywords: list[str], retrieved_chunks: list[str]) -> float:
 
     if not keywords or not retrieved_chunks:
         return 0.0
-    
+
     keywords_lower = normalize_texts(keywords)
     retrieved_chunks_lower = normalize_texts(retrieved_chunks)
 
     found_count = 0
 
     for keyword in keywords_lower:
-        
         # La fonction any() renvoie True dès qu'elle trouve le mot dans un des textes.
         # Elle s'arrête immédiatement quand elle a trouvé (pas besoin de tout lire).
         if any(keyword in chunk for chunk in retrieved_chunks_lower):
@@ -145,12 +148,13 @@ def calculate_recall(keywords: list[str], retrieved_chunks: list[str]) -> float:
 
     return found_count / len(keywords)
 
-#_____________________________________________________________________________________________________________________
+
+# _____________________________________________________________________________________________________________________
 
 # Precision@K (Précision)
 # On regarde la "pureté" de la liste des chunks: y a-t-il des déchets (chunks inutiles) parmi les chunks affichés ?
 # On divise le nombre de chunks pertinents par le nombre de chunks affichés (K).
-# rappel : L'ordre n'a aucune importance ici. Que le déchet soit en 1ère ou en 3ème position, 
+# rappel : L'ordre n'a aucune importance ici. Que le déchet soit en 1ère ou en 3ème position,
 # il compte de la même façon comme une erreur de précision.
 #
 # Exemple (Question : "Frais Cleemy", on affiche 3 chunks) :
@@ -159,7 +163,10 @@ def calculate_recall(keywords: list[str], retrieved_chunks: list[str]) -> float:
 # - Chunk 3 : Pertinent (Parle de Frais)
 # - Score : 2 pertinents sur 3 affichés = 2/3 = 0.66 (66%).
 
-def calculate_precision(keywords: list[str], retrieved_chunks: list[str], k: int) -> float:
+
+def calculate_precision(
+    keywords: list[str], retrieved_chunks: list[str], k: int
+) -> float:
 
     if not keywords or not retrieved_chunks:
         return 0.0
@@ -169,10 +176,10 @@ def calculate_precision(keywords: list[str], retrieved_chunks: list[str], k: int
 
     considered_chunks = retrieved_chunks_lower[:k]
     relevant_chunks_count = 0
-    
+
     if not considered_chunks:
         return 0.0
-    
+
     # On parcourt les chunks UN PAR UN.
     # Un chunk est pertinent s'il contient AU MOINS UN mot-clé.
     # On évite ainsi de compter un chunk plusieurs fois.
@@ -180,7 +187,7 @@ def calculate_precision(keywords: list[str], retrieved_chunks: list[str], k: int
         is_relevant = contains_keyword(chunk, keywords_lower)
         if is_relevant:
             relevant_chunks_count += 1
-             
+
     return relevant_chunks_count / len(considered_chunks)
 
 

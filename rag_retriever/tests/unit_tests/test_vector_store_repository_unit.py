@@ -91,6 +91,8 @@ def test_sort_chunks_by_index_orders_document_chunks() -> None:
     )
 
     assert [chunk["document"] for chunk in result] == ["A", "B"]
+
+
 class FakeCollection:
     def __init__(self):
         self.upsert_calls = []
@@ -98,10 +100,24 @@ class FakeCollection:
         self.get_calls = []
         self.query_payload = {
             "documents": [["doc-a", "doc-b"]],
-            "metadatas": [[
-                {"path": "a.md", "title": "A", "chunk_index": 0, "has_links": True, "related_links": "b.md"},
-                {"path": "b.md", "title": "B", "chunk_index": 0, "has_links": False, "related_links": ""},
-            ]],
+            "metadatas": [
+                [
+                    {
+                        "path": "a.md",
+                        "title": "A",
+                        "chunk_index": 0,
+                        "has_links": True,
+                        "related_links": "b.md",
+                    },
+                    {
+                        "path": "b.md",
+                        "title": "B",
+                        "chunk_index": 0,
+                        "has_links": False,
+                        "related_links": "",
+                    },
+                ]
+            ],
             "distances": [[0.1, 0.6]],
         }
 
@@ -124,7 +140,11 @@ class FakeCollection:
                 ],
             }
         if kwargs:
-            return {"ids": ["id"], "documents": ["doc"], "metadatas": [{"path": "doc.md"}]}
+            return {
+                "ids": ["id"],
+                "documents": ["doc"],
+                "metadatas": [{"path": "doc.md"}],
+            }
         return {"ids": ["id"]}
 
     def delete(self, **kwargs):
@@ -143,17 +163,29 @@ def _repository() -> VectorStoreRepository:
 
 def test_insert_or_update_items_in_collection_upserts_all_fields() -> None:
     collection = FakeCollection()
-    items = VectorStoreItemsBase(ids=["id"], documents=["doc"], embeddings=[[0.1]], metadatas=[{"path": "doc.md"}])
+    items = VectorStoreItemsBase(
+        ids=["id"],
+        documents=["doc"],
+        embeddings=[[0.1]],
+        metadatas=[{"path": "doc.md"}],
+    )
 
     _repository().insert_or_update_items_in_collection(collection, items)
 
     assert collection.upsert_calls == [
-        {"ids": ["id"], "documents": ["doc"], "embeddings": [[0.1]], "metadatas": [{"path": "doc.md"}]}
+        {
+            "ids": ["id"],
+            "documents": ["doc"],
+            "embeddings": [[0.1]],
+            "metadatas": [{"path": "doc.md"}],
+        }
     ]
 
 
 def test_get_collection_items_maps_chroma_payload_to_saved_items() -> None:
-    items = _repository().get_collection_items(FakeCollection(), ["id"], ["documents", "metadatas"])
+    items = _repository().get_collection_items(
+        FakeCollection(), ["id"], ["documents", "metadatas"]
+    )
 
     assert items[0].id == "id"
     assert items[0].chunk == "doc"
@@ -195,7 +227,9 @@ def test_retrieve_chunks_filtered_filters_and_does_not_add_related_chunks() -> N
     assert collection.query_call["include"] == ["documents", "metadatas", "distances"]
 
 
-def test_retrieve_document_chunks_by_paths_deduplicates_paths_and_sorts_chunks() -> None:
+def test_retrieve_document_chunks_by_paths_deduplicates_paths_and_sorts_chunks() -> (
+    None
+):
     collection = FakeCollection()
 
     result = _repository().retrieve_document_chunks_by_paths(
@@ -223,9 +257,18 @@ def test_build_enriched_chunks_and_filter_by_similarity_sort_results() -> None:
 def test_extract_related_links_keeps_best_score_and_ignores_empty_links() -> None:
     result = extract_related_links(
         [
-            {"metadata": {"has_links": True, "related_links": " a.md, "}, "similarity": 0.6},
-            {"metadata": {"has_links": True, "related_links": "a.md,b.md"}, "similarity": 0.9},
-            {"metadata": {"has_links": False, "related_links": "c.md"}, "similarity": 1.0},
+            {
+                "metadata": {"has_links": True, "related_links": " a.md, "},
+                "similarity": 0.6,
+            },
+            {
+                "metadata": {"has_links": True, "related_links": "a.md,b.md"},
+                "similarity": 0.9,
+            },
+            {
+                "metadata": {"has_links": False, "related_links": "c.md"},
+                "similarity": 1.0,
+            },
         ]
     )
 

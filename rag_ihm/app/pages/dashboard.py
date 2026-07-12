@@ -35,7 +35,9 @@ def _load_evaluator_config_or_stop():
 def _render_sidebar() -> None:
     with st.sidebar:
         has_result = get_dashboard_result() is not None
-        if has_result and st.button("Réinitialiser les résultats", use_container_width=True):
+        if has_result and st.button(
+            "Réinitialiser les résultats", use_container_width=True
+        ):
             clear_dashboard_result()
             st.toast("Résultats réinitialisés.")
             st.rerun()
@@ -61,12 +63,16 @@ def _render_results(result: dict) -> None:
 
     with retrieval_tab:
         st.subheader("Qualité du retrieval")
-        st.caption("Ces indicateurs évaluent si les bons extraits remontent au bon endroit.")
+        st.caption(
+            "Ces indicateurs évaluent si les bons extraits remontent au bon endroit."
+        )
         render_retrieval_scores(result.get("average_retrieval", {}))
 
     with answer_tab:
         st.subheader("Qualité de la réponse")
-        st.caption("Ces indicateurs évaluent l'exactitude, la couverture et la pertinence.")
+        st.caption(
+            "Ces indicateurs évaluent l'exactitude, la couverture et la pertinence."
+        )
         render_answer_scores(result.get("average_answer_quality", {}))
 
 

@@ -15,11 +15,18 @@ def _user() -> AuthenticatedUser:
 
 
 def _config() -> dict:
-    return {"llm": {"local": {"provider": "local-provider"}, "api": {"provider": "api-provider"}}}
+    return {
+        "llm": {
+            "local": {"provider": "local-provider"},
+            "api": {"provider": "api-provider"},
+        }
+    }
 
 
 @pytest.mark.asyncio
-async def test_ask_question_route_success_saves_usage_and_finishes_session(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_ask_question_route_success_saves_usage_and_finishes_session(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     calls = []
 
     async def fake_start_usage_session(user, db_pool, channel):
@@ -48,9 +55,17 @@ async def test_ask_question_route_success_saves_usage_and_finishes_session(monke
         calls.append(("finish", session_id))
 
     monkeypatch.setattr(query_router, "start_usage_session", fake_start_usage_session)
-    monkeypatch.setattr(query_router, "check_user_token_quota", fake_check_user_token_quota)
-    monkeypatch.setattr(query_router, "ask_question_to_local_model", fake_ask_question_to_local_model)
-    monkeypatch.setattr(query_router, "save_successful_question_usage", fake_save_successful_question_usage)
+    monkeypatch.setattr(
+        query_router, "check_user_token_quota", fake_check_user_token_quota
+    )
+    monkeypatch.setattr(
+        query_router, "ask_question_to_local_model", fake_ask_question_to_local_model
+    )
+    monkeypatch.setattr(
+        query_router,
+        "save_successful_question_usage",
+        fake_save_successful_question_usage,
+    )
     monkeypatch.setattr(query_router, "finish_usage_session", fake_finish_usage_session)
     monkeypatch.setattr(query_router.time, "perf_counter", iter([1.0, 2.0]).__next__)
 
@@ -73,7 +88,9 @@ async def test_ask_question_route_success_saves_usage_and_finishes_session(monke
 
 
 @pytest.mark.asyncio
-async def test_ask_question_route_saves_failure_when_quota_is_exceeded(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_ask_question_route_saves_failure_when_quota_is_exceeded(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     calls = []
 
     async def fake_start_usage_session(user, db_pool, channel):
@@ -89,8 +106,12 @@ async def test_ask_question_route_saves_failure_when_quota_is_exceeded(monkeypat
         calls.append(("finish", session_id))
 
     monkeypatch.setattr(query_router, "start_usage_session", fake_start_usage_session)
-    monkeypatch.setattr(query_router, "check_user_token_quota", fake_check_user_token_quota)
-    monkeypatch.setattr(query_router, "save_failed_question_usage", fake_save_failed_question_usage)
+    monkeypatch.setattr(
+        query_router, "check_user_token_quota", fake_check_user_token_quota
+    )
+    monkeypatch.setattr(
+        query_router, "save_failed_question_usage", fake_save_failed_question_usage
+    )
     monkeypatch.setattr(query_router, "finish_usage_session", fake_finish_usage_session)
     monkeypatch.setattr(query_router.time, "perf_counter", lambda: 1.0)
 
@@ -107,7 +128,9 @@ async def test_ask_question_route_saves_failure_when_quota_is_exceeded(monkeypat
 
 
 @pytest.mark.asyncio
-async def test_retrieve_chunks_route_saves_retrieval_usage(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_retrieve_chunks_route_saves_retrieval_usage(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     calls = []
 
     async def fake_start_usage_session(user, db_pool, channel):
@@ -138,4 +161,9 @@ async def test_retrieve_chunks_route_saves_retrieval_usage(monkeypatch: pytest.M
     )
 
     assert response.retrieved_chunks == [{"document": "doc"}]
-    assert calls == [("start", "mcp"), ("retrieve", "Q"), ("usage", 7, [{"document": "doc"}]), ("finish", 7)]
+    assert calls == [
+        ("start", "mcp"),
+        ("retrieve", "Q"),
+        ("usage", 7, [{"document": "doc"}]),
+        ("finish", 7),
+    ]

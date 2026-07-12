@@ -8,13 +8,17 @@ from app.domain.models.rerank_chunks_request_model import RerankChunksRequestBas
 async def test_rerank_chunks_route_returns_chunks_and_duration(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    async def fake_service_rerank_chunks(question: str, chunks: list[dict], config: dict):
+    async def fake_service_rerank_chunks(
+        question: str, chunks: list[dict], config: dict
+    ):
         assert question == "Question"
         assert chunks[0]["id"] == "chunk-1"
         assert config == {"config": True}
         return [dict(chunks[0], rerank_score=0.9)]
 
-    monkeypatch.setattr(rerank_router, "service_rerank_chunks", fake_service_rerank_chunks)
+    monkeypatch.setattr(
+        rerank_router, "service_rerank_chunks", fake_service_rerank_chunks
+    )
     monkeypatch.setattr(rerank_router.time, "perf_counter", iter([1.0, 2.2]).__next__)
 
     response = await rerank_router.rerank_chunks_route(

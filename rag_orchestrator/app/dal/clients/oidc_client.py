@@ -4,7 +4,13 @@ import httpx
 
 
 class OidcClient:
-    def __init__(self, issuer: str, jwks_uri: str, audience: str | list[str] | None = None, userinfo_url: str | None = None):
+    def __init__(
+        self,
+        issuer: str,
+        jwks_uri: str,
+        audience: str | list[str] | None = None,
+        userinfo_url: str | None = None,
+    ):
         self.issuer = issuer
         self.audience = audience
         self.jwks_client = PyJWKClient(jwks_uri)
@@ -28,7 +34,7 @@ class OidcClient:
             audience=self.audience if self.audience else None,
             options=options,
         )
-    
+
     async def get_userinfo(self, access_token: str) -> dict:
         if not self.userinfo_url:
             return {}

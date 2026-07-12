@@ -41,22 +41,32 @@ class FakeAsyncClient:
 
 
 @pytest.mark.asyncio
-async def test_ask_question_posts_question_to_configured_orchestrator(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_ask_question_posts_question_to_configured_orchestrator(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     FakeAsyncClient.calls = []
     FakeAsyncClient.response = FakeResponse({"llm_response": "ok"})
-    monkeypatch.setenv("RAG_ORCHESTRATOR_ASK_QUESTION_URL", "http://orchestrator/ask_question")
+    monkeypatch.setenv(
+        "RAG_ORCHESTRATOR_ASK_QUESTION_URL", "http://orchestrator/ask_question"
+    )
     monkeypatch.setattr(client.httpx, "AsyncClient", FakeAsyncClient)
 
     result = await client.ask_question("Question")
 
     assert result == {"llm_response": "ok"}
     assert FakeAsyncClient.calls == [
-        {"url": "http://orchestrator/ask_question", "json": {"question": "Question"}, "timeout": 180.0}
+        {
+            "url": "http://orchestrator/ask_question",
+            "json": {"question": "Question"},
+            "timeout": 180.0,
+        }
     ]
 
 
 @pytest.mark.asyncio
-async def test_ask_question_raises_client_error_when_url_is_missing(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_ask_question_raises_client_error_when_url_is_missing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.delenv("RAG_ORCHESTRATOR_ASK_QUESTION_URL", raising=False)
 
     with pytest.raises(EvaluatorClientError) as exc_info:
@@ -66,10 +76,14 @@ async def test_ask_question_raises_client_error_when_url_is_missing(monkeypatch:
 
 
 @pytest.mark.asyncio
-async def test_ask_question_rejects_non_dict_response(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_ask_question_rejects_non_dict_response(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     FakeAsyncClient.calls = []
     FakeAsyncClient.response = FakeResponse(["invalid"])
-    monkeypatch.setenv("RAG_ORCHESTRATOR_ASK_QUESTION_URL", "http://orchestrator/ask_question")
+    monkeypatch.setenv(
+        "RAG_ORCHESTRATOR_ASK_QUESTION_URL", "http://orchestrator/ask_question"
+    )
     monkeypatch.setattr(client.httpx, "AsyncClient", FakeAsyncClient)
 
     with pytest.raises(EvaluatorClientError, match="format inattendu"):

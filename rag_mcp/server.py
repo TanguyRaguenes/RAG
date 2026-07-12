@@ -1,9 +1,9 @@
 import httpx
 from mcp.server.fastmcp import FastMCP
 
-from auth_client import cache_access_token, get_access_token, is_cached_token_valid
-from config import McpConfig, McpConfigError, load_mcp_config
-from rag_client import format_retrieved_chunks_response, retrieve_documentation_chunks
+from auth_client import get_access_token
+from config import load_mcp_config
+from rag_client import retrieve_documentation_chunks
 
 mcp = FastMCP("RAG Entreprise")
 

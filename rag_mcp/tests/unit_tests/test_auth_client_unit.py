@@ -28,7 +28,9 @@ class FakeAsyncClient:
         return False
 
     async def post(self, url: str, data: dict, headers: dict) -> FakeResponse:
-        self.calls.append({"url": url, "data": data, "headers": headers, "timeout": self.timeout})
+        self.calls.append(
+            {"url": url, "data": data, "headers": headers, "timeout": self.timeout}
+        )
         return FakeResponse({"access_token": "new-token", "expires_in": 120})
 
 
