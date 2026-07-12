@@ -65,6 +65,7 @@ def test_format_judge_response_rejects_invalid_payload() -> None:
     with pytest.raises(EvaluatorClientError):
         format_judge_response({"choices": []})
 
+
 class FakeResponse:
     def __init__(self, payload, status_code: int = 200, text: str = ""):
         self.payload = payload
