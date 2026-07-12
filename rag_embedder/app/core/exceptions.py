@@ -16,11 +16,22 @@ class EmbedderContainerCustomException(Exception):
     SLUG = "ERR_INTERNAL"
 
     def __init__(self, message: str, details: dict | None = None):
+        """Construit une exception standardisée retournable par l'API embedder.
+
+        Args:
+            message: Message d'erreur fonctionnel safe à exposer au client API.
+            details: Informations non sensibles ajoutées à la réponse d'erreur pour faciliter le diagnostic.
+        """
         self.message = message
         self.details = details or {}
         super().__init__(message)
 
     def to_dict(self) -> dict:
+        """Convertit l'exception applicative en payload JSON standardisé.
+
+        Returns:
+            Payload d'erreur contenant le slug, le message et les détails.
+        """
         return {
             "slug": self.SLUG.value,
             "message": self.message,

@@ -8,6 +8,17 @@ from app.domain.models.vector_store_item_model import VectorStoreItemsBase
 
 
 async def save_items(vector_store_items: VectorStoreItemsBase) -> Any:
+    """Envoie les items vectoriels au service retriever pour persistance.
+
+    Args:
+        vector_store_items: Items vectoriels préparés par l'embedder pour être sauvegardés par le retriever.
+
+    Returns:
+        Réponse du retriever décrivant les items sauvegardés.
+
+    Raises:
+        RetrievalServiceException: Si le service retriever ne peut pas sauvegarder les embeddings.
+    """
     url = os.getenv("RAG_RETRIEVER_INGEST_DOCUMENTS_URL")
     if not url:
         raise RetrievalServiceException(

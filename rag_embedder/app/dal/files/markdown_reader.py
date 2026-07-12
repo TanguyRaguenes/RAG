@@ -7,7 +7,14 @@ from app.domain.models.document_model import DocumentBase, DocumentsBase
 
 
 async def read_markdown_documents() -> DocumentsBase:
+    """Lit les fichiers Markdown et construit les modèles de documents à ingérer.
 
+    Returns:
+        Collection de documents Markdown avec leur chemin et contenu.
+
+    Raises:
+        MarkdownProcessingException: Si le traitement rencontre une erreur applicative explicitement propagée.
+    """
     found_documents: list[DocumentBase] = []
     root: Path = Path("./wikis").resolve()
 

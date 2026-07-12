@@ -23,7 +23,15 @@ import math
 # Si le bon chunk est en 10ème position : score = 1/10 = 0.1
 # Pas de chunk pertinent ? Score = 0.
 def calculate_mrr(keywords: list[str], retrieved_chunks: list[str]) -> float:
+    """Calcule le Mean Reciprocal Rank à partir des mots-clés attendus et des chunks récupérés.
 
+    Args:
+        keywords: Mots-clés attendus pour mesurer la récupération documentaire.
+        retrieved_chunks: Chunks retournés par le retriever ou l'orchestrator.
+
+    Returns:
+        Score MRR moyen entre `0.0` et `1.0`.
+    """
     if not keywords or not retrieved_chunks:
         return 0.0
 
@@ -68,7 +76,16 @@ def calculate_mrr(keywords: list[str], retrieved_chunks: list[str]) -> float:
 
 
 def calculate_ndcg(keywords: list[str], retrieved_chunks: list[str], k: int) -> float:
+    """Calcule le nDCG pour mesurer la qualité de classement des chunks pertinents.
 
+    Args:
+        keywords: Mots-clés attendus pour mesurer la récupération documentaire.
+        retrieved_chunks: Chunks retournés par le retriever ou l'orchestrator.
+        k: Nombre de premiers résultats pris en compte pour la métrique.
+
+    Returns:
+        Score nDCG entre `0.0` et `1.0`.
+    """
     if not keywords or not retrieved_chunks:
         return 0.0
 
@@ -100,7 +117,14 @@ def calculate_ndcg(keywords: list[str], retrieved_chunks: list[str], k: int) -> 
 
 
 def calculate_dcg(relevances: list[int]) -> float:
+    """Calcule le Discounted Cumulative Gain d'une liste de pertinences.
 
+    Args:
+        relevances: Liste binaire indiquant quels résultats sont pertinents à chaque rang.
+
+    Returns:
+        Score DCG brut de la liste de pertinences.
+    """
     dcg = 0.0
     # On parcourt toute la liste de relevances fournie
     for i, rel in enumerate(relevances):
@@ -131,7 +155,15 @@ def calculate_dcg(relevances: list[int]) -> float:
 
 
 def calculate_recall(keywords: list[str], retrieved_chunks: list[str]) -> float:
+    """Calcule la proportion de mots-clés retrouvés dans les chunks récupérés.
 
+    Args:
+        keywords: Mots-clés attendus pour mesurer la récupération documentaire.
+        retrieved_chunks: Chunks retournés par le retriever ou l'orchestrator.
+
+    Returns:
+        Proportion de mots-clés retrouvés dans les chunks.
+    """
     if not keywords or not retrieved_chunks:
         return 0.0
 
@@ -167,7 +199,16 @@ def calculate_recall(keywords: list[str], retrieved_chunks: list[str]) -> float:
 def calculate_precision(
     keywords: list[str], retrieved_chunks: list[str], k: int
 ) -> float:
+    """Calcule la part de chunks pertinents parmi les premiers résultats considérés.
 
+    Args:
+        keywords: Mots-clés attendus pour mesurer la récupération documentaire.
+        retrieved_chunks: Chunks retournés par le retriever ou l'orchestrator.
+        k: Nombre de premiers résultats pris en compte pour la métrique.
+
+    Returns:
+        Proportion des premiers chunks considérés qui contiennent un mot-clé.
+    """
     if not keywords or not retrieved_chunks:
         return 0.0
 
@@ -192,8 +233,25 @@ def calculate_precision(
 
 
 def normalize_texts(texts: list[str]) -> list[str]:
+    """Passe une liste de textes en minuscules pour comparer les mots-clés simplement.
+
+    Args:
+        texts: Textes à vectoriser ou normaliser.
+
+    Returns:
+        Valeur normalisée prête à être comparée, stockée ou affichée.
+    """
     return [text.lower() for text in texts]
 
 
 def contains_keyword(text: str, keywords: list[str]) -> bool:
+    """Indique si un texte contient au moins un des mots-clés normalisés.
+
+    Args:
+        text: Texte à analyser, formater ou afficher.
+        keywords: Mots-clés attendus pour mesurer la récupération documentaire.
+
+    Returns:
+        `True` si au moins un mot-clé est présent dans le texte.
+    """
     return any(keyword in text for keyword in keywords)

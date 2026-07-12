@@ -6,13 +6,26 @@ import asyncpg
 from fastapi import FastAPI
 
 from app.core.config import load_config
+from app.core.metrics import initialize_question_metrics
 
 logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    """Prépare les ressources applicatives au démarrage puis les libère à l'arrêt du service.
+
+    Args:
+        app: Application FastAPI dont l'état contient les ressources partagées du service.
+
+    Raises:
+        RuntimeError: Si le traitement rencontre une erreur applicative explicitement propagée.
+    """
     app.state.config = load_config()
+    initialize_question_metrics(
+        provider=app.state.config["llm"]["api"]["provider"],
+        model=app.state.config["llm"]["api"]["model"],
+    )
 
     database_url = os.environ["DATABASE_URL"]
     user_hash_secret = os.environ["USER_HASH_SECRET"]

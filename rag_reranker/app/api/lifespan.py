@@ -14,7 +14,11 @@ def _warm_up_http_stack() -> None:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    """Prépare les ressources applicatives au démarrage puis les libère à l'arrêt du service.
 
+    Args:
+        app: Application FastAPI dont l'état contient les ressources partagées du service.
+    """
     _warm_up_http_stack()
     app.state.config = load_config()
 

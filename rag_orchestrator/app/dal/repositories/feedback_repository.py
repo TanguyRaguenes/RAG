@@ -12,6 +12,17 @@ class FeedbackRepository:
         note: int,
         comment: str | None,
     ) -> None:
+        """Insère ou met à jour le feedback associé à une interaction.
+
+        Args:
+            interaction_id: Identifiant de l'interaction RAG concernée.
+            user_id: Identifiant interne ou pseudonymisé de l'utilisateur ciblé.
+            note: Note utilisateur associée au feedback.
+            comment: Commentaire saisi par l'utilisateur dans le formulaire de feedback.
+
+        Raises:
+            ValueError: Si une valeur obligatoire est absente ou invalide.
+        """
         query = """
             INSERT INTO avis (interaction_id, note, commentaire)
             SELECT $1, $3, $4
@@ -49,6 +60,15 @@ class FeedbackRepository:
         start_date: date,
         end_date: date,
     ) -> list[asyncpg.Record]:
+        """Retourne les feedbacks d'interactions filtrés par période.
+
+        Args:
+            start_date: Date de début du filtre de période.
+            end_date: Date de fin du filtre de période.
+
+        Returns:
+            Feedbacks d'interactions filtrés par période.
+        """
         query = """
             SELECT
                 interaction_rag.id AS interaction_id,

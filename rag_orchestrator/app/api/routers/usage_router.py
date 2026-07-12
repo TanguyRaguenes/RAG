@@ -35,6 +35,15 @@ async def get_my_quota_usage(
     current_user: AuthenticatedUser = Depends(get_current_user),
     db_pool: asyncpg.Pool = Depends(get_db_pool),
 ) -> QuotaUsageResponse:
+    """Récupère le quota et la consommation de l'utilisateur connecté.
+
+    Args:
+        current_user: Utilisateur authentifié issu du token OIDC courant.
+        db_pool: Pool de connexions PostgreSQL utilisé pour lire ou écrire les données d'usage.
+
+    Returns:
+        Données de quota de l'utilisateur connecté retournées par l'orchestrator.
+    """
     return await get_current_user_quota_usage(current_user, db_pool)
 
 
@@ -43,6 +52,15 @@ async def get_my_preferences(
     current_user: AuthenticatedUser = Depends(get_current_user),
     db_pool: asyncpg.Pool = Depends(get_db_pool),
 ) -> UserPreferencesResponse:
+    """Récupère les préférences d'affichage de l'utilisateur connecté.
+
+    Args:
+        current_user: Utilisateur authentifié issu du token OIDC courant.
+        db_pool: Pool de connexions PostgreSQL utilisé pour lire ou écrire les données d'usage.
+
+    Returns:
+        Préférences utilisateur retournées par l'orchestrator.
+    """
     return await get_current_user_preferences(current_user, db_pool)
 
 
@@ -52,6 +70,19 @@ async def update_my_preferences(
     current_user: AuthenticatedUser = Depends(get_current_user),
     db_pool: asyncpg.Pool = Depends(get_db_pool),
 ) -> UserPreferencesResponse:
+    """Met à jour la préférence de thème de l'utilisateur connecté.
+
+    Args:
+        body: Corps de requête validé par FastAPI.
+        current_user: Utilisateur authentifié issu du token OIDC courant.
+        db_pool: Pool de connexions PostgreSQL utilisé pour lire ou écrire les données d'usage.
+
+    Returns:
+        Préférences utilisateur après mise à jour côté orchestrator.
+
+    Raises:
+        HTTPException: Si la requête ne respecte pas les règles d'authentification, d'autorisation ou de validation.
+    """
     try:
         return await update_current_user_preferences(
             current_user,
@@ -69,6 +100,20 @@ async def save_interaction_feedback(
     current_user: AuthenticatedUser = Depends(get_current_user),
     db_pool: asyncpg.Pool = Depends(get_db_pool),
 ) -> FeedbackResponse:
+    """Enregistre la note et le commentaire d'un utilisateur sur une interaction RAG.
+
+    Args:
+        interaction_id: Identifiant de l'interaction RAG concernée.
+        body: Corps de requête validé par FastAPI.
+        current_user: Utilisateur authentifié issu du token OIDC courant.
+        db_pool: Pool de connexions PostgreSQL utilisé pour lire ou écrire les données d'usage.
+
+    Returns:
+        Feedback enregistré pour l'interaction demandée.
+
+    Raises:
+        HTTPException: Si la requête ne respecte pas les règles d'authentification, d'autorisation ou de validation.
+    """
     try:
         return await save_current_user_feedback(
             current_user=current_user,
@@ -86,6 +131,15 @@ async def list_user_quota_usages(
     current_user: AuthenticatedUser = Depends(get_current_user),
     db_pool: asyncpg.Pool = Depends(get_db_pool),
 ) -> list[QuotaUsageResponse]:
+    """Retourne la liste administrative des quotas et consommations utilisateur.
+
+    Args:
+        current_user: Utilisateur authentifié issu du token OIDC courant.
+        db_pool: Pool de connexions PostgreSQL utilisé pour lire ou écrire les données d'usage.
+
+    Returns:
+        Quotas utilisateur visibles depuis l'écran d'administration.
+    """
     _ensure_usage_admin(current_user)
 
     return await list_all_quota_usages(db_pool)
@@ -98,6 +152,20 @@ async def update_user_quota_usage(
     current_user: AuthenticatedUser = Depends(get_current_user),
     db_pool: asyncpg.Pool = Depends(get_db_pool),
 ) -> QuotaUsageResponse:
+    """Met à jour le quota mensuel et l'activation d'un utilisateur administré.
+
+    Args:
+        user_id: Identifiant interne ou pseudonymisé de l'utilisateur ciblé.
+        body: Corps de requête validé par FastAPI.
+        current_user: Utilisateur authentifié issu du token OIDC courant.
+        db_pool: Pool de connexions PostgreSQL utilisé pour lire ou écrire les données d'usage.
+
+    Returns:
+        Quota utilisateur recalculé après modification administrateur.
+
+    Raises:
+        HTTPException: Si la requête ne respecte pas les règles d'authentification, d'autorisation ou de validation.
+    """
     _ensure_usage_admin(current_user)
 
     try:
@@ -121,6 +189,20 @@ async def list_interaction_feedbacks(
     current_user: AuthenticatedUser = Depends(get_current_user),
     db_pool: asyncpg.Pool = Depends(get_db_pool),
 ) -> list[AdminInteractionFeedbackResponse]:
+    """Retourne les feedbacks d'interactions filtrés par période.
+
+    Args:
+        start_date: Date de début du filtre de période.
+        end_date: Date de fin du filtre de période.
+        current_user: Utilisateur authentifié issu du token OIDC courant.
+        db_pool: Pool de connexions PostgreSQL utilisé pour lire ou écrire les données d'usage.
+
+    Returns:
+        Feedbacks d'interactions filtrés par période.
+
+    Raises:
+        HTTPException: Si la requête ne respecte pas les règles d'authentification, d'autorisation ou de validation.
+    """
     _ensure_usage_admin(current_user)
 
     try:
@@ -134,6 +216,14 @@ async def list_interaction_feedbacks(
 
 
 def _ensure_usage_admin(current_user: AuthenticatedUser) -> None:
+    """Vérifie que l'utilisateur courant peut accéder aux routes d'administration usage.
+
+    Args:
+        current_user: Utilisateur authentifié issu du token OIDC courant.
+
+    Raises:
+        HTTPException: Si la requête ne respecte pas les règles d'authentification, d'autorisation ou de validation.
+    """
     if is_usage_admin(current_user):
         return
 

@@ -8,6 +8,12 @@ class QuotaRepository:
         user_id: str,
         max_tokens_per_month: int,
     ) -> None:
+        """Crée une règle de quota par défaut lorsqu'un utilisateur n'en possède pas.
+
+        Args:
+            user_id: Identifiant interne ou pseudonymisé de l'utilisateur ciblé.
+            max_tokens_per_month: Nouveau plafond mensuel de tokens à appliquer à l'utilisateur.
+        """
         query = """
             INSERT INTO quota_utilisateur (
                 utilisateur_id,
@@ -34,6 +40,17 @@ class QuotaRepository:
             await connection.execute(query, user_id, max_tokens_per_month)
 
     async def get_active_quota_usage(self, user_id: str) -> tuple[int, int, bool]:
+        """Calcule l'usage mensuel actif d'un utilisateur et son plafond de tokens.
+
+        Args:
+            user_id: Identifiant interne ou pseudonymisé de l'utilisateur ciblé.
+
+        Returns:
+            Tuple contenant plafond, consommation mensuelle et état actif du quota.
+
+        Raises:
+            ValueError: Si une valeur obligatoire est absente ou invalide.
+        """
         query = """
             WITH active_quota AS (
                 SELECT
@@ -80,6 +97,17 @@ class QuotaRepository:
         return row["max_tokens_par_mois"], row["consumed_tokens"], row["actif"]
 
     async def get_quota_usage_details(self, user_id: str) -> asyncpg.Record:
+        """Récupère le détail d'usage et de quota pour un utilisateur donné.
+
+        Args:
+            user_id: Identifiant interne ou pseudonymisé de l'utilisateur ciblé.
+
+        Returns:
+            Détail de quota et consommation pour l'utilisateur demandé.
+
+        Raises:
+            ValueError: Si une valeur obligatoire est absente ou invalide.
+        """
         query = """
             WITH current_month AS (
                 SELECT
@@ -132,6 +160,11 @@ class QuotaRepository:
         return row
 
     async def list_quota_usages(self) -> list[asyncpg.Record]:
+        """Liste les usages et règles de quota des utilisateurs administrables.
+
+        Returns:
+            Quotas et consommations de tous les utilisateurs connus.
+        """
         query = """
             WITH current_month AS (
                 SELECT
@@ -178,6 +211,16 @@ class QuotaRepository:
         max_tokens_per_month: int,
         active: bool,
     ) -> None:
+        """Crée une nouvelle version de règle de quota pour un utilisateur.
+
+        Args:
+            user_id: Identifiant interne ou pseudonymisé de l'utilisateur ciblé.
+            max_tokens_per_month: Nouveau plafond mensuel de tokens à appliquer à l'utilisateur.
+            active: Indique si la règle de quota doit autoriser la consommation de tokens.
+
+        Raises:
+            ValueError: Si une valeur obligatoire est absente ou invalide.
+        """
         query = """
             UPDATE quota_utilisateur
             SET

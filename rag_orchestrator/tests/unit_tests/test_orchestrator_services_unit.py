@@ -27,7 +27,7 @@ def _config() -> dict:
                 "max_output_tokens": 128,
                 "max_prompt_chars": 1000,
             },
-        }
+        },
     }
 
 

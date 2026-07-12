@@ -27,10 +27,26 @@ def render_empty_chat_state(on_select_question) -> None:
 
 
 def build_user_message(content: str) -> dict[str, Any]:
+    """Construit le modèle de message affiché pour une question utilisateur.
+
+    Args:
+        content: Texte du message à afficher dans la conversation.
+
+    Returns:
+        Message utilisateur normalisé pour l'historique de chat.
+    """
     return {"role": ROLE_USER, "content": content}
 
 
 def build_assistant_message(response: dict[str, Any]) -> dict[str, Any]:
+    """Construit le modèle de message affiché pour une réponse RAG.
+
+    Args:
+        response: Réponse HTTP ou objet de réponse à décoder.
+
+    Returns:
+        Message assistant enrichi avec réponse, sources et métadonnées.
+    """
     return {
         "role": ROLE_ASSISTANT,
         "interaction_id": response.get("interaction_id"),
@@ -73,6 +89,11 @@ def render_chat_message(
 
 
 def _render_assistant_metadata(message: dict[str, Any]) -> None:
+    """Affiche les métadonnées techniques d'une réponse assistant dans Streamlit.
+
+    Args:
+        message: Réponse assistant contenant les champs techniques optionnels à afficher.
+    """
     metadata = []
     if message.get("model"):
         metadata.append(str(message["model"]))
@@ -88,6 +109,11 @@ def _render_assistant_metadata(message: dict[str, Any]) -> None:
 
 
 def _render_generated_prompt(generated_prompt: Any) -> None:
+    """Affiche le prompt généré dans une zone dépliable de diagnostic.
+
+    Args:
+        generated_prompt: Prompt construit par l'orchestrator et affichable en mode diagnostic.
+    """
     if not isinstance(generated_prompt, list):
         st.json(generated_prompt)
         return
@@ -105,6 +131,11 @@ def _render_generated_prompt(generated_prompt: Any) -> None:
 
 
 def _render_source_summary(documents: Any) -> None:
+    """Affiche le résumé des documents sources utilisés par la réponse.
+
+    Args:
+        documents: Contenus textuels retournés par ChromaDB ou à ingérer.
+    """
     if not isinstance(documents, dict) or not documents:
         return
 
@@ -114,6 +145,12 @@ def _render_source_summary(documents: Any) -> None:
 
 
 def _render_sources(chunks: Any, debug_enabled: bool) -> None:
+    """Affiche le détail des chunks sources associés à une réponse.
+
+    Args:
+        chunks: Chunks documentaires manipulés par le pipeline RAG.
+        debug_enabled: Indique si les détails techniques doivent être affichés dans l'interface.
+    """
     if not isinstance(chunks, list) or not chunks:
         st.caption("Le RAG n'a retourné aucune source.")
         return
@@ -141,6 +178,12 @@ def _render_sources(chunks: Any, debug_enabled: bool) -> None:
 
 
 def _render_feedback_form(message: dict[str, Any], on_submit_feedback) -> None:
+    """Affiche le formulaire de feedback lié à une interaction RAG.
+
+    Args:
+        message: Réponse assistant contenant l'identifiant d'interaction lié au feedback.
+        on_submit_feedback: Callback appelé lorsque l'utilisateur soumet un feedback.
+    """
     interaction_id = message.get("interaction_id")
     if not interaction_id:
         return
@@ -193,6 +236,15 @@ def _render_feedback_form(message: dict[str, Any], on_submit_feedback) -> None:
 
 
 def _shorten_text(text: str, limit: int = 700) -> str:
+    """Tronque un texte long pour l'affichage compact dans l'IHM.
+
+    Args:
+        text: Texte à analyser, formater ou afficher.
+        limit: Nombre maximal de caractères conservés.
+
+    Returns:
+        Texte raccourci à la longueur maximale demandée.
+    """
     normalized = " ".join(text.split())
     if len(normalized) <= limit:
         return normalized
@@ -200,6 +252,14 @@ def _shorten_text(text: str, limit: int = 700) -> str:
 
 
 def _format_similarity(value: object) -> str:
+    """Formate un score de similarité pour l'affichage utilisateur.
+
+    Args:
+        value: Valeur à convertir, borner ou formater.
+
+    Returns:
+        Score de similarité formaté ou valeur vide si absent.
+    """
     try:
         return f"{float(value):.2f}"
     except (TypeError, ValueError):

@@ -26,6 +26,12 @@ QUOTA_EXCEEDED_MESSAGE = (
 
 class QuotaExceededError(Exception):
     def __init__(self, max_tokens: int, consumed_tokens: int):
+        """Construit l'erreur indiquant qu'un utilisateur a dépassé son quota mensuel.
+
+        Args:
+            max_tokens: Plafond de tokens autorisé par le quota actif.
+            consumed_tokens: Nombre de tokens déjà consommés sur la période de quota courante.
+        """
         self.max_tokens = max_tokens
         self.consumed_tokens = consumed_tokens
         super().__init__(QUOTA_EXCEEDED_MESSAGE)
@@ -33,6 +39,7 @@ class QuotaExceededError(Exception):
 
 class QuotaInactiveError(Exception):
     def __init__(self):
+        """Construit l'erreur indiquant que le quota utilisateur est désactivé."""
         super().__init__(QUOTA_EXCEEDED_MESSAGE)
 
 
@@ -40,6 +47,15 @@ async def ensure_usage_user_exists(
     current_user: AuthenticatedUser,
     db_pool: asyncpg.Pool,
 ) -> str:
+    """Garantit qu'un utilisateur existe dans la base d'usage avant de tracer une interaction.
+
+    Args:
+        current_user: Utilisateur authentifié issu du token OIDC courant.
+        db_pool: Pool de connexions PostgreSQL utilisé pour lire ou écrire les données d'usage.
+
+    Returns:
+        Identifiant utilisateur pseudonymisé utilisé pour les écritures d'usage.
+    """
     identifier = current_user.email or current_user.sub
 
     user_id = build_user_id_from_identifier(
@@ -64,6 +80,16 @@ async def start_usage_session(
     db_pool: asyncpg.Pool,
     channel: str,
 ) -> tuple[str, int]:
+    """Ouvre une session d'usage associée à un utilisateur et à un canal d'appel.
+
+    Args:
+        current_user: Utilisateur authentifié issu du token OIDC courant.
+        db_pool: Pool de connexions PostgreSQL utilisé pour lire ou écrire les données d'usage.
+        channel: Canal d'appel utilisé pour distinguer les usages Streamlit, MCP ou autres clients.
+
+    Returns:
+        Tuple contenant l'identifiant utilisateur pseudonymisé et l'identifiant de session créée.
+    """
     user_id = await ensure_usage_user_exists(current_user, db_pool)
 
     usage_repository = UsageRepository(db_pool)
@@ -73,11 +99,27 @@ async def start_usage_session(
 
 
 async def finish_usage_session(db_pool: asyncpg.Pool, session_id: int) -> None:
+    """Clôture une session d'usage après le traitement d'une interaction RAG.
+
+    Args:
+        db_pool: Pool de connexions PostgreSQL utilisé pour lire ou écrire les données d'usage.
+        session_id: Identifiant de la session d'usage à mettre à jour ou associer à l'interaction.
+    """
     usage_repository = UsageRepository(db_pool)
     await usage_repository.finish_session(session_id)
 
 
 async def check_user_token_quota(db_pool: asyncpg.Pool, user_id: str) -> None:
+    """Vérifie que l'utilisateur n'a pas dépassé son quota mensuel de tokens.
+
+    Args:
+        db_pool: Pool de connexions PostgreSQL utilisé pour lire ou écrire les données d'usage.
+        user_id: Identifiant interne ou pseudonymisé de l'utilisateur ciblé.
+
+    Raises:
+        QuotaInactiveError: Si le quota de l'utilisateur est désactivé.
+        QuotaExceededError: Si la consommation mensuelle atteint ou dépasse le plafond autorisé.
+    """
     usage_repository = UsageRepository(db_pool)
     max_tokens, consumed_tokens, active = await usage_repository.get_active_quota_usage(
         user_id
@@ -94,6 +136,15 @@ async def get_current_user_quota_usage(
     current_user: AuthenticatedUser,
     db_pool: asyncpg.Pool,
 ) -> QuotaUsageResponse:
+    """Récupère l'état du quota et de la consommation pour l'utilisateur courant.
+
+    Args:
+        current_user: Utilisateur authentifié issu du token OIDC courant.
+        db_pool: Pool de connexions PostgreSQL utilisé pour lire ou écrire les données d'usage.
+
+    Returns:
+        État du quota mensuel et de la consommation de l'utilisateur courant.
+    """
     user_id = await ensure_usage_user_exists(current_user, db_pool)
     usage_repository = UsageRepository(db_pool)
     row = await usage_repository.get_quota_usage_details(user_id)
@@ -102,6 +153,14 @@ async def get_current_user_quota_usage(
 
 
 async def list_all_quota_usages(db_pool: asyncpg.Pool) -> list[QuotaUsageResponse]:
+    """Liste les consommations et quotas des utilisateurs pour l'administration.
+
+    Args:
+        db_pool: Pool de connexions PostgreSQL utilisé pour lire ou écrire les données d'usage.
+
+    Returns:
+        Quotas et consommations utilisateur visibles par l'administrateur.
+    """
     usage_repository = UsageRepository(db_pool)
     rows = await usage_repository.list_quota_usages()
 
@@ -115,6 +174,17 @@ async def update_user_quota(
     max_tokens_per_month: int,
     active: bool,
 ) -> QuotaUsageResponse:
+    """Met à jour la règle de quota appliquée à un utilisateur.
+
+    Args:
+        db_pool: Pool de connexions PostgreSQL utilisé pour lire ou écrire les données d'usage.
+        user_id: Identifiant interne ou pseudonymisé de l'utilisateur ciblé.
+        max_tokens_per_month: Nouveau plafond mensuel de tokens à appliquer à l'utilisateur.
+        active: Indique si la règle de quota doit autoriser la consommation de tokens.
+
+    Returns:
+        Quota utilisateur recalculé après modification de la règle active.
+    """
     usage_repository = UsageRepository(db_pool)
     await usage_repository.update_quota_rule(
         user_id=user_id,
@@ -130,6 +200,15 @@ async def get_current_user_preferences(
     current_user: AuthenticatedUser,
     db_pool: asyncpg.Pool,
 ) -> UserPreferencesResponse:
+    """Récupère les préférences d'interface de l'utilisateur courant.
+
+    Args:
+        current_user: Utilisateur authentifié issu du token OIDC courant.
+        db_pool: Pool de connexions PostgreSQL utilisé pour lire ou écrire les données d'usage.
+
+    Returns:
+        Préférence de thème enregistrée pour l'utilisateur courant.
+    """
     user_id = await ensure_usage_user_exists(current_user, db_pool)
     usage_repository = UsageRepository(db_pool)
     theme_preference = await usage_repository.get_user_theme_preference(user_id)
@@ -142,6 +221,19 @@ async def update_current_user_preferences(
     db_pool: asyncpg.Pool,
     theme_preference: str,
 ) -> UserPreferencesResponse:
+    """Met à jour les préférences d'interface de l'utilisateur courant.
+
+    Args:
+        current_user: Utilisateur authentifié issu du token OIDC courant.
+        db_pool: Pool de connexions PostgreSQL utilisé pour lire ou écrire les données d'usage.
+        theme_preference: Préférence de thème choisie par l'utilisateur.
+
+    Returns:
+        Préférence de thème après mise à jour en base.
+
+    Raises:
+        ValueError: Si une valeur obligatoire est absente ou invalide.
+    """
     if theme_preference not in {"Sombre", "Clair"}:
         raise ValueError("Unknown theme preference")
 
@@ -162,6 +254,18 @@ async def save_current_user_feedback(
     note: int,
     comment: str | None,
 ) -> FeedbackResponse:
+    """Enregistre le feedback utilisateur associé à une interaction RAG.
+
+    Args:
+        current_user: Utilisateur authentifié issu du token OIDC courant.
+        db_pool: Pool de connexions PostgreSQL utilisé pour lire ou écrire les données d'usage.
+        interaction_id: Identifiant de l'interaction RAG concernée.
+        note: Note utilisateur associée au feedback.
+        comment: Commentaire saisi par l'utilisateur dans le formulaire de feedback.
+
+    Returns:
+        Feedback enregistré avec l'identifiant de l'interaction concernée.
+    """
     user_id = await ensure_usage_user_exists(current_user, db_pool)
     usage_repository = UsageRepository(db_pool)
     normalized_comment = _normalize_optional_comment(comment)
@@ -185,6 +289,19 @@ async def list_admin_interaction_feedbacks(
     start_date: date,
     end_date: date,
 ) -> list[AdminInteractionFeedbackResponse]:
+    """Liste les feedbacks d'interactions sur une période pour les administrateurs.
+
+    Args:
+        db_pool: Pool de connexions PostgreSQL utilisé pour lire ou écrire les données d'usage.
+        start_date: Date de début du filtre de période.
+        end_date: Date de fin du filtre de période.
+
+    Returns:
+        Feedbacks d'interactions prêts à être affichés dans l'IHM.
+
+    Raises:
+        ValueError: Si une valeur obligatoire est absente ou invalide.
+    """
     if end_date < start_date:
         raise ValueError("end_date must be greater than or equal to start_date")
 
@@ -209,6 +326,14 @@ async def list_admin_interaction_feedbacks(
 
 
 def is_usage_admin(current_user: AuthenticatedUser) -> bool:
+    """Indique si l'utilisateur appartient à un groupe autorisé pour l'administration usage.
+
+    Args:
+        current_user: Utilisateur authentifié issu du token OIDC courant.
+
+    Returns:
+        `True` si l'utilisateur possède un groupe admin autorisé.
+    """
     return bool(_normalize_groups(current_user.groups) & _get_admin_groups())
 
 
@@ -221,6 +346,19 @@ async def save_successful_question_usage(
     answer: AskQuestionResponseBase,
     duration_ms: int,
 ) -> int:
+    """Persiste une interaction RAG réussie avec ses tokens, coût, chunks et durée.
+
+    Args:
+        db_pool: Pool de connexions PostgreSQL utilisé pour lire ou écrire les données d'usage.
+        session_id: Identifiant de la session d'usage à mettre à jour ou associer à l'interaction.
+        question: Question utilisateur traitée par le pipeline RAG, sans journalisation du contenu complet.
+        llm_provider: Provider LLM utilisé pour calculer le coût et tracer l'interaction.
+        answer: Réponse complète retournée par l'orchestrator après génération RAG.
+        duration_ms: Durée de traitement de l'interaction exprimée en millisecondes.
+
+    Returns:
+        Identifiant de l'interaction RAG créée en base.
+    """
     usage_repository = UsageRepository(db_pool)
 
     return await usage_repository.save_successful_interaction(
@@ -246,6 +384,18 @@ async def save_failed_question_usage(
     status: str,
     duration_ms: int,
 ) -> int:
+    """Persiste une interaction RAG échouée pour conserver une trace d'usage.
+
+    Args:
+        db_pool: Pool de connexions PostgreSQL utilisé pour lire ou écrire les données d'usage.
+        session_id: Identifiant de la session d'usage à mettre à jour ou associer à l'interaction.
+        question: Question utilisateur traitée par le pipeline RAG, sans journalisation du contenu complet.
+        status: Statut fonctionnel ou technique de l'opération.
+        duration_ms: Durée de traitement de l'interaction exprimée en millisecondes.
+
+    Returns:
+        Identifiant de l'interaction échouée créée en base.
+    """
     usage_repository = UsageRepository(db_pool)
 
     return await usage_repository.save_failed_interaction(
@@ -264,6 +414,18 @@ async def save_retrieval_usage(
     retrieved_chunks: list[dict],
     duration_ms: int,
 ) -> int:
+    """Persiste une interaction MCP limitée à la récupération de chunks.
+
+    Args:
+        db_pool: Pool de connexions PostgreSQL utilisé pour lire ou écrire les données d'usage.
+        session_id: Identifiant de la session d'usage à mettre à jour ou associer à l'interaction.
+        question: Question utilisateur traitée par le pipeline RAG, sans journalisation du contenu complet.
+        retrieved_chunks: Chunks retournés par le retriever ou l'orchestrator.
+        duration_ms: Durée de traitement de l'interaction exprimée en millisecondes.
+
+    Returns:
+        Identifiant de l'interaction de retrieval MCP créée en base.
+    """
     usage_repository = UsageRepository(db_pool)
 
     return await usage_repository.save_successful_interaction(
@@ -282,6 +444,14 @@ async def save_retrieval_usage(
 
 
 def _get_default_user_monthly_token_quota() -> int:
+    """Lit le quota mensuel par défaut appliqué aux nouveaux utilisateurs.
+
+    Returns:
+        Quota mensuel par défaut exprimé en tokens.
+
+    Raises:
+        ValueError: Si une valeur obligatoire est absente ou invalide.
+    """
     raw_value = os.getenv(
         "DEFAULT_USER_MONTHLY_TOKEN_QUOTA",
         str(DEFAULT_USER_MONTHLY_TOKEN_QUOTA),
@@ -301,6 +471,14 @@ def _get_default_user_monthly_token_quota() -> int:
 
 
 def _quota_row_to_response(row) -> QuotaUsageResponse:
+    """Transforme une ligne SQL de quota en schéma de réponse API.
+
+    Args:
+        row: Ligne SQL brute à convertir en objet métier ou schéma de réponse.
+
+    Returns:
+        Schéma API de quota construit depuis la ligne SQL.
+    """
     max_tokens = int(row["max_tokens_par_mois"])
     consumed_tokens = int(row["consumed_tokens"])
     remaining_tokens = max(max_tokens - consumed_tokens, 0)
@@ -320,16 +498,37 @@ def _quota_row_to_response(row) -> QuotaUsageResponse:
 
 
 def _get_admin_groups() -> set[str]:
+    """Charge la liste des groupes autorisés à administrer l'usage.
+
+    Returns:
+        Groupes autorisés à administrer l'usage.
+    """
     raw_groups = os.getenv("RAG_USAGE_ADMIN_GROUPS", "rag_admin")
 
     return _normalize_groups(raw_groups.split(","))
 
 
 def _normalize_groups(groups: Iterable[str]) -> set[str]:
+    """Normalise une liste de groupes pour permettre des comparaisons insensibles à la casse.
+
+    Args:
+        groups: Groupes ou rôles OIDC à normaliser avant contrôle d'autorisation.
+
+    Returns:
+        Valeur normalisée prête à être comparée, stockée ou affichée.
+    """
     return {group.strip().lower() for group in groups if group.strip()}
 
 
 def _normalize_optional_email(email: str | None) -> str | None:
+    """Nettoie une adresse e-mail optionnelle avant persistance ou affichage.
+
+    Args:
+        email: Adresse e-mail utilisée pour identifier l'utilisateur sans l'exposer inutilement.
+
+    Returns:
+        Valeur normalisée prête à être comparée, stockée ou affichée.
+    """
     if email is None:
         return None
 
@@ -339,6 +538,14 @@ def _normalize_optional_email(email: str | None) -> str | None:
 
 
 def _normalize_optional_comment(comment: str | None) -> str | None:
+    """Nettoie un commentaire optionnel avant persistance.
+
+    Args:
+        comment: Commentaire saisi par l'utilisateur dans le formulaire de feedback.
+
+    Returns:
+        Valeur normalisée prête à être comparée, stockée ou affichée.
+    """
     if comment is None:
         return None
 
@@ -348,6 +555,14 @@ def _normalize_optional_comment(comment: str | None) -> str | None:
 
 
 def _decode_chunks(raw_chunks) -> list[dict]:
+    """Décode la représentation JSON des chunks stockés en base.
+
+    Args:
+        raw_chunks: Chunks bruts retournés par l'orchestrator avant extraction du texte utile.
+
+    Returns:
+        Liste de chunks décodée depuis la valeur JSON stockée.
+    """
     if isinstance(raw_chunks, list):
         return raw_chunks
 

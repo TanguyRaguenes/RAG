@@ -30,6 +30,8 @@ AUTH_SESSION_KEYS = (
 
 @dataclass(frozen=True)
 class OidcConfig:
+    """Configuration OIDC utilisée par l'IHM Streamlit."""
+
     authorize_url: str
     token_url: str
     client_id: str
@@ -39,6 +41,14 @@ class OidcConfig:
 
 
 def _get_required_env(name: str) -> str:
+    """Lit une variable d'environnement OIDC obligatoire.
+
+    Args:
+        name: Nom de la variable à lire.
+
+    Returns:
+        Valeur de la variable.
+    """
     value = os.getenv(name)
     if not value:
         st.error(f"Variable d'environnement manquante : {name}")
@@ -48,6 +58,11 @@ def _get_required_env(name: str) -> str:
 
 
 def get_oidc_config() -> OidcConfig:
+    """Charge la configuration OIDC depuis l'environnement.
+
+    Returns:
+        Configuration OIDC validée.
+    """
     return OidcConfig(
         authorize_url=_get_required_env("RAG_IHM_OIDC_AUTHORIZE_URL"),
         token_url=_get_required_env("RAG_IHM_OIDC_TOKEN_URL"),
@@ -59,18 +74,41 @@ def get_oidc_config() -> OidcConfig:
 
 
 def is_authenticated() -> bool:
+    """Indique si un access token est présent en session Streamlit.
+
+    Returns:
+        `True` si l'utilisateur est considéré authentifié.
+    """
     return bool(st.session_state.get(ACCESS_TOKEN_KEY))
 
 
 def get_access_token() -> str | None:
+    """Retourne l'access token courant.
+
+    Returns:
+        Token OIDC stocké en session ou `None`.
+    """
     return st.session_state.get(ACCESS_TOKEN_KEY)
 
 
 def get_current_user() -> dict[str, Any] | None:
+    """Retourne les claims utilisateur courants.
+
+    Returns:
+        Claims utilisateur fusionnés ou `None` si absent.
+    """
     return st.session_state.get(USER_KEY)
 
 
 def is_usage_admin(current_user: dict[str, Any] | None) -> bool:
+    """Détermine si l'utilisateur possède un groupe admin usage.
+
+    Args:
+        current_user: Claims utilisateur courants.
+
+    Returns:
+        `True` si l'utilisateur appartient à un groupe admin configuré.
+    """
     if not current_user:
         return False
 
@@ -82,11 +120,21 @@ def is_usage_admin(current_user: dict[str, Any] | None) -> bool:
 
 
 def logout() -> None:
+    """Nettoie les clés d'authentification de la session Streamlit.
+
+    Returns:
+        Aucune valeur.
+    """
     for key in AUTH_SESSION_KEYS:
         st.session_state.pop(key, None)
 
 
 def build_login_url() -> str:
+    """Construit l'URL d'autorisation OIDC.
+
+    Returns:
+        URL de login avec paramètres OAuth et state.
+    """
     config = get_oidc_config()
     state = secrets.token_urlsafe(32)
     st.session_state[STATE_KEY] = state
@@ -97,6 +145,15 @@ def build_login_url() -> str:
 
 
 def build_authorization_params(config: OidcConfig, state: str) -> dict[str, str]:
+    """Construit les paramètres OAuth d'autorisation.
+
+    Args:
+        config: Configuration OIDC.
+        state: Jeton CSRF OAuth généré côté session.
+
+    Returns:
+        Paramètres de requête OAuth.
+    """
     return {
         "response_type": "code",
         "client_id": config.client_id,
@@ -107,6 +164,14 @@ def build_authorization_params(config: OidcConfig, state: str) -> dict[str, str]
 
 
 def _query_param_value(name: str) -> str | None:
+    """Récupère une valeur de query parameter Streamlit de manière compatible liste ou scalaire.
+
+    Args:
+        name: Nom de variable, champ ou ressource à lire.
+
+    Returns:
+        Première valeur du query parameter, ou `None` s'il est absent.
+    """
     value = st.query_params.get(name)
     if isinstance(value, list):
         return value[0] if value else None
@@ -115,6 +180,14 @@ def _query_param_value(name: str) -> str | None:
 
 
 def _decode_jwt_payload_without_verification(token: str) -> dict[str, Any]:
+    """Décode les claims d'un JWT sans vérifier la signature pour alimenter l'affichage utilisateur.
+
+    Args:
+        token: Token OIDC ou JWT à valider sans l'écrire dans les logs.
+
+    Returns:
+        Claims JSON décodés du token, ou dictionnaire vide en cas d'échec.
+    """
     try:
         payload = token.split(".")[1]
         payload += "=" * (-len(payload) % 4)
@@ -125,6 +198,14 @@ def _decode_jwt_payload_without_verification(token: str) -> dict[str, Any]:
 
 
 def _exchange_code_for_tokens(code: str) -> dict[str, Any]:
+    """Échange le code OAuth reçu contre les tokens OIDC.
+
+    Args:
+        code: Code OAuth retourné par le fournisseur d'identité.
+
+    Returns:
+        Réponse token OIDC retournée par le fournisseur d'identité.
+    """
     config = get_oidc_config()
     response = requests.post(
         config.token_url,
@@ -144,6 +225,7 @@ def _exchange_code_for_tokens(code: str) -> dict[str, Any]:
 
 
 def handle_oidc_callback() -> None:
+    """Traite le retour OIDC après authentification et alimente la session Streamlit."""
     error = _query_param_value("error")
     if error:
         st.error(f"Authentification refusée par Pocket ID : {error}")
@@ -196,6 +278,11 @@ def handle_oidc_callback() -> None:
 
 
 def require_authenticated_user() -> dict[str, Any] | None:
+    """Exige un utilisateur authentifié ou affiche le bouton de connexion.
+
+    Returns:
+        Claims de l'utilisateur connecté après vérification de session.
+    """
     if is_authenticated():
         return get_current_user()
 
@@ -223,6 +310,14 @@ def require_authenticated_user() -> dict[str, Any] | None:
 
 
 def _normalize_groups(groups) -> set[str]:
+    """Normalise une liste de groupes pour permettre des comparaisons insensibles à la casse.
+
+    Args:
+        groups: Groupes ou rôles OIDC à normaliser avant contrôle d'autorisation.
+
+    Returns:
+        Valeur normalisée prête à être comparée, stockée ou affichée.
+    """
     if isinstance(groups, dict):
         groups = [groups]
 
@@ -246,6 +341,14 @@ def _normalize_groups(groups) -> set[str]:
 
 
 def _extract_user_groups(current_user: dict[str, Any]) -> list[Any]:
+    """Extrait les groupes ou rôles depuis les claims utilisateur.
+
+    Args:
+        current_user: Utilisateur authentifié issu du token OIDC courant.
+
+    Returns:
+        Liste des groupes ou rôles extraits des claims utilisateur.
+    """
     user_groups = (
         current_user.get("groups")
         or current_user.get("roles")
@@ -266,6 +369,15 @@ def _merge_user_claims(
     id_claims: dict[str, Any],
     access_claims: dict[str, Any],
 ) -> dict[str, Any]:
+    """Fusionne les claims d'identité et d'accès pour construire le profil courant.
+
+    Args:
+        id_claims: Claims extraits de l'id token OIDC.
+        access_claims: Claims extraits de l'access token OIDC.
+
+    Returns:
+        Claims utilisateur fusionnés, prêts à être stockés en session.
+    """
     merged_claims = {**access_claims, **id_claims}
 
     for key in ["groups", "roles", "role"]:

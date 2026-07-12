@@ -89,6 +89,24 @@ Règles :
 - inclure l'unité dans le nom ;
 - utiliser `Counter`, `Histogram` ou `Gauge` selon le besoin ;
 - mesurer les durées sur succès et échecs quand c'est pertinent.
+- conserver les métriques existantes lorsqu'elles alimentent déjà Prometheus ou Grafana ;
+- ajouter des métriques globales cohérentes plutôt que multiplier les requêtes Grafana spécifiques à chaque service.
+
+Métriques globales attendues pour les dashboards transverses :
+
+- `rag_requests_total{service, operation, status}` pour compter les requêtes métier ;
+- `rag_request_duration_seconds{service, operation, status}` pour les latences moyennes, p95 et p99 ;
+- `rag_errors_total{service, operation, error_type}` pour les erreurs métier ;
+- `rag_tokens_total{service, provider, model, token_type}` pour l'usage de tokens ;
+- `rag_cost_usd_total{service, provider, model}` pour les coûts estimés en dollars US.
+
+Conventions de valeurs :
+
+- `service` doit reprendre le nom stable du microservice, par exemple `rag_orchestrator` ;
+- `operation` doit être stable et à faible cardinalité, par exemple `ask_question`, `retrieve_chunks`, `score_chunks` ;
+- `status` doit rester dans un ensemble court, typiquement `success` ou `error` ;
+- `error_type` doit être normalisé et à faible cardinalité, jamais une exception brute contenant des données variables ;
+- `token_type` doit rester dans un ensemble court, typiquement `input`, `output` ou `total`.
 
 Labels acceptables si cardinalité faible : `service`, `operation`, `method`, `route`, `status_code`, `error_type`, `model`, `provider`, `is_query`.
 
@@ -123,6 +141,17 @@ Panels utiles : disponibilité, volume de requêtes, taux d'erreur, latence moye
 Alertes utiles : service down, absence de métriques, taux d'erreur élevé, latence élevée, timeouts externes, LLM/retriever/embedder indisponible, coût ou tokens anormaux.
 
 Règles Grafana : utiliser des UID fixes pour les datasources (`prometheus`, `loki`, `tempo`), écrire des descriptions actionnables et ne jamais mettre de secret dans un contact point.
+
+Règles spécifiques aux dashboards Prometheus :
+
+- ne pas supprimer ni remplacer des panels existants sans demande explicite ;
+- ajouter les nouveaux panels avec des `id` uniques et une position `gridPos` qui ne chevauche pas l'existant ;
+- utiliser `$__range` avec `increase(...)` pour les totaux de la période sélectionnée ;
+- utiliser `$__rate_interval` avec `rate(...)` pour les débits ;
+- utiliser `histogram_quantile(..., sum by (le) (increase(..._bucket[$__range])))` pour les quantiles globaux sur la période sélectionnée ;
+- utiliser `up{job=...}` ou `avg_over_time(up[$__range])` pour la disponibilité des microservices ;
+- afficher les coûts avec une unité monétaire cohérente avec la métrique, actuellement `currencyUSD` pour `rag_cost_usd_total` ;
+- éviter les fenêtres fixes comme `[1h]` dans les panels censés suivre la période sélectionnée.
 
 ## Points d'attention par service
 

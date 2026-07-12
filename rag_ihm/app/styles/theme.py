@@ -68,6 +68,14 @@ def render_theme_selector(config=None, access_token: str | None = None) -> None:
 
 
 def _is_valid_theme(theme: object) -> bool:
+    """Vérifie qu'une valeur correspond à un thème supporté par l'IHM.
+
+    Args:
+        theme: Nom du thème à valider ou appliquer.
+
+    Returns:
+        `True` si le thème est supporté par l'IHM.
+    """
     return isinstance(theme, str) and theme in THEME_OPTIONS
 
 
@@ -590,6 +598,14 @@ def apply_theme() -> None:
 
 
 def _palette(mode: str) -> dict[str, str]:
+    """Sélectionne la palette de couleurs associée au thème actif.
+
+    Args:
+        mode: Mode de thème sélectionné par l'utilisateur.
+
+    Returns:
+        Dictionnaire des couleurs CSS correspondant au thème demandé.
+    """
     if mode == "Clair":
         return {
             "background": "#F8F5F0",

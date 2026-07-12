@@ -22,13 +22,24 @@ class OrchestratorContainerCustomException(Exception):
         details: dict | None = None,
         original_exception: dict | None = None,
     ):
+        """Construit une exception standardisée retournable par l'API orchestrator.
+
+        Args:
+            message: Message d'erreur fonctionnel safe à exposer au client API.
+            details: Informations non sensibles ajoutées à la réponse d'erreur pour faciliter le diagnostic.
+            original_exception: Exception technique d'origine conservée pour le chaînage et le diagnostic.
+        """
         self.message = message
         self.details = details or {}
         self.original_exception = original_exception
         super().__init__(message)
 
     def to_dict(self) -> dict:
+        """Convertit l'exception applicative en payload JSON standardisé.
 
+        Returns:
+            Payload d'erreur contenant le slug, le message et les détails.
+        """
         informations: dict = {
             "slug": self.SLUG.value,
             "message": self.message,

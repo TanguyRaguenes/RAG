@@ -25,6 +25,11 @@ from app.styles.theme import apply_theme
 
 
 def _load_evaluator_config_or_stop():
+    """Charge la configuration evaluator ou arrête le dashboard avec une erreur lisible.
+
+    Returns:
+        Configuration de l'API evaluator nécessaire pour lancer une évaluation RAG.
+    """
     try:
         return load_evaluator_api_config()
     except RagApiError as error:
@@ -33,6 +38,7 @@ def _load_evaluator_config_or_stop():
 
 
 def _render_sidebar() -> None:
+    """Affiche la barre latérale contextuelle de la page Streamlit courante."""
     with st.sidebar:
         has_result = get_dashboard_result() is not None
         if has_result and st.button(
@@ -44,6 +50,11 @@ def _render_sidebar() -> None:
 
 
 def _run_evaluation(config) -> None:
+    """Lance une évaluation RAG depuis le dashboard administrateur.
+
+    Args:
+        config: Configuration applicative contenant les URLs, modèles ou paramètres métier nécessaires.
+    """
     with st.spinner("Évaluation du RAG en cours..."):
         try:
             result = run_evaluation(config)
@@ -56,6 +67,11 @@ def _run_evaluation(config) -> None:
 
 
 def _render_results(result: dict) -> None:
+    """Affiche les résultats d'évaluation disponibles dans le dashboard.
+
+    Args:
+        result: Résultat d'évaluation ou de dashboard à stocker en session.
+    """
     st.caption("Dernière évaluation terminée.")
     render_summary_cards(result)
 

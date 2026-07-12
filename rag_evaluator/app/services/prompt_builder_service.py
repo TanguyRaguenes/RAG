@@ -3,6 +3,15 @@ from app.domain.models.judge_response_model import judge_parser
 
 
 def build_context(chunks: list[dict[str, Any]], max_chars: int) -> str:
+    """Construit le contexte textuel injecté dans le prompt à partir des chunks récupérés.
+
+    Args:
+        chunks: Chunks documentaires manipulés par le pipeline RAG.
+        max_chars: Nombre maximal de caractères conservés dans le texte formaté.
+
+    Returns:
+        Contexte Markdown composé des chunks retenus pour le prompt.
+    """
     parts: list[str] = []
     total = 0
 
@@ -27,6 +36,18 @@ def build_judge_messages(
     retrieved_chunks: list[dict[str, Any]],
     max_context_chars: int = 12000,
 ) -> list[dict[str, str]]:
+    """Construit les messages envoyés au juge LLM pour noter une réponse RAG.
+
+    Args:
+        question: Question utilisateur traitée par le pipeline RAG, sans journalisation du contenu complet.
+        generated_answer: Réponse produite par le RAG à évaluer.
+        reference_answer: Réponse attendue du dataset d'évaluation.
+        retrieved_chunks: Chunks retournés par le retriever ou l'orchestrator.
+        max_context_chars: Budget maximal de caractères autorisé pour le contexte envoyé au juge.
+
+    Returns:
+        Messages system/user prêts à être envoyés au juge LLM.
+    """
     context = build_context(retrieved_chunks, max_context_chars)
 
     format_instructions = judge_parser.get_format_instructions()

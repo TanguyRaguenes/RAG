@@ -9,6 +9,15 @@ from langchain_text_splitters import (
 
 
 def chunk_text(text: str, config: dict) -> list[str]:
+    """Découpe un document Markdown en chunks adaptés à l'embedding.
+
+    Args:
+        text: Contenu Markdown brut du document à découper.
+        config: Configuration contenant la taille de chunk et le chevauchement à appliquer.
+
+    Returns:
+        Chunks Markdown nettoyés et enrichis avec leur contexte de titres.
+    """
     size_chars = config["chunking"]["size_chars"]
     overlap_chars = config["chunking"]["overlap_chars"]
 

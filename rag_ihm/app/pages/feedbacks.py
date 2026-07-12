@@ -17,6 +17,11 @@ from app.styles.theme import apply_theme
 
 
 def _load_config_or_stop():
+    """Charge la configuration requise par une page Streamlit ou arrête le rendu avec un message.
+
+    Returns:
+        Configuration de l'API chat utilisée pour interroger les endpoints d'administration.
+    """
     try:
         return load_chat_api_config()
     except RagApiError as error:
@@ -25,6 +30,11 @@ def _load_config_or_stop():
 
 
 def _render_period_selector() -> tuple[date, date]:
+    """Affiche le sélecteur de période utilisé pour filtrer les feedbacks.
+
+    Returns:
+        Dates de début et de fin choisies pour filtrer les feedbacks affichés.
+    """
     today = date.today()
     default_start = today - timedelta(days=7)
 
@@ -38,6 +48,17 @@ def _render_period_selector() -> tuple[date, date]:
 
 
 def _load_feedbacks(config, access_token: str | None, start_date: date, end_date: date):
+    """Charge les feedbacks administrateur pour la période sélectionnée.
+
+    Args:
+        config: Configuration applicative contenant les URLs, modèles ou paramètres métier nécessaires.
+        access_token: Access token OIDC utilisé pour authentifier l'appel HTTP sortant.
+        start_date: Date de début du filtre de période.
+        end_date: Date de fin du filtre de période.
+
+    Returns:
+        Liste de feedbacks chargés pour la période demandée.
+    """
     with st.spinner("Chargement des avis..."):
         try:
             return list_admin_interaction_feedbacks(
@@ -52,6 +73,14 @@ def _load_feedbacks(config, access_token: str | None, start_date: date, end_date
 
 
 def _feedback_to_table_row(feedback: dict) -> dict:
+    """Transforme un feedback brut en ligne de tableau Streamlit.
+
+    Args:
+        feedback: Feedback brut d'interaction à convertir pour l'affichage administrateur.
+
+    Returns:
+        Ligne de tableau représentant un feedback d'interaction.
+    """
     return {
         "Date": _format_date(feedback.get("cree_le")),
         "Question": feedback.get("question") or "-",
@@ -63,6 +92,14 @@ def _feedback_to_table_row(feedback: dict) -> dict:
 
 
 def _format_date(value: object) -> str:
+    """Formate une date ou un timestamp pour l'affichage des feedbacks.
+
+    Args:
+        value: Valeur à convertir, borner ou formater.
+
+    Returns:
+        Date formatée ou valeur de remplacement si elle est absente.
+    """
     if not value:
         return "-"
 
@@ -70,6 +107,14 @@ def _format_date(value: object) -> str:
 
 
 def _format_note(value: object) -> str:
+    """Formate une note de feedback avec une valeur de remplacement si elle manque.
+
+    Args:
+        value: Valeur à convertir, borner ou formater.
+
+    Returns:
+        Note formatée ou valeur de remplacement si elle manque.
+    """
     if value == 1:
         return "Like"
     if value == -1:
@@ -79,6 +124,14 @@ def _format_note(value: object) -> str:
 
 
 def _format_chunks(chunks: object) -> str:
+    """Formate la liste de chunks associés à une interaction pour l'affichage.
+
+    Args:
+        chunks: Chunks documentaires manipulés par le pipeline RAG.
+
+    Returns:
+        Résumé textuel des chunks associés à une interaction.
+    """
     if not isinstance(chunks, list) or not chunks:
         return "-"
 

@@ -16,8 +16,7 @@ from opentelemetry.exporter.otlp.proto.http.trace_exporter import (
 
 
 def configure_telemetry() -> None:
-    """
-    Configure OpenTelemetry pour l'application.
+    """Configure OpenTelemetry pour l'application.
     Cette méthode doit être appelée une seule fois au démarrage.
     """
 

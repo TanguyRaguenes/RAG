@@ -8,6 +8,16 @@ async def rerank_chunks(
     chunks: list[dict[str, Any]],
     config: dict,
 ) -> list[dict[str, Any]]:
+    """Réordonne les chunks candidats selon leur pertinence pour la question.
+
+    Args:
+        question: Question utilisateur traitée par le pipeline RAG, sans journalisation du contenu complet.
+        chunks: Chunks documentaires manipulés par le pipeline RAG.
+        config: Configuration applicative contenant les URLs, modèles ou paramètres métier nécessaires.
+
+    Returns:
+        Chunks enrichis avec `rerank_score`, triés et limités par la configuration.
+    """
     if not chunks:
         return []
 

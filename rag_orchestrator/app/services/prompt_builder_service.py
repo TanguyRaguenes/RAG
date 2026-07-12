@@ -9,7 +9,15 @@ from typing import Any
 
 
 def build_context(chunks: list[dict[str, Any]], max_prompt_chars: int) -> str:
+    """Construit le contexte textuel injecté dans le prompt à partir des chunks récupérés.
 
+    Args:
+        chunks: Chunks documentaires manipulés par le pipeline RAG.
+        max_prompt_chars: Budget maximal de caractères réservé au contexte documentaire du prompt.
+
+    Returns:
+        Contexte Markdown composé des chunks retenus pour le prompt.
+    """
     parts: list[str] = []
     total = 0
 
@@ -32,6 +40,15 @@ CHUNK_DOCUMENT_PATTERN = re.compile(
 
 
 def format_chunk_as_markdown(index: int, chunk: dict[str, Any]) -> str:
+    """Formate un chunk RAG en bloc Markdown lisible pour le prompt.
+
+    Args:
+        index: Position du chunk dans la liste transmise au prompt.
+        chunk: Chunk documentaire à formater, afficher ou persister.
+
+    Returns:
+        Bloc Markdown contenant le chemin, le titre et le contenu du chunk.
+    """
     meta = chunk.get("metadata") or {}
     title = meta.get("title") or "Non renseigné"
     path = meta.get("path") or "Non renseigné"
@@ -54,6 +71,14 @@ def format_chunk_as_markdown(index: int, chunk: dict[str, Any]) -> str:
 
 
 def parse_chunk_document(document: str) -> tuple[str | None, str]:
+    """Sépare les métadonnées de contexte et le contenu principal d'un chunk.
+
+    Args:
+        document: Document source contenant le chemin et le contenu Markdown à ingérer.
+
+    Returns:
+        Tuple contenant les métadonnées de contexte et le contenu principal du chunk.
+    """
     match = CHUNK_DOCUMENT_PATTERN.match(document)
 
     if not match:
@@ -70,6 +95,16 @@ def build_prompt(
     retrieve_chunks: list[dict[str, Any]],
     max_prompt_chars: int,
 ) -> list[dict[str, str]]:
+    """Construit les messages envoyés au LLM à partir de la question et du contexte documentaire.
+
+    Args:
+        question: Question utilisateur traitée par le pipeline RAG, sans journalisation du contenu complet.
+        retrieve_chunks: Chunks récupérés par le retriever ou rerankés avant construction du contexte.
+        max_prompt_chars: Budget maximal de caractères réservé au contexte documentaire du prompt.
+
+    Returns:
+        Liste de messages prête à être envoyée au LLM local.
+    """
     context = build_context(retrieve_chunks, max_prompt_chars)
 
     system = dedent("""

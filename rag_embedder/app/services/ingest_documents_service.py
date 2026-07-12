@@ -16,6 +16,15 @@ from app.services.chunk_service import chunk_text
 
 
 async def ingest_documents(documents: DocumentsBase, config: dict) -> dict:
+    """Charge, découpe, vectorise et sauvegarde les documents dans le retriever.
+
+    Args:
+        documents: Contenus textuels retournés par ChromaDB ou à ingérer.
+        config: Configuration applicative contenant les URLs, modèles ou paramètres métier nécessaires.
+
+    Returns:
+        Réponse de sauvegarde retournée par le retriever après ingestion.
+    """
     documents_to_ingest: DocumentToIngest = DocumentsToIngest(documents=[])
 
     # On itère sur tous les fichiers qui se trouves dans le dossier wikis
@@ -41,6 +50,14 @@ async def ingest_documents(documents: DocumentsBase, config: dict) -> dict:
 def convert_to_chroma_format(
     documents_to_ingest: DocumentsToIngest,
 ) -> VectorStoreItemsBase:
+    """Convertit des documents préparés en structure compatible avec ChromaDB.
+
+    Args:
+        documents_to_ingest: Documents découpés et enrichis prêts à être transformés au format ChromaDB.
+
+    Returns:
+        Items vectoriels prêts à être envoyés au retriever.
+    """
     all_ids = []
     all_texts = []
     all_embeddings = []
@@ -64,6 +81,14 @@ def convert_to_chroma_format(
 
 
 def clean_title(title: str) -> str:
+    """Nettoie un titre documentaire pour produire un identifiant stable.
+
+    Args:
+        title: Titre ou nom de fichier documentaire à nettoyer.
+
+    Returns:
+        Titre décodé et normalisé sans extension Markdown.
+    """
     decoded_title = unquote(title)
 
     clean_title = decoded_title.replace(".md", "").replace("-", " ").replace("_", " ")
@@ -74,6 +99,15 @@ def clean_title(title: str) -> str:
 async def prepare_document_to_ingest(
     document: DocumentBase, config: dict
 ) -> DocumentToIngest:
+    """Prépare les chunks et métadonnées d'un document avant ingestion vectorielle.
+
+    Args:
+        document: Document source contenant le chemin et le contenu Markdown à ingérer.
+        config: Configuration applicative contenant les URLs, modèles ou paramètres métier nécessaires.
+
+    Returns:
+        Document enrichi avec chunks, embeddings et métadonnées d'ingestion.
+    """
     document_to_ingest: DocumentToIngest = DocumentToIngest(chunks=[])
 
     # on découpe le fichier en chunks

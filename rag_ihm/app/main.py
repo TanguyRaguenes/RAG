@@ -23,6 +23,11 @@ handle_oidc_callback()
 
 
 def _load_chat_config_or_none():
+    """Charge la configuration chat sans interrompre brutalement le rendu principal.
+
+    Returns:
+        Configuration de chat chargée, ou `None` si elle est indisponible.
+    """
     try:
         return load_chat_api_config()
     except RagApiError:
@@ -30,6 +35,11 @@ def _load_chat_config_or_none():
 
 
 def _render_global_sidebar(config) -> None:
+    """Affiche les informations globales de navigation et d'utilisateur dans la sidebar.
+
+    Args:
+        config: Configuration applicative contenant les URLs, modèles ou paramètres métier nécessaires.
+    """
     current_user = get_current_user()
     access_token = get_access_token()
 

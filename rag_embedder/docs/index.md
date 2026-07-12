@@ -96,8 +96,8 @@ rag_embedder/
         }
     },
     "chunking": {
-        "size_chars": 2000,
-        "overlap_chars": 400
+        "size_chars": 1400,
+        "overlap_chars": 240
     }
 }
 ```
@@ -110,8 +110,8 @@ rag_embedder/
 | `embedding.model` | Nom du modèle d'embedding | `bge-m3:567m` |
 | `embedding.prefixes.query` | Préfixe pour les requêtes | `query: ` |
 | `embedding.prefixes.document` | Préfixe pour les documents | `document: ` |
-| `chunking.size_chars` | Taille maximale d'un chunk | `2000` caractères |
-| `chunking.overlap_chars` | Chevauchement entre chunks | `400` caractères |
+| `chunking.size_chars` | Taille maximale d'un chunk | `1400` caractères |
+| `chunking.overlap_chars` | Chevauchement entre chunks | `240` caractères |
 
 ---
 
@@ -131,23 +131,33 @@ Vérification de l'état de l'API.
 
 ---
 
-### 5.2 POST `/embed_text`
+### 5.2 POST `/embed`
 
-Génère un embedding pour un texte donné.
+Génère des embeddings pour une liste de textes.
 
 **Corps de la requête :**
 ```json
 {
-    "text": "Votre texte ici"
+    "texts": ["Votre texte ici"]
 }
 ```
 
 **Réponse :**
 ```json
 {
-    "embeded_text": [0.123, 0.456, 0.789, ...]
+    "duration_ms": 42.5,
+    "duration_human": "00:00",
+    "embeded_texts": [[0.123, 0.456, 0.789]]
 }
 ```
+
+---
+
+### 5.4 GET `/metrics`
+
+Expose les métriques Prometheus du service : requêtes, erreurs et durées d'embedding.
+
+**Réponse :** format texte Prometheus.
 
 ---
 

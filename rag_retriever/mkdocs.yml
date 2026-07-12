@@ -1,0 +1,6 @@
+site_name: rag-retriever
+theme:
+  name: material
+
+plugins:
+  - mermaid2

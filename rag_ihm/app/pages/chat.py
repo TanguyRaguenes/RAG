@@ -38,6 +38,11 @@ PROVIDER_OPTIONS = {
 
 
 def _render_api_status(config) -> None:
+    """Affiche l'état de disponibilité des APIs utilisées par la page de chat.
+
+    Args:
+        config: Configuration applicative contenant les URLs, modèles ou paramètres métier nécessaires.
+    """
     healthchecks = [
         ("API RAG", lambda: check_api_health(config.health_url)),
     ]
@@ -57,10 +62,23 @@ def _render_api_status(config) -> None:
 
 
 def _raise_health_error(error: RagApiError) -> None:
+    """Convertit une erreur de healthcheck en exception affichable côté IHM.
+
+    Args:
+        error: Erreur de healthcheck ou d'appel API à convertir en message utilisateur.
+
+    Raises:
+        error: Si le traitement rencontre une erreur applicative explicitement propagée.
+    """
     raise error
 
 
 def _load_config_or_stop():
+    """Charge la configuration requise par une page Streamlit ou arrête le rendu avec un message.
+
+    Returns:
+        Configuration de l'API chat nécessaire pour appeler l'orchestrator.
+    """
     try:
         return load_chat_api_config()
     except RagApiError as error:
@@ -69,6 +87,14 @@ def _load_config_or_stop():
 
 
 def _render_sidebar(config) -> tuple[str, bool]:
+    """Affiche la barre latérale contextuelle de la page Streamlit courante.
+
+    Args:
+        config: Configuration applicative contenant les URLs, modèles ou paramètres métier nécessaires.
+
+    Returns:
+        Provider sélectionné pour la réponse et indicateur d'affichage des détails techniques.
+    """
     with st.sidebar:
         st.subheader("Discussion")
 
@@ -98,6 +124,17 @@ def _render_sidebar(config) -> tuple[str, bool]:
 
 
 def _submit_feedback(config, interaction_id: int, note: int, comment: str) -> bool:
+    """Envoie le feedback utilisateur associé à une interaction depuis la page de chat.
+
+    Args:
+        config: Configuration applicative contenant les URLs, modèles ou paramètres métier nécessaires.
+        interaction_id: Identifiant de l'interaction RAG concernée.
+        note: Note utilisateur associée au feedback.
+        comment: Commentaire saisi par l'utilisateur dans le formulaire de feedback.
+
+    Returns:
+        `True` si le feedback est accepté par le backend, sinon `False` après affichage de l'erreur.
+    """
     try:
         submit_interaction_feedback(
             config=config,
@@ -114,6 +151,12 @@ def _submit_feedback(config, interaction_id: int, note: int, comment: str) -> bo
 
 
 def _render_history(debug_enabled: bool, config) -> None:
+    """Affiche l'historique de conversation dans la page de chat.
+
+    Args:
+        debug_enabled: Indique si les détails techniques doivent être affichés dans l'interface.
+        config: Configuration applicative contenant les URLs, modèles ou paramètres métier nécessaires.
+    """
     for message in get_chat_messages():
         render_chat_message(
             message,
@@ -128,6 +171,14 @@ def _render_history(debug_enabled: bool, config) -> None:
 
 
 def _process_prompt(prompt: str, provider: str, debug_enabled: bool, config) -> None:
+    """Envoie le prompt utilisateur au RAG et ajoute la réponse à l'historique.
+
+    Args:
+        prompt: Prompt utilisateur ou prompt généré à traiter.
+        provider: Provider LLM ou service externe concerné.
+        debug_enabled: Indique si les détails techniques doivent être affichés dans l'interface.
+        config: Configuration applicative contenant les URLs, modèles ou paramètres métier nécessaires.
+    """
     user_message = build_user_message(prompt)
     append_chat_message(user_message)
     render_chat_message(user_message)

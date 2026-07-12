@@ -11,12 +11,28 @@ class OidcClient:
         audience: str | list[str] | None = None,
         userinfo_url: str | None = None,
     ):
+        """Configure le client OIDC utilisé pour valider les JWT et charger le profil.
+
+        Args:
+            issuer: URL de l'émetteur OIDC utilisé pour valider les tokens.
+            jwks_uri: Endpoint JWKS contenant les clés publiques de validation JWT.
+            audience: Audience JWT attendue pour accepter un access token OIDC.
+            userinfo_url: Endpoint OIDC utilisé pour récupérer les informations de profil.
+        """
         self.issuer = issuer
         self.audience = audience
         self.jwks_client = PyJWKClient(jwks_uri)
         self.userinfo_url = userinfo_url
 
     def validate_token(self, token: str) -> dict:
+        """Valide un JWT OIDC et retourne ses claims.
+
+        Args:
+            token: Token OIDC ou JWT à valider sans l'écrire dans les logs.
+
+        Returns:
+            Claims du JWT validés avec signature, expiration, issuer et audience attendus.
+        """
         signing_key = self.jwks_client.get_signing_key_from_jwt(token)
 
         options = {
@@ -36,6 +52,14 @@ class OidcClient:
         )
 
     async def get_userinfo(self, access_token: str) -> dict:
+        """Récupère les informations utilisateur auprès de l'endpoint OIDC userinfo.
+
+        Args:
+            access_token: Access token OIDC utilisé pour authentifier l'appel HTTP sortant.
+
+        Returns:
+            Claims utilisateur retournés par l'endpoint OIDC userinfo.
+        """
         if not self.userinfo_url:
             return {}
 

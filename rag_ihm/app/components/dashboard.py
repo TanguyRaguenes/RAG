@@ -26,6 +26,7 @@ ANSWER_HELP = {
 
 
 def render_dashboard_empty_state() -> None:
+    """Affiche l'état vide du dashboard lorsqu'aucune évaluation n'a été lancée."""
     st.caption(
         "Aucun résultat pour le moment. Lance une évaluation pour mesurer le retrieval "
         "et la qualité des réponses."
@@ -33,6 +34,11 @@ def render_dashboard_empty_state() -> None:
 
 
 def render_summary_cards(result: dict) -> None:
+    """Affiche les cartes de synthèse du résultat d'évaluation RAG.
+
+    Args:
+        result: Résultat d'évaluation ou de dashboard à stocker en session.
+    """
     retrieval = result.get("average_retrieval", {})
     answer = result.get("average_answer_quality", {})
 
@@ -60,6 +66,11 @@ def render_summary_cards(result: dict) -> None:
 
 
 def render_retrieval_scores(retrieval: dict) -> None:
+    """Affiche les scores de retrieval dans le dashboard Streamlit.
+
+    Args:
+        retrieval: Scores de retrieval à afficher dans le dashboard d'évaluation.
+    """
     metrics = [
         ScoreMetric("MRR", _as_float(retrieval.get("mrr")), 1.0, RETRIEVAL_HELP["MRR"]),
         ScoreMetric(
@@ -82,6 +93,11 @@ def render_retrieval_scores(retrieval: dict) -> None:
 
 
 def render_answer_scores(answer: dict) -> None:
+    """Affiche les scores de qualité de réponse dans le dashboard Streamlit.
+
+    Args:
+        answer: Scores de qualité de réponse à afficher dans le dashboard d'évaluation.
+    """
     metrics = [
         ScoreMetric(
             "Accuracy",
@@ -110,6 +126,11 @@ def render_answer_scores(answer: dict) -> None:
 
 
 def _render_score_grid(metrics: list[ScoreMetric]) -> None:
+    """Affiche une grille de scores homogène pour le dashboard.
+
+    Args:
+        metrics: Couples libellé/valeur affichés dans une grille de scores.
+    """
     columns = st.columns(2)
     for index, metric in enumerate(metrics):
         with columns[index % 2]:
@@ -121,18 +142,42 @@ def _render_score_grid(metrics: list[ScoreMetric]) -> None:
 
 
 def _render_kpi(column, label: str, value: str) -> None:
+    """Affiche un indicateur KPI avec son libellé et sa valeur.
+
+    Args:
+        column: Colonne Streamlit dans laquelle rendre le KPI.
+        label: Libellé affiché à l'utilisateur pour le statut, le score ou le KPI.
+        value: Valeur à convertir, borner ou formater.
+    """
     with column:
         st.caption(label)
         st.markdown(f"### {value}")
 
 
 def _format_score(value: float, scale_max: float) -> str:
+    """Formate un score numérique en pourcentage lisible.
+
+    Args:
+        value: Valeur à convertir, borner ou formater.
+        scale_max: Valeur maximale utilisée pour convertir un score en pourcentage.
+
+    Returns:
+        Score formaté en pourcentage lisible.
+    """
     if scale_max == 1.0:
         return f"{value:.0%}"
     return f"{value:.1f}/{int(scale_max)}"
 
 
 def _average(values: list[float]) -> float:
+    """Calcule la moyenne de valeurs numériques disponibles.
+
+    Args:
+        values: Valeurs numériques utilisées pour un calcul agrégé.
+
+    Returns:
+        Moyenne des valeurs numériques disponibles.
+    """
     valid_values = [value for value in values if value >= 0]
     if not valid_values:
         return 0.0
@@ -140,6 +185,14 @@ def _average(values: list[float]) -> float:
 
 
 def _as_float(value: object) -> float:
+    """Convertit une valeur optionnelle en nombre flottant affichable.
+
+    Args:
+        value: Valeur à convertir, borner ou formater.
+
+    Returns:
+        Valeur convertie en float, ou `None` si la conversion échoue.
+    """
     try:
         return float(value)
     except (TypeError, ValueError):
@@ -147,4 +200,12 @@ def _as_float(value: object) -> float:
 
 
 def _clamp(value: float) -> float:
+    """Borne une valeur numérique entre deux limites inclusives.
+
+    Args:
+        value: Valeur à convertir, borner ou formater.
+
+    Returns:
+        Valeur bornée entre les limites fournies.
+    """
     return min(max(value, 0.0), 1.0)

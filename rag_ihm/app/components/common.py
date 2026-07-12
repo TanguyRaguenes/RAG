@@ -78,6 +78,15 @@ def _run_healthcheck(
     label: str,
     healthcheck: Callable[[], None],
 ) -> tuple[str, bool, str | None]:
+    """Exécute un healthcheck HTTP et affiche le statut dans l'IHM.
+
+    Args:
+        label: Libellé affiché à l'utilisateur pour le statut, le score ou le KPI.
+        healthcheck: Fonction qui vérifie la disponibilité d'un backend depuis l'IHM.
+
+    Returns:
+        `True` si le backend vérifié répond correctement.
+    """
     try:
         healthcheck()
     except RagApiError as error:

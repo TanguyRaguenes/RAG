@@ -10,6 +10,14 @@ from app.services.calculating_metrics_service import (
 
 
 def extract_retrieved_texts(raw_chunks: list[Any]) -> list[str]:
+    """Extrait le contenu textuel des chunks récupérés pour calculer les métriques.
+
+    Args:
+        raw_chunks: Chunks bruts retournés par l'orchestrator avant extraction du texte utile.
+
+    Returns:
+        Textes de chunks exploitables pour les métriques de retrieval.
+    """
     retrieved_texts: list[str] = []
     for chunk in raw_chunks:
         if isinstance(chunk, dict):
@@ -25,6 +33,16 @@ def extract_retrieved_texts(raw_chunks: list[Any]) -> list[str]:
 def evaluate_retrieval(
     keywords: list[str], retrieved_chunks: list[Any], k: int
 ) -> RetrievalEvaluationBase:
+    """Calcule les métriques de retrieval pour une question du dataset.
+
+    Args:
+        keywords: Mots-clés attendus pour mesurer la récupération documentaire.
+        retrieved_chunks: Chunks retournés par le retriever ou l'orchestrator.
+        k: Nombre de premiers résultats pris en compte pour la métrique.
+
+    Returns:
+        Scores MRR, nDCG, recall et precision calculés pour la question.
+    """
     retrieved_texts = extract_retrieved_texts(retrieved_chunks)
 
     if not keywords or not retrieved_chunks:

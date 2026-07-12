@@ -11,3 +11,18 @@ scrape_configs:
     metrics_path: "/metrics/"
     static_configs:
       - targets: ["rag_reranker:8000"]
+
+  - job_name: "rag_orchestrator"
+    metrics_path: "/metrics/"
+    static_configs:
+      - targets: ["rag_orchestrator:8000"]
+
+  - job_name: "rag_retriever"
+    metrics_path: "/metrics/"
+    static_configs:
+      - targets: ["rag_retriever:8000"]
+
+  - job_name: "rag_evaluator"
+    metrics_path: "/metrics/"
+    static_configs:
+      - targets: ["rag_evaluator:8000"]

@@ -56,6 +56,11 @@ app.include_router(rerank_router)
 
 @app.get("/")
 def read_root():
+    """Retourne l'état de santé minimal du microservice.
+
+    Returns:
+        Payload de healthcheck indiquant que l'API est joignable.
+    """
     return {"status": "ok", "message": "API connection successful"}
 
 

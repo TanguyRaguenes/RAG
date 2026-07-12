@@ -1,0 +1,6 @@
+site_name: rag-ihm
+theme:
+  name: material
+
+plugins:
+  - mermaid2

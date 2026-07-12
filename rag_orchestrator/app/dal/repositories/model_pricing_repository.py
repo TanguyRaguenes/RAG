@@ -8,6 +8,18 @@ class ModelPricingRepository:
         provider: str,
         model_name: str,
     ) -> tuple[Decimal, Decimal]:
+        """Récupère le tarif actif d'un modèle pour calculer le coût LLM.
+
+        Args:
+            provider: Provider LLM ou service externe concerné.
+            model_name: Nom du modèle LLM référencé par l'usage ou la tarification.
+
+        Returns:
+            Tarif actif du modèle, ou `None` si aucun tarif n'est configuré.
+
+        Raises:
+            ValueError: Si une valeur obligatoire est absente ou invalide.
+        """
         query = """
             SELECT
                 tarif_modele.prix_input_million,

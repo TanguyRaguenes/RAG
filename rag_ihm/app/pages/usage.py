@@ -23,6 +23,11 @@ ADMIN_QUOTA_FLASH_KEY = "admin_quota_flash_message"
 
 
 def _load_config_or_stop():
+    """Charge la configuration requise par une page Streamlit ou arrête le rendu avec un message.
+
+    Returns:
+        Configuration de l'API chat nécessaire pour charger les quotas et préférences utilisateur.
+    """
     try:
         return load_chat_api_config()
     except RagApiError as error:
@@ -31,6 +36,15 @@ def _load_config_or_stop():
 
 
 def _load_my_quota(config, access_token: str | None) -> dict | None:
+    """Charge le quota de l'utilisateur connecté pour la page consommation.
+
+    Args:
+        config: Configuration applicative contenant les URLs, modèles ou paramètres métier nécessaires.
+        access_token: Access token OIDC utilisé pour authentifier l'appel HTTP sortant.
+
+    Returns:
+        Données de quota courant ou `None` si le chargement échoue.
+    """
     with st.spinner("Chargement de ta consommation..."):
         try:
             return get_my_quota_usage(config, access_token)
@@ -40,6 +54,11 @@ def _load_my_quota(config, access_token: str | None) -> dict | None:
 
 
 def _render_quota_progress(quota: dict) -> None:
+    """Affiche la progression de consommation du quota mensuel.
+
+    Args:
+        quota: Données de quota utilisateur retournées par l'orchestrator.
+    """
     consumed = int(quota["consumed_tokens"])
     maximum = int(quota["max_tokens_par_mois"])
     remaining = int(quota["remaining_tokens"])
@@ -65,6 +84,12 @@ def _render_quota_progress(quota: dict) -> None:
 
 
 def _render_admin_panel(config, access_token: str | None) -> None:
+    """Affiche le panneau d'administration des quotas utilisateur.
+
+    Args:
+        config: Configuration applicative contenant les URLs, modèles ou paramètres métier nécessaires.
+        access_token: Access token OIDC utilisé pour authentifier l'appel HTTP sortant.
+    """
     st.divider()
     st.subheader("Administration des quotas")
     st.caption(
@@ -137,6 +162,14 @@ def _render_admin_panel(config, access_token: str | None) -> None:
 
 
 def _quota_to_table_row(quota: dict) -> dict:
+    """Transforme un quota utilisateur en ligne de tableau administrateur.
+
+    Args:
+        quota: Données de quota utilisateur retournées par l'orchestrator.
+
+    Returns:
+        Ligne de tableau représentant un quota utilisateur.
+    """
     ratio = float(quota["usage_ratio"]) * 100
 
     return {
@@ -150,10 +183,26 @@ def _quota_to_table_row(quota: dict) -> dict:
 
 
 def _short_user_id(user_id: str) -> str:
+    """Raccourcit un identifiant utilisateur pour l'affichage en tableau.
+
+    Args:
+        user_id: Identifiant interne ou pseudonymisé de l'utilisateur ciblé.
+
+    Returns:
+        Identifiant raccourci adapté à l'affichage.
+    """
     return f"{user_id[:10]}...{user_id[-6:]}"
 
 
 def _quota_label(quota: dict) -> str:
+    """Construit le libellé d'affichage d'un quota utilisateur.
+
+    Args:
+        quota: Données de quota utilisateur retournées par l'orchestrator.
+
+    Returns:
+        Libellé lisible du quota utilisateur.
+    """
     return (
         quota.get("email")
         or f"Compte machine ({_short_user_id(quota['utilisateur_id'])})"
@@ -161,10 +210,27 @@ def _quota_label(quota: dict) -> str:
 
 
 def _quota_by_user_id(quotas: list[dict], user_id: str) -> dict:
+    """Indexe les quotas par identifiant utilisateur.
+
+    Args:
+        quotas: Liste des quotas utilisateur affichés dans le panneau administrateur.
+        user_id: Identifiant interne ou pseudonymisé de l'utilisateur ciblé.
+
+    Returns:
+        Dictionnaire des quotas indexés par identifiant utilisateur.
+    """
     return next(quota for quota in quotas if quota["utilisateur_id"] == user_id)
 
 
 def _format_tokens(value: int) -> str:
+    """Formate un nombre de tokens avec séparateurs lisibles.
+
+    Args:
+        value: Valeur à convertir, borner ou formater.
+
+    Returns:
+        Nombre de tokens formaté pour l'affichage français.
+    """
     return f"{value:,}".replace(",", " ")
 
 

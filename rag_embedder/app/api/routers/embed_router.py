@@ -23,7 +23,15 @@ async def embed_route(
     payload: EmbedRequestBase,
     config: ConfigDep,
 ) -> EmbedTextResponseBase:
+    """Expose l'endpoint HTTP de génération d'embeddings.
 
+    Args:
+        payload: Corps JSON transmis à une API externe ou persisté en base.
+        config: Configuration applicative contenant les URLs, modèles ou paramètres métier nécessaires.
+
+    Returns:
+        Réponse HTTP contenant les embeddings et la durée de génération.
+    """
     start: float = time.perf_counter()
 
     embeded_texts: list[list[float]] = await service_embed(payload.texts, config)
@@ -46,6 +54,14 @@ async def embed_route(
 
 @router.post("/ingest/bulk")
 async def ingest_bulk_route(config: ConfigDep) -> IngestBulkResponseBase:
+    """Expose l'endpoint HTTP d'ingestion complète des documents Markdown.
+
+    Args:
+        config: Configuration applicative contenant les URLs, modèles ou paramètres métier nécessaires.
+
+    Returns:
+        Réponse HTTP contenant la durée et le résultat de sauvegarde.
+    """
     start: float = time.perf_counter()
 
     documents: DocumentsBase = await load_documents()

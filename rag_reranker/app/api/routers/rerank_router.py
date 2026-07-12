@@ -18,7 +18,15 @@ async def rerank_chunks_route(
     payload: RerankChunksRequestBase,
     config: ConfigDep,
 ) -> RerankChunksResponseBase:
+    """Expose l'endpoint HTTP de reranking des chunks.
 
+    Args:
+        payload: Corps JSON transmis à une API externe ou persisté en base.
+        config: Configuration applicative contenant les URLs, modèles ou paramètres métier nécessaires.
+
+    Returns:
+        Réponse HTTP contenant la durée et les chunks rerankés.
+    """
     start: float = time.perf_counter()
 
     reranked_chunks = await service_rerank_chunks(

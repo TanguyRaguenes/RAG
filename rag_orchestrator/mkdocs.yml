@@ -1,0 +1,6 @@
+site_name: rag-orchestrator
+theme:
+  name: material
+
+plugins:
+  - mermaid2

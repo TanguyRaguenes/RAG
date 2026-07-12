@@ -1,62 +1,122 @@
 apiVersion: 1
 groups:
-    - orgId: 1
-      name: Services up
-      folder: RAG
-      interval: 1m
-      rules:
-        - uid: efplid5wwhtkwa
-          title: Embedder down
-          condition: C
-          data:
-            - refId: A
-              relativeTimeRange:
-                from: 600
-                to: 0
-              datasourceUid: prometheus
-              model:
-                editorMode: code
-                expr: up{job="rag_embedder"}
-                instant: true
-                intervalMs: 1000
-                legendFormat: __auto
-                maxDataPoints: 43200
-                range: false
-                refId: A
-            - refId: C
-              queryType: expression
-              datasourceUid: __expr__
-              model:
-                conditions:
-                    - evaluator:
-                        params:
-                            - 0
-                        type: eq
-                      operator:
-                        type: and
-                      query:
-                        params:
-                            - C
-                      reducer:
-                        params: []
-                        type: last
-                      type: query
-                datasource:
-                    type: __expr__
-                    uid: __expr__
-                expression: A
-                intervalMs: 1000
-                maxDataPoints: 43200
-                refId: C
-                type: threshold
-          noDataState: NoData
-          execErrState: Error
-          for: 1m
-          annotations:
-            description: |-
-                L'endpoint /metrics du service rag_embedder n'est plus accessible.
-                Vérifier l'état du conteneur Docker et les logs Loki associés.
-            summary: Le service rag_embedder ne répond plus.
-          isPaused: false
-          notification_settings:
-            receiver: Discord serveur RAG
+  - orgId: 1
+    name: Services up
+    folder: RAG
+    interval: 1m
+    rules:
+      - uid: rag-services-down
+        title: RAG service down
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: prometheus
+            model:
+              editorMode: code
+              expr: up{job=~"rag_embedder|rag_reranker|rag_orchestrator|rag_retriever|rag_evaluator"}
+              instant: true
+              intervalMs: 1000
+              legendFormat: "{{job}}"
+              maxDataPoints: 43200
+              range: false
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              reducer: last
+              refId: B
+              type: reduce
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 1
+                    type: lt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - C
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: B
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        noDataState: Alerting
+        execErrState: Error
+        for: 1m
+        annotations:
+          description: Un service RAG n'expose plus correctement ses métriques. Vérifier le conteneur Docker, les logs Loki et les traces Tempo.
+          summary: Un microservice RAG ne répond plus à Prometheus.
+        isPaused: false
+        notification_settings:
+          receiver: Discord serveur RAG
+
+      - uid: rag-high-error-rate
+        title: RAG high error rate
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: prometheus
+            model:
+              editorMode: code
+              expr: sum(rate({__name__=~".*_errors_total"}[5m]))
+              instant: true
+              intervalMs: 1000
+              legendFormat: errors/s
+              maxDataPoints: 43200
+              range: false
+              refId: A
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 0.1
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - C
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        noDataState: OK
+        execErrState: Error
+        for: 2m
+        annotations:
+          description: Le taux d'erreurs applicatives RAG dépasse le seuil attendu sur 5 minutes.
+          summary: Taux d'erreurs RAG élevé.
+        isPaused: false
+        notification_settings:
+          receiver: Discord serveur RAG

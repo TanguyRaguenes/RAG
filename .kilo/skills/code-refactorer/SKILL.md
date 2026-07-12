@@ -136,7 +136,47 @@ Règles :
 
 ## Docstrings et commentaires
 
-Ajouter des docstrings aux classes, fonctions publiques, méthodes publiques, DTO et exceptions quand elles clarifient l'intention.
+Ajouter une docstring utile à chaque fonction et méthode Python créée, modifiée ou auditée dans le périmètre demandé. Utiliser systématiquement le format Google.
+
+Chaque docstring de fonction ou méthode doit aider un développeur qui découvre le projet à comprendre le rôle du code sans lire toute son implémentation. Elle doit contenir :
+
+- un descriptif concret du rôle métier ou technique de la fonction ;
+- `Args` avec la signification, l'origine ou l'utilisation de chaque paramètre utile ;
+- `Returns` uniquement si la fonction retourne une valeur, avec une description précise de cette valeur ;
+- `Raises` uniquement si une exception spécifique est réellement levée ou propagée, sans inventer d'exceptions théoriques.
+
+Interdictions strictes :
+
+- ne jamais écrire une docstring qui répète simplement le nom de la fonction, par exemple `Exécute process_data` ;
+- ne jamais décrire un paramètre avec une formule générique comme `Paramètre utilisé par ...` ;
+- ne jamais décrire un retour avec une formule générique comme `Résultat produit par ...` ;
+- ne pas ajouter de section `Returns` lorsqu'une fonction ne retourne rien ou retourne seulement implicitement `None` ;
+- ne pas ajouter de section `Raises` lorsqu'aucune exception spécifique ne mérite d'être documentée ;
+- ne pas documenter `self` ou `cls` sauf cas exceptionnel où leur rôle apporte une information réelle.
+
+Exemple attendu :
+
+```python
+def divide(dividend: float, divisor: float) -> float:
+    """Divise un nombre par un autre.
+
+    Args:
+        dividend: Nombre à diviser.
+        divisor: Diviseur, qui doit être différent de zéro.
+
+    Returns:
+        Résultat de la division.
+
+    Raises:
+        ValueError: Si le diviseur vaut zéro.
+    """
+```
+
+Pour les exceptions propagées, documenter seulement celles qui peuvent effectivement sortir de la fonction après les `try/except`. Si une exception est capturée et transformée, documenter l'exception custom finale et non l'exception interne capturée.
+
+Si la docstring ne peut pas être écrite précisément sans comprendre le code, lire le corps de la fonction et ses appels directs avant de l'écrire. Ne jamais générer de docstrings de remplissage.
+
+Ajouter des docstrings aux classes, DTO et exceptions quand elles clarifient l'intention.
 
 Les commentaires doivent expliquer une règle métier, un compromis ou une décision non évidente. Supprimer les commentaires morts et les blocs commentés.
 

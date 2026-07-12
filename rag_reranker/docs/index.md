@@ -95,7 +95,7 @@ rag_reranker/
     "reranking": {
         "provider": "tei",
         "url": "http://tei_reranker:80/rerank",
-        "model": "BAAI/bge-reranker-base",
+        "model": "cross-encoder/mmarco-mMiniLMv2-L12-H384-v1",
         "top_k": 10,
         "timeout_seconds": 180,
         "max_chunk_chars": 1600
@@ -109,7 +109,7 @@ rag_reranker/
 |-----------|-------------|-------------------|
 | `reranking.provider` | Fournisseur utilisé par le reranker | `tei` |
 | `reranking.url` | URL de l'API TEI appelée par le service | `http://tei_reranker:80/rerank` |
-| `reranking.model` | Modèle TEI utilisé pour scorer les chunks | `BAAI/bge-reranker-base` |
+| `reranking.model` | Modèle TEI utilisé pour scorer les chunks | `cross-encoder/mmarco-mMiniLMv2-L12-H384-v1` |
 | `reranking.top_k` | Nombre maximal de chunks renvoyés après reranking | `10` |
 | `reranking.timeout_seconds` | Timeout HTTP de l'appel à TEI | `180` secondes |
 | `reranking.max_chunk_chars` | Nombre maximal de caractères transmis par chunk au modèle | `1600` |
@@ -198,7 +198,7 @@ sequenceDiagram
     participant LLM
 
     Client->>Orchestrator: POST /ask_question
-    Orchestrator->>Embedder: POST /embed_text
+    Orchestrator->>Embedder: POST /embed
     Embedder-->>Orchestrator: Embedding question
     Orchestrator->>Retriever: POST /retrieve_chunks
     Retriever-->>Orchestrator: Chunks candidats
@@ -310,7 +310,7 @@ Docker Compose démarre le serveur TEI CPU avec le modèle configuré par défau
 
 ```yaml
 image: ghcr.io/huggingface/text-embeddings-inference:cpu-1.9
-command: --model-id BAAI/bge-reranker-base --port 80
+command: --model-id cross-encoder/mmarco-mMiniLMv2-L12-H384-v1 --port 80
 ```
 
 Le modèle est téléchargé automatiquement depuis Hugging Face et stocké dans le volume `tei_reranker_data`.

@@ -14,6 +14,18 @@ async def evaluate_answer(
     reference_answer: str,
     retrieved_chunks: list[dict[str, Any]],
 ) -> AnswerEvaluationBase:
+    """Demande au juge LLM d'évaluer la réponse générée par le RAG.
+
+    Args:
+        config: Configuration applicative contenant les URLs, modèles ou paramètres métier nécessaires.
+        question: Question utilisateur traitée par le pipeline RAG, sans journalisation du contenu complet.
+        generated_answer: Réponse produite par le RAG à évaluer.
+        reference_answer: Réponse attendue du dataset d'évaluation.
+        retrieved_chunks: Chunks retournés par le retriever ou l'orchestrator.
+
+    Returns:
+        Scores JSON produits par le juge LLM pour la réponse RAG.
+    """
     messages = build_judge_messages(
         question=question,
         generated_answer=generated_answer,

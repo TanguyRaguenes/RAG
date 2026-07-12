@@ -21,6 +21,24 @@ class InteractionRepository:
         estimated_cost_eur: float | None,
         retrieved_chunks: list[dict[str, Any]],
     ) -> int:
+        """Persiste une interaction réussie avec ses métadonnées, tokens et chunks.
+
+        Args:
+            session_id: Identifiant de la session d'usage à mettre à jour ou associer à l'interaction.
+            question: Question utilisateur traitée par le pipeline RAG, sans journalisation du contenu complet.
+            answer: Réponse RAG générée pour l'utilisateur, ou `None` si aucune réponse n'est disponible.
+            duration_ms: Durée de traitement de l'interaction exprimée en millisecondes.
+            provider: Provider LLM ou service externe concerné.
+            model_name: Nom du modèle LLM référencé par l'usage ou la tarification.
+            prompt_tokens: Nombre de tokens consommés par le prompt envoyé au modèle.
+            completion_tokens: Nombre de tokens générés par le modèle dans la réponse.
+            total_tokens: Nombre total de tokens consommés par l'appel LLM.
+            estimated_cost_eur: Coût estimé de l'appel LLM en euros.
+            retrieved_chunks: Chunks retournés par le retriever ou l'orchestrator.
+
+        Returns:
+            Identifiant de l'interaction RAG créée en base.
+        """
         async with self.db_pool.acquire() as connection:
             async with connection.transaction():
                 interaction_id = await self._insert_interaction(
@@ -71,6 +89,17 @@ class InteractionRepository:
         status: str,
         duration_ms: int,
     ) -> int:
+        """Persiste une interaction échouée avec son statut et sa durée.
+
+        Args:
+            session_id: Identifiant de la session d'usage à mettre à jour ou associer à l'interaction.
+            question: Question utilisateur traitée par le pipeline RAG, sans journalisation du contenu complet.
+            status: Statut fonctionnel ou technique de l'opération.
+            duration_ms: Durée de traitement de l'interaction exprimée en millisecondes.
+
+        Returns:
+            Identifiant de l'interaction échouée créée en base.
+        """
         async with self.db_pool.acquire() as connection:
             async with connection.transaction():
                 return await self._insert_interaction(
@@ -92,6 +121,19 @@ class InteractionRepository:
         status: str,
         duration_ms: int,
     ) -> int:
+        """Insère la ligne principale d'une interaction dans la base d'usage.
+
+        Args:
+            connection: Connexion PostgreSQL transactionnelle utilisée pour grouper les écritures.
+            session_id: Identifiant de la session d'usage à mettre à jour ou associer à l'interaction.
+            question: Question utilisateur traitée par le pipeline RAG, sans journalisation du contenu complet.
+            answer: Réponse RAG générée pour l'utilisateur, ou `None` en cas d'échec ou de retrieval seul.
+            status: Statut fonctionnel ou technique de l'opération.
+            duration_ms: Durée de traitement de l'interaction exprimée en millisecondes.
+
+        Returns:
+            Identifiant de la ligne `interaction_rag` insérée.
+        """
         query = """
             INSERT INTO interaction_rag (
                 session_id,
@@ -120,6 +162,16 @@ class InteractionRepository:
         provider: str,
         model_name: str,
     ) -> int:
+        """Insère ou récupère le modèle LLM référencé par une interaction.
+
+        Args:
+            connection: Connexion PostgreSQL transactionnelle utilisée pour grouper les écritures.
+            provider: Provider LLM ou service externe concerné.
+            model_name: Nom du modèle LLM référencé par l'usage ou la tarification.
+
+        Returns:
+            Identifiant du modèle existant ou nouvellement inséré.
+        """
         query = """
             INSERT INTO modele_llm (provider, nom)
             VALUES ($1, $2)
@@ -141,6 +193,17 @@ class InteractionRepository:
         total_tokens: int,
         estimated_cost_eur: float | None,
     ) -> None:
+        """Insère les compteurs de tokens et le coût d'une interaction.
+
+        Args:
+            connection: Connexion PostgreSQL transactionnelle utilisée pour grouper les écritures.
+            interaction_id: Identifiant de l'interaction RAG concernée.
+            model_id: Identifiant interne du modèle LLM associé à l'interaction.
+            prompt_tokens: Nombre de tokens consommés par le prompt envoyé au modèle.
+            completion_tokens: Nombre de tokens générés par le modèle dans la réponse.
+            total_tokens: Nombre total de tokens consommés par l'appel LLM.
+            estimated_cost_eur: Coût estimé de l'appel LLM en euros.
+        """
         query = """
             INSERT INTO consommation_tokens (
                 interaction_id,
@@ -169,6 +232,15 @@ class InteractionRepository:
         connection: asyncpg.Connection,
         chunk: dict[str, Any],
     ) -> int:
+        """Insère ou récupère un chunk référencé par une interaction.
+
+        Args:
+            connection: Connexion PostgreSQL transactionnelle utilisée pour grouper les écritures.
+            chunk: Chunk documentaire à formater, afficher ou persister.
+
+        Returns:
+            Identifiant du chunk existant ou nouvellement inséré.
+        """
         metadata = chunk.get("metadata", {})
         query = """
             INSERT INTO chunk (
@@ -203,6 +275,15 @@ class InteractionRepository:
         rank: int,
         score: float | None,
     ) -> None:
+        """Associe un chunk récupéré à une interaction RAG.
+
+        Args:
+            connection: Connexion PostgreSQL transactionnelle utilisée pour grouper les écritures.
+            interaction_id: Identifiant de l'interaction RAG concernée.
+            chunk_id: Identifiant du chunk vectoriel associé à l'interaction.
+            rank: Position du chunk dans les résultats présentés à l'utilisateur.
+            score: Score de similarité ou de reranking associé au chunk.
+        """
         query = """
             INSERT INTO interaction_rag_chunk (
                 interaction_id,
