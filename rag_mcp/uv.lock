@@ -545,7 +545,6 @@ name = "rag-mcp"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
-    { name = "debugpy" },
     { name = "httpx" },
     { name = "mcp", extra = ["cli"] },
     { name = "uvicorn" },
@@ -553,13 +552,12 @@ dependencies = [
 
 [package.dev-dependencies]
 dev = [
-    { name = "httpx" },
+    { name = "debugpy" },
     { name = "pytest" },
 ]
 
 [package.metadata]
 requires-dist = [
-    { name = "debugpy" },
     { name = "httpx" },
     { name = "mcp", extras = ["cli"] },
     { name = "uvicorn" },
@@ -567,7 +565,7 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 dev = [
-    { name = "httpx", specifier = ">=0.28.1" },
+    { name = "debugpy" },
     { name = "pytest", specifier = ">=9.0.2" },
 ]
 

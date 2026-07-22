@@ -8,11 +8,10 @@ dependencies = [
     "mcp[cli]",
     "httpx",
     "uvicorn",
-    "debugpy",
 ]
 
 [dependency-groups]
 dev = [
-    "httpx>=0.28.1",
+    "debugpy",
     "pytest>=9.0.2",
 ]

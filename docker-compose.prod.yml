@@ -1,0 +1,285 @@
+services:
+
+  # Ollama : execute les modeles IA en local pour les embeddings et le LLM.
+  ollama:
+    image: ollama/ollama:0.31.2
+    container_name: ollama_container
+    expose:
+      - "11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    entrypoint: ["/bin/sh", "-lc"]
+    command: >
+      "
+      ollama serve &
+      until ollama list >/dev/null 2>&1; do
+        echo 'Waiting for ollama...'; sleep 1;
+      done;
+      ollama pull bge-m3:567m;
+      ollama pull qwen2.5:3b;
+      echo 'Models pulled.';
+      wait
+      "
+    restart: unless-stopped
+
+  # tei_reranker : serveur d'inference Hugging Face TEI pour le modele de reranking BGE.
+  tei_reranker:
+    platform: linux/amd64
+    image: ghcr.io/huggingface/text-embeddings-inference:cpu-1.9
+    container_name: tei_reranker_container
+    command: --model-id cross-encoder/mmarco-mMiniLMv2-L12-H384-v1 --port 80
+    expose:
+      - "80"
+    volumes:
+      - tei_reranker_data:/data
+    restart: unless-stopped
+
+  # Chroma : stocke les embeddings dans une base vectorielle.
+  chroma:
+    image: chromadb/chroma:1.5.9
+    container_name: chroma_container
+    expose:
+      - "8000"
+    volumes:
+      - chroma_data:/data
+    environment:
+      - PERSIST_DIRECTORY=/data
+    restart: unless-stopped
+
+  # rag_retriever : lit et ecrit les chunks dans la base vectorielle Chroma.
+  rag_retriever:
+    image: trag/rag_retriever:0.1.0
+    container_name: rag_retriever_container
+    expose:
+      - "8000"
+    depends_on:
+      - chroma
+    restart: unless-stopped
+
+  # rag_embedder : transforme les documents et questions en vecteurs.
+  rag_embedder:
+    image: trag/rag_embedder:0.1.0
+    container_name: rag_embedder_container
+    expose:
+      - "8000"
+    environment:
+      - RAG_RETRIEVER_INGEST_DOCUMENTS_URL=http://rag_retriever:8000/save_items
+    volumes:
+      - ${RAG_WIKIS_PATH:-./wikis}:/app/wikis:ro
+    depends_on:
+      - ollama
+      - rag_retriever
+    restart: unless-stopped
+
+  # rag_reranker : reordonne les chunks recuperes selon leur pertinence pour la question.
+  rag_reranker:
+    image: trag/rag_reranker:0.1.0
+    container_name: rag_reranker_container
+    expose:
+      - "8000"
+    depends_on:
+      - tei_reranker
+    restart: unless-stopped
+
+  # rag_orchestrator : coordonne les appels entre embedder, retriever, LLM et base SQL.
+  rag_orchestrator:
+    image: trag/rag_orchestrator:0.1.0
+    container_name: rag_orchestrator_container
+    env_file:
+      - ./rag_orchestrator/.env
+    expose:
+      - "8000"
+    environment:
+      - RAG_EMBEDDER_EMBED_URL=http://rag_embedder:8000/embed
+      - RAG_RETRIEVER_RETRIEVE_CHUNKS_URL=http://rag_retriever:8000/retrieve_chunks
+      - RAG_RETRIEVER_RETRIEVE_DOCUMENT_CHUNKS_URL=http://rag_retriever:8000/retrieve_document_chunks
+      - RAG_RERANKER_RERANK_CHUNKS_URL=http://rag_reranker:8000/rerank_chunks
+      - RAG_USAGE_ADMIN_GROUPS=rag_admin
+    depends_on:
+      - ollama
+      - rag_embedder
+      - rag_retriever
+      - rag_reranker
+      - postgres
+    restart: unless-stopped
+
+  # rag_evaluator : mesure la qualite des reponses et des documents recuperes.
+  rag_evaluator:
+    image: trag/rag_evaluator:0.1.0
+    container_name: rag_evaluator_container
+    env_file:
+      - ./rag_evaluator/.env
+    expose:
+      - "8000"
+    environment:
+      - RAG_ORCHESTRATOR_ASK_QUESTION_URL=http://rag_orchestrator:8000/ask_question
+      - DATASET_PATH=/app/data/dataset.json
+    volumes:
+      - ${RAG_EVALUATOR_DATASET_PATH:-./rag_evaluator/dataset.json}:/app/data/dataset.json:ro
+    depends_on:
+      - rag_orchestrator
+    restart: unless-stopped
+
+  # rag_ihm : affiche l'interface utilisateur Streamlit du RAG.
+  rag_ihm:
+    image: trag/rag_ihm:0.1.0
+    container_name: rag_ihm_container
+    env_file:
+      - ./rag_ihm/.env
+    expose:
+      - "8501"
+    environment:
+      - RAG_ORCHESTRATOR_TEST_CONNEXION_URL=http://rag_orchestrator:8000
+      - RAG_EVALUATOR_TEST_CONNEXION_URL=http://rag_evaluator:8000
+      - RAG_ORCHESTRATOR_ASK_QUESTION_URL=http://rag_orchestrator:8000/ask_question
+      - RAG_EVALUATOR_EVALUATE_RAG_URL=http://rag_evaluator:8000/evaluate_rag
+      - RAG_IHM_OIDC_AUTHORIZE_URL=${RAG_IHM_OIDC_AUTHORIZE_URL}
+      - RAG_IHM_OIDC_TOKEN_URL=${RAG_IHM_OIDC_TOKEN_URL}
+      - RAG_IHM_OIDC_REDIRECT_URI=${RAG_IHM_OIDC_REDIRECT_URI}
+      - RAG_IHM_OIDC_SCOPE=openid email profile groups
+    depends_on:
+      - rag_orchestrator
+      - rag_evaluator
+      - pocket-id
+    restart: unless-stopped
+
+  # rag_mcp : expose le RAG a Kilo Code via le protocole MCP.
+  rag_mcp:
+    image: trag/rag_mcp:0.1.0
+    container_name: rag_mcp_container
+    env_file:
+      - ./rag_mcp/.env
+    expose:
+      - "8000"
+    environment:
+      - FORWARDED_ALLOW_IPS=*
+      - RAG_ORCHESTRATOR_RETRIEVE_CHUNKS_URL=http://rag_orchestrator:8000/retrieve_chunks
+      - RAG_MCP_OIDC_TOKEN_URL=http://pocket-id:1411/api/oidc/token
+    depends_on:
+      - rag_orchestrator
+      - pocket-id
+    restart: unless-stopped
+
+  # Prometheus : collecte les metriques exposees par les microservices.
+  prometheus:
+    image: prom/prometheus:v3.13.1
+    container_name: prometheus_container
+    expose:
+      - "9090"
+    volumes:
+      - ./observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    depends_on:
+      - rag_embedder
+      - rag_retriever
+      - rag_reranker
+      - rag_evaluator
+      - rag_orchestrator
+      - pocket-id
+    restart: unless-stopped
+
+  # Loki : stocke les logs applicatifs pour les consulter dans Grafana.
+  loki:
+    image: grafana/loki:3.7.3
+    container_name: loki_container
+    expose:
+      - "3100"
+    command: -config.file=/etc/loki/local-config.yaml
+    volumes:
+      - loki_data:/loki
+    restart: unless-stopped
+
+  # Alloy : collecte les logs des containers et les envoie vers Loki.
+  alloy:
+    image: grafana/alloy:v1.17.1
+    container_name: alloy_container
+    expose:
+      - "12345"
+    volumes:
+      - ./observability/config.alloy:/etc/alloy/config.alloy:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    command:
+      - run
+      - --server.http.listen-addr=0.0.0.0:12345
+      - /etc/alloy/config.alloy
+    depends_on:
+      - loki
+    restart: unless-stopped
+
+  # Tempo : stocke les traces distribuees OpenTelemetry.
+  tempo:
+    image: grafana/tempo:3.0.2
+    container_name: tempo_container
+    command: ["-config.file=/etc/tempo.yml"]
+    expose:
+      - "3200"
+      - "4317"
+      - "4318"
+    volumes:
+      - ./observability/tempo.yml:/etc/tempo.yml:ro
+      - tempo_data:/var/tempo
+    restart: unless-stopped
+
+  # Grafana : affiche les dashboards de metriques, logs et traces.
+  grafana:
+    image: grafana/grafana:13.1.0
+    container_name: grafana_container
+    expose:
+      - "3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./observability/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      - prometheus
+      - loki
+      - tempo
+    restart: unless-stopped
+
+  # Pocket ID : gere l'authentification OIDC utilisee par l'application.
+  pocket-id:
+    image: ghcr.io/pocket-id/pocket-id:v2
+    container_name: pocket_id_container
+    env_file:
+      - ./pocket-id/.env
+    expose:
+      - "1411"
+    volumes:
+      - pocket_id_data:/app/data
+    restart: unless-stopped
+
+  # Postgres : stocke les donnees relationnelles du RAG.
+  postgres:
+    image: postgres:16-alpine
+    container_name: postgres_container
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    expose:
+      - "5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/postgres/init:/docker-entrypoint-initdb.d:ro
+    restart: unless-stopped
+
+  # Adminer : interface web de debug Postgres. Non exposee publiquement en prod.
+  adminer:
+    image: adminer:4.8.1
+    container_name: adminer_container
+    expose:
+      - "8080"
+    depends_on:
+      - postgres
+    restart: unless-stopped
+
+volumes:
+  ollama_data:
+  tei_reranker_data:
+  chroma_data:
+  prometheus_data:
+  grafana_data:
+  loki_data:
+  tempo_data:
+  pocket_id_data:
+  postgres_data:

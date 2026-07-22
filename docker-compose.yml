@@ -23,6 +23,7 @@ services:
 
   # tei_reranker : serveur d'inférence Hugging Face TEI pour le modèle de reranking BGE.
   tei_reranker:
+    platform: linux/amd64
     image: ghcr.io/huggingface/text-embeddings-inference:cpu-1.9
     container_name: tei_reranker_container
     command: --model-id cross-encoder/mmarco-mMiniLMv2-L12-H384-v1 --port 80
@@ -49,6 +50,8 @@ services:
     build:
       context: ./rag_retriever
       dockerfile: dockerfile
+      args:
+        DEBUG: "1"
     container_name: rag_retriever_container
     ports:
       - "8001:8000"
@@ -106,6 +109,8 @@ services:
     build:
       context: ./rag_orchestrator
       dockerfile: dockerfile
+      args:
+        DEBUG: "1"
     container_name: rag_orchestrator_container
     env_file:
       - ./rag_orchestrator/.env
@@ -133,11 +138,13 @@ services:
     build:
       context: ./rag_evaluator
       dockerfile: dockerfile
+      args:
+        DEBUG: "1"
     container_name: rag_evaluator_container
     env_file:
       - ./rag_evaluator/.env
     ports:
-      - "8004:8000"   # evaluator expose 8000 en interne (au sein du container), publié sur 8003 host (host= ma machine = pc/serveur)
+      - "8004:8000"   # evaluator expose 8000 en interne (au sein du container), publié sur 8004 host (host= ma machine = pc/serveur)
       - "5681:5678"   # port debug côté host (évite conflit avec rag_embedder:5678)
     environment:
       - DEBUG=1
@@ -154,6 +161,8 @@ services:
     build:
       context: ./rag_ihm
       dockerfile: dockerfile
+      args:
+        DEBUG: "1"
     container_name: rag_ihm_container
     env_file:
       - ./rag_ihm/.env
@@ -181,7 +190,9 @@ services:
   rag_mcp:
     build:
       context: ./rag_mcp
-      dockerfile: Dockerfile
+      dockerfile: dockerfile
+      args:
+        DEBUG: "1"
     container_name: rag_mcp_container
     env_file:
       - ./rag_mcp/.env
@@ -260,8 +271,6 @@ services:
     container_name: grafana_container
     ports:
       - "3000:3000"
-    env_file:
-      - .env
     volumes:
       - grafana_data:/var/lib/grafana
       - ./observability/grafana/provisioning:/etc/grafana/provisioning:ro
@@ -320,6 +329,54 @@ services:
         - ./rag_embedder/docs:/app/docs
         - ./rag_embedder/mkdocs.yml:/app/mkdocs.yml
 
+  # rag_retriever_docs : sert la documentation MkDocs du microservice retriever.
+  rag_retriever_docs:
+      build:
+        context: ./rag_retriever
+        dockerfile: dockerfile.docs
+      container_name: rag_retriever_docs_container
+      ports:
+        - "8101:8000"
+      volumes:
+        - ./rag_retriever/docs:/app/docs
+        - ./rag_retriever/mkdocs.yml:/app/mkdocs.yml
+
+  # rag_orchestrator_docs : sert la documentation MkDocs du microservice orchestrator.
+  rag_orchestrator_docs:
+      build:
+        context: ./rag_orchestrator
+        dockerfile: dockerfile.docs
+      container_name: rag_orchestrator_docs_container
+      ports:
+        - "8103:8000"
+      volumes:
+        - ./rag_orchestrator/docs:/app/docs
+        - ./rag_orchestrator/mkdocs.yml:/app/mkdocs.yml
+
+  # rag_evaluator_docs : sert la documentation MkDocs du microservice evaluator.
+  rag_evaluator_docs:
+      build:
+        context: ./rag_evaluator
+        dockerfile: dockerfile.docs
+      container_name: rag_evaluator_docs_container
+      ports:
+        - "8104:8000"
+      volumes:
+        - ./rag_evaluator/docs:/app/docs
+        - ./rag_evaluator/mkdocs.yml:/app/mkdocs.yml
+
+  # rag_mcp_docs : sert la documentation MkDocs du microservice MCP.
+  rag_mcp_docs:
+      build:
+        context: ./rag_mcp
+        dockerfile: dockerfile.docs
+      container_name: rag_mcp_docs_container
+      ports:
+        - "8105:8000"
+      volumes:
+        - ./rag_mcp/docs:/app/docs
+        - ./rag_mcp/mkdocs.yml:/app/mkdocs.yml
+
   # rag_reranker_docs : sert la documentation MkDocs du microservice reranker.
   rag_reranker_docs:
       build:
@@ -331,6 +388,18 @@ services:
       volumes:
         - ./rag_reranker/docs:/app/docs
         - ./rag_reranker/mkdocs.yml:/app/mkdocs.yml
+
+  # rag_ihm_docs : sert la documentation MkDocs du microservice IHM.
+  rag_ihm_docs:
+      build:
+        context: ./rag_ihm
+        dockerfile: dockerfile.docs
+      container_name: rag_ihm_docs_container
+      ports:
+        - "8151:8000"
+      volumes:
+        - ./rag_ihm/docs:/app/docs
+        - ./rag_ihm/mkdocs.yml:/app/mkdocs.yml
 
 volumes:
   ollama_data:
