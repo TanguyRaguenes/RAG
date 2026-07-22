@@ -15,4 +15,10 @@ wheels/
 **/.env
 **/.env.*
 
+# Autoriser les modeles sans secrets.
+!.env.example
+!**/.env.example
+!.env.prod.example
+!**/.env.prod.example
+
 .coverage
