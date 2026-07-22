@@ -1,5 +1,28 @@
 services:
 
+  # Caddy : reverse proxy public, point d'entree HTTP/HTTPS de la stack.
+  caddy:
+    image: caddy:2.10.2-alpine
+    container_name: caddy_container
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      - RAG_IHM_HOST=${RAG_IHM_HOST:-http://rag.localhost}
+      - RAG_MCP_HOST=${RAG_MCP_HOST:-http://mcp.localhost}
+      - RAG_AUTH_HOST=${RAG_AUTH_HOST:-http://auth.localhost}
+      - RAG_GRAFANA_HOST=${RAG_GRAFANA_HOST:-http://grafana.localhost}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - rag_ihm
+      - rag_mcp
+      - pocket-id
+      - grafana
+    restart: unless-stopped
+
   # Ollama : execute les modeles IA en local pour les embeddings et le LLM.
   ollama:
     image: ollama/ollama:0.31.2
@@ -274,6 +297,8 @@ services:
     restart: unless-stopped
 
 volumes:
+  caddy_data:
+  caddy_config:
   ollama_data:
   tei_reranker_data:
   chroma_data:

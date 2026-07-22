@@ -1,0 +1,19 @@
+{$RAG_IHM_HOST} {
+	encode zstd gzip
+	reverse_proxy rag_ihm:8501
+}
+
+{$RAG_MCP_HOST} {
+	encode zstd gzip
+	reverse_proxy rag_mcp:8000
+}
+
+{$RAG_AUTH_HOST} {
+	encode zstd gzip
+	reverse_proxy pocket-id:1411
+}
+
+{$RAG_GRAFANA_HOST} {
+	encode zstd gzip
+	reverse_proxy grafana:3000
+}
