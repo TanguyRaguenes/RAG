@@ -71,7 +71,7 @@ services:
 
   # rag_retriever : lit et ecrit les chunks dans la base vectorielle Chroma.
   rag_retriever:
-    image: trag/rag_retriever:0.1.0
+    image: ${DOCKERHUB_NAMESPACE}/rag_retriever:0.1.0
     container_name: rag_retriever_container
     expose:
       - "8000"
@@ -81,7 +81,7 @@ services:
 
   # rag_embedder : transforme les documents et questions en vecteurs.
   rag_embedder:
-    image: trag/rag_embedder:0.1.0
+    image: ${DOCKERHUB_NAMESPACE}/rag_embedder:0.1.0
     container_name: rag_embedder_container
     expose:
       - "8000"
@@ -96,7 +96,7 @@ services:
 
   # rag_reranker : reordonne les chunks recuperes selon leur pertinence pour la question.
   rag_reranker:
-    image: trag/rag_reranker:0.1.0
+    image: ${DOCKERHUB_NAMESPACE}/rag_reranker:0.1.0
     container_name: rag_reranker_container
     expose:
       - "8000"
@@ -106,7 +106,7 @@ services:
 
   # rag_orchestrator : coordonne les appels entre embedder, retriever, LLM et base SQL.
   rag_orchestrator:
-    image: trag/rag_orchestrator:0.1.0
+    image: ${DOCKERHUB_NAMESPACE}/rag_orchestrator:0.1.0
     container_name: rag_orchestrator_container
     env_file:
       - ./rag_orchestrator/.env
@@ -128,7 +128,7 @@ services:
 
   # rag_evaluator : mesure la qualite des reponses et des documents recuperes.
   rag_evaluator:
-    image: trag/rag_evaluator:0.1.0
+    image: ${DOCKERHUB_NAMESPACE}/rag_evaluator:0.1.0
     container_name: rag_evaluator_container
     env_file:
       - ./rag_evaluator/.env
@@ -145,7 +145,7 @@ services:
 
   # rag_ihm : affiche l'interface utilisateur Streamlit du RAG.
   rag_ihm:
-    image: trag/rag_ihm:0.1.0
+    image: ${DOCKERHUB_NAMESPACE}/rag_ihm:0.1.0
     container_name: rag_ihm_container
     env_file:
       - ./rag_ihm/.env
@@ -168,7 +168,7 @@ services:
 
   # rag_mcp : expose le RAG a Kilo Code via le protocole MCP.
   rag_mcp:
-    image: trag/rag_mcp:0.1.0
+    image: ${DOCKERHUB_NAMESPACE}/rag_mcp:0.1.0
     container_name: rag_mcp_container
     env_file:
       - ./rag_mcp/.env

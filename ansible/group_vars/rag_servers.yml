@@ -1,0 +1,20 @@
+deploy_dir: /opt/rag
+project_root: "{{ playbook_dir }}/.."
+
+configure_ufw: false
+docker_log_max_size: 10m
+docker_log_max_file: "3"
+
+env_files:
+  - src: "{{ project_root }}/.env.prod"
+    dest: "{{ deploy_dir }}/.env"
+  - src: "{{ project_root }}/rag_orchestrator/.env.prod"
+    dest: "{{ deploy_dir }}/rag_orchestrator/.env"
+  - src: "{{ project_root }}/rag_ihm/.env.prod"
+    dest: "{{ deploy_dir }}/rag_ihm/.env"
+  - src: "{{ project_root }}/rag_mcp/.env.prod"
+    dest: "{{ deploy_dir }}/rag_mcp/.env"
+  - src: "{{ project_root }}/rag_evaluator/.env.prod"
+    dest: "{{ deploy_dir }}/rag_evaluator/.env"
+  - src: "{{ project_root }}/pocket-id/.env.prod"
+    dest: "{{ deploy_dir }}/pocket-id/.env"
