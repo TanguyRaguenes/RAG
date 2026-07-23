@@ -62,10 +62,15 @@
 
     # Ajoute le depot Docker adapte a la distribution du VPS, ici Ubuntu.
     - name: Add Docker apt repository
-      ansible.builtin.apt_repository:
-        repo: "deb [arch={{ docker_apt_arch }} signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/{{ ansible_distribution | lower }} {{ ansible_distribution_release }} stable"
+      ansible.builtin.deb822_repository:
+        name: docker
+        types: deb
+        uris: "https://download.docker.com/linux/{{ ansible_distribution | lower }}"
+        suites: "{{ ansible_distribution_release }}"
+        components: stable
+        architectures: "{{ docker_apt_arch }}"
+        signed_by: /etc/apt/keyrings/docker.asc
         state: present
-        filename: docker
 
     # Installe Docker Engine et le plugin docker compose utilise par la stack.
     - name: Install Docker packages
