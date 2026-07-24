@@ -5,6 +5,7 @@ import pytest
 from auth_client import cache_access_token, is_cached_token_valid
 from config import McpConfigError, load_mcp_config
 from rag_client import format_retrieved_chunks_response
+from server import mcp
 
 
 def test_is_cached_token_valid_requires_safety_window() -> None:
@@ -42,3 +43,7 @@ def test_load_mcp_config_reports_missing_env(monkeypatch: pytest.MonkeyPatch) ->
 
     with pytest.raises(McpConfigError):
         load_mcp_config()
+
+
+def test_mcp_transport_allows_public_host() -> None:
+    assert "mcp.isilograginterne.fr" in mcp.settings.transport_security.allowed_hosts

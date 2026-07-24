@@ -2,12 +2,31 @@ import logging
 
 import httpx
 from mcp.server.fastmcp import FastMCP
+from mcp.server.transport_security import TransportSecuritySettings
 
 from auth_client import get_access_token
 from config import McpError, load_mcp_config
 from rag_client import retrieve_documentation_chunks
 
-mcp = FastMCP("RAG Entreprise")
+mcp = FastMCP(
+    "RAG Entreprise",
+    transport_security=TransportSecuritySettings(
+        enable_dns_rebinding_protection=True,
+        allowed_hosts=[
+            "127.0.0.1:*",
+            "localhost:*",
+            "[::1]:*",
+            "mcp.isilograginterne.fr",
+            "mcp.isilograginterne.fr:*",
+        ],
+        allowed_origins=[
+            "http://127.0.0.1:*",
+            "http://localhost:*",
+            "http://[::1]:*",
+            "https://mcp.isilograginterne.fr",
+        ],
+    ),
+)
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s %(levelname)s %(name)s %(message)s",
