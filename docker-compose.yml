@@ -59,7 +59,7 @@ services:
     environment:
       - DEBUG=1
     volumes:
-      - ./rag_retriever:/app # HotReload : Montage du code source pour que les modifs soient prises en compte sans rebuild
+      - ./rag_retriever:/workspace # HotReload : Montage du code source pour que les modifs soient prises en compte sans rebuild
     depends_on:
       - chroma
   
@@ -80,8 +80,8 @@ services:
       - DEBUG=1
       - RAG_RETRIEVER_INGEST_DOCUMENTS_URL=http://rag_retriever:8000/save_items
     volumes:
-      - ./rag_embedder:/app # HotReload : Montage du code source pour que les modifs soient prises en compte sans rebuild
-      - ../wikis:/app/wikis:ro # On charge dans le container en lecture seule "ro=ReadOnly" les wikis
+      - ./rag_embedder:/workspace # HotReload : Montage du code source pour que les modifs soient prises en compte sans rebuild
+      - ../wikis:/data/wikis:ro # On charge dans le container en lecture seule "ro=ReadOnly" les wikis
     depends_on:
       - ollama
       - rag_retriever
@@ -100,7 +100,7 @@ services:
     environment:
       - DEBUG=1
     volumes:
-      - ./rag_reranker:/app # HotReload : Montage du code source pour que les modifs soient prises en compte sans rebuild
+      - ./rag_reranker:/workspace # HotReload : Montage du code source pour que les modifs soient prises en compte sans rebuild
     depends_on:
       - tei_reranker
    
@@ -125,7 +125,7 @@ services:
       - RAG_RERANKER_RERANK_CHUNKS_URL=http://rag_reranker:8000/rerank_chunks
       - RAG_USAGE_ADMIN_GROUPS=rag_admin
     volumes:
-      - ./rag_orchestrator:/app # HotReload : Montage du code source pour que les modifs soient prises en compte sans rebuild
+      - ./rag_orchestrator:/workspace # HotReload : Montage du code source pour que les modifs soient prises en compte sans rebuild
     depends_on:
       - ollama
       - rag_embedder
@@ -149,10 +149,10 @@ services:
     environment:
       - DEBUG=1
       - RAG_ORCHESTRATOR_ASK_QUESTION_URL=http://rag_orchestrator:8000/ask_question
-      - DATASET_PATH=/app/data/dataset.json
+      - DATASET_PATH=/data/dataset.json
     volumes:
-      - ./rag_evaluator:/app
-      - ./rag_evaluator/dataset.json:/app/data/dataset.json:ro # On charge dans le container en lecture seule "ro=ReadOnly" le dataset
+      - ./rag_evaluator:/workspace
+      - ./rag_evaluator/dataset.json:/data/dataset.json:ro # On charge dans le container en lecture seule "ro=ReadOnly" le dataset
     depends_on:
       - rag_orchestrator
 
@@ -180,7 +180,7 @@ services:
       - RAG_IHM_OIDC_REDIRECT_URI=http://localhost:8501
       - RAG_IHM_OIDC_SCOPE=openid email profile groups
     volumes:
-      - ./rag_ihm:/app # HotReload : Montage du code source pour que les modifs soient prises en compte sans rebuild
+      - ./rag_ihm:/workspace # HotReload : Montage du code source pour que les modifs soient prises en compte sans rebuild
     depends_on:
       - rag_orchestrator
       - rag_evaluator
@@ -205,7 +205,7 @@ services:
       - RAG_ORCHESTRATOR_RETRIEVE_CHUNKS_URL=http://rag_orchestrator:8000/retrieve_chunks
       - RAG_MCP_OIDC_TOKEN_URL=http://pocket-id:1411/api/oidc/token
     volumes:
-      - ./rag_mcp:/app
+      - ./rag_mcp:/workspace
     depends_on:
       - rag_orchestrator
 
