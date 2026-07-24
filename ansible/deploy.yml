@@ -9,7 +9,7 @@
     - name: Ensure target OS is Debian based
       ansible.builtin.assert:
         that:
-          - ansible_os_family == "Debian"
+          - ansible_facts["os_family"] == "Debian"
         fail_msg: "This playbook currently supports Debian/Ubuntu servers only."
 
     # Les fichiers .env.prod restent sur ton Mac et ne sont copies que s'ils existent.
@@ -51,22 +51,22 @@
     # Ajoute la cle officielle Docker pour verifier les paquets installes par apt.
     - name: Download Docker apt GPG key
       ansible.builtin.get_url:
-        url: "https://download.docker.com/linux/{{ ansible_distribution | lower }}/gpg"
+        url: "https://download.docker.com/linux/{{ ansible_facts['distribution'] | lower }}/gpg"
         dest: /etc/apt/keyrings/docker.asc
         mode: "0644"
 
     # Convertit le nom d'architecture Linux si Docker attend un nom different.
     - name: Set Docker apt architecture
       ansible.builtin.set_fact:
-        docker_apt_arch: "{{ 'amd64' if ansible_architecture == 'x86_64' else ansible_architecture }}"
+        docker_apt_arch: "{{ 'amd64' if ansible_facts['architecture'] == 'x86_64' else ansible_facts['architecture'] }}"
 
     # Ajoute le depot Docker adapte a la distribution du VPS, ici Ubuntu.
     - name: Add Docker apt repository
       ansible.builtin.deb822_repository:
         name: docker
         types: deb
-        uris: "https://download.docker.com/linux/{{ ansible_distribution | lower }}"
-        suites: "{{ ansible_distribution_release }}"
+        uris: "https://download.docker.com/linux/{{ ansible_facts['distribution'] | lower }}"
+        suites: "{{ ansible_facts['distribution_release'] }}"
         components: stable
         architectures: "{{ docker_apt_arch }}"
         signed_by: /etc/apt/keyrings/docker.asc
@@ -162,6 +162,13 @@
         dest: "{{ item.dest }}"
         mode: "0600"
       loop: "{{ env_files }}"
+
+    # Copie le dataset local attendu par le volume read-only du service rag_evaluator.
+    - name: Copy evaluator dataset
+      ansible.builtin.copy:
+        src: "{{ project_root }}/rag_evaluator/dataset.json"
+        dest: "{{ deploy_dir }}/rag_evaluator/dataset.json"
+        mode: "0644"
 
     # Copie les scripts SQL executes au premier demarrage du conteneur Postgres.
     - name: Copy PostgreSQL init scripts
