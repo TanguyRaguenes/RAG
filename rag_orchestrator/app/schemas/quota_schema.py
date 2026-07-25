@@ -6,6 +6,8 @@ from pydantic import BaseModel, Field
 class QuotaUsageResponse(BaseModel):
     utilisateur_id: str
     email: str | None = None
+    display_name: str | None = None
+    preferred_username: str | None = None
     max_tokens_par_mois: int
     consumed_tokens: int
     remaining_tokens: int

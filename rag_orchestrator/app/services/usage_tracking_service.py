@@ -13,7 +13,7 @@ from app.schemas.feedback_schema import (
     FeedbackResponse,
 )
 from app.schemas.quota_schema import QuotaUsageResponse, UserPreferencesResponse
-from app.services.user_identity_service import build_user_id_from_identifier
+from app.services.user_identity_service import build_user_id_from_oidc_subject
 
 MCP_PROVIDER = "KiloCode"
 MCP_MODEL = "mcp-retrieval"
@@ -56,16 +56,22 @@ async def ensure_usage_user_exists(
     Returns:
         Identifiant utilisateur pseudonymisé utilisé pour les écritures d'usage.
     """
-    identifier = current_user.email or current_user.sub
-
-    user_id = build_user_id_from_identifier(
-        identifier,
+    user_id = build_user_id_from_oidc_subject(
+        current_user.issuer,
+        current_user.sub,
         os.environ["USER_HASH_SECRET"],
     )
 
     usage_repository = UsageRepository(db_pool)
     await usage_repository.upsert_user(
-        user_id, _normalize_optional_email(current_user.email)
+        user_id=user_id,
+        issuer=_normalize_optional_text(current_user.issuer),
+        subject=_normalize_optional_text(current_user.sub),
+        email=_normalize_optional_email(current_user.email),
+        display_name=_normalize_optional_text(
+            current_user.display_name or current_user.name
+        ),
+        preferred_username=_normalize_optional_text(current_user.preferred_username),
     )
     await usage_repository.ensure_default_quota_rule(
         user_id=user_id,
@@ -487,6 +493,8 @@ def _quota_row_to_response(row) -> QuotaUsageResponse:
     return QuotaUsageResponse(
         utilisateur_id=row["utilisateur_id"],
         email=row["email"],
+        display_name=row["display_name"],
+        preferred_username=row["preferred_username"],
         max_tokens_par_mois=max_tokens,
         consumed_tokens=consumed_tokens,
         remaining_tokens=remaining_tokens,
@@ -535,6 +543,23 @@ def _normalize_optional_email(email: str | None) -> str | None:
     normalized_email = email.strip().lower()
 
     return normalized_email or None
+
+
+def _normalize_optional_text(value: str | None) -> str | None:
+    """Nettoie une valeur textuelle optionnelle avant persistance.
+
+    Args:
+        value: Texte issu des claims utilisateur ou d'une source externe.
+
+    Returns:
+        Texte sans espaces superflus, ou `None` si la valeur est absente ou vide.
+    """
+    if value is None:
+        return None
+
+    normalized_value = value.strip()
+
+    return normalized_value or None
 
 
 def _normalize_optional_comment(comment: str | None) -> str | None:

@@ -11,7 +11,7 @@ from app.services.usage_tracking_service import QuotaExceededError
 
 
 def _user() -> AuthenticatedUser:
-    return AuthenticatedUser(sub="user-1", email="user@example.com")
+    return AuthenticatedUser(issuer="issuer", sub="user-1", email="user@example.com")
 
 
 def _config() -> dict:

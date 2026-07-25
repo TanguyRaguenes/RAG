@@ -118,6 +118,7 @@ services:
       - RAG_RETRIEVER_RETRIEVE_DOCUMENT_CHUNKS_URL=http://rag_retriever:8000/retrieve_document_chunks
       - RAG_RERANKER_RERANK_CHUNKS_URL=http://rag_reranker:8000/rerank_chunks
       - RAG_USAGE_ADMIN_GROUPS=rag_admin
+      - POCKET_ID_API_URL=http://pocket-id:1411/api
     depends_on:
       - ollama
       - rag_embedder

@@ -1,12 +1,16 @@
 -- ============================================================
 -- Table : utilisateur
 -- Objectif : identifier un utilisateur avec un id pseudonymisé.
--- id = HMAC-SHA256(email normalisé ou identifiant machine)
+-- id = HMAC-SHA256(issuer + sub) pour les utilisateurs OIDC.
 -- ============================================================
 
 CREATE TABLE utilisateur (
     id TEXT PRIMARY KEY,
+    issuer TEXT NULL,
+    subject TEXT NULL,
     email TEXT NULL,
+    display_name TEXT NULL,
+    preferred_username TEXT NULL,
     theme_preference VARCHAR(20) NOT NULL DEFAULT 'Clair',
 
     CONSTRAINT chk_utilisateur_id_hash
@@ -14,6 +18,18 @@ CREATE TABLE utilisateur (
 
     CONSTRAINT chk_utilisateur_email_not_blank
         CHECK (email IS NULL OR btrim(email) <> ''),
+
+    CONSTRAINT chk_utilisateur_issuer_not_blank
+        CHECK (issuer IS NULL OR btrim(issuer) <> ''),
+
+    CONSTRAINT chk_utilisateur_subject_not_blank
+        CHECK (subject IS NULL OR btrim(subject) <> ''),
+
+    CONSTRAINT chk_utilisateur_display_name_not_blank
+        CHECK (display_name IS NULL OR btrim(display_name) <> ''),
+
+    CONSTRAINT chk_utilisateur_preferred_username_not_blank
+        CHECK (preferred_username IS NULL OR btrim(preferred_username) <> ''),
 
     CONSTRAINT chk_utilisateur_theme_preference
         CHECK (theme_preference IN ('Sombre', 'Clair'))

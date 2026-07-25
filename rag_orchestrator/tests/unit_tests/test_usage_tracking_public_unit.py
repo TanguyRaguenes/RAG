@@ -11,8 +11,8 @@ class FakeUsageRepository:
         self.db_pool = db_pool
         self.calls = db_pool.setdefault("calls", [])
 
-    async def upsert_user(self, user_id: str, email: str | None):
-        self.calls.append(("upsert_user", user_id, email))
+    async def upsert_user(self, **kwargs):
+        self.calls.append(("upsert_user", kwargs))
 
     async def ensure_default_quota_rule(self, user_id: str, max_tokens_per_month: int):
         self.calls.append(("ensure_quota", user_id, max_tokens_per_month))
@@ -31,6 +31,8 @@ class FakeUsageRepository:
         return {
             "utilisateur_id": user_id,
             "email": "user@example.com",
+            "display_name": "User Example",
+            "preferred_username": "user",
             "max_tokens_par_mois": 100,
             "consumed_tokens": 25,
             "actif": True,
@@ -73,7 +75,18 @@ class FakeUsageRepository:
 
 
 def _user() -> AuthenticatedUser:
-    return AuthenticatedUser(sub="user-sub", email="USER@Example.COM", groups=["Admin"])
+    return AuthenticatedUser(
+        issuer="issuer",
+        sub="user-sub",
+        email="USER@Example.COM",
+        display_name="User Example",
+        preferred_username="user",
+        groups=["Admin"],
+    )
+
+
+def _user_without_email() -> AuthenticatedUser:
+    return AuthenticatedUser(issuer="issuer", sub="user-sub")
 
 
 @pytest.fixture(autouse=True)
@@ -94,6 +107,18 @@ async def test_start_and_finish_usage_session_use_repository() -> None:
     assert session_id == 42
     assert db_pool["calls"][1] == ("ensure_quota", user_id, 100000)
     assert db_pool["calls"][-1] == ("finish_session", 42)
+
+
+@pytest.mark.asyncio
+async def test_usage_user_id_is_stable_when_email_is_missing() -> None:
+    db_pool = {}
+
+    user_id_with_email = await service.ensure_usage_user_exists(_user(), db_pool)
+    user_id_without_email = await service.ensure_usage_user_exists(
+        _user_without_email(), db_pool
+    )
+
+    assert user_id_with_email == user_id_without_email
 
 
 @pytest.mark.asyncio

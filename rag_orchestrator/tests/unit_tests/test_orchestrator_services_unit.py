@@ -6,6 +6,7 @@ from app.services.auth_service import AuthService
 from app.services.user_identity_service import (
     build_user_id_from_email,
     build_user_id_from_identifier,
+    build_user_id_from_oidc_subject,
 )
 
 
@@ -220,10 +221,17 @@ async def test_ask_question_to_api_builds_payload_tokens_and_cost(
 
 
 class FakeOidcClient:
-    def __init__(self, claims: dict, userinfo: dict | None = None):
+    def __init__(
+        self,
+        claims: dict,
+        userinfo: dict | None = None,
+        pocket_id_user: dict | None = None,
+    ):
         self.claims = claims
         self.userinfo = userinfo or {}
+        self.pocket_id_user = pocket_id_user or {}
         self.userinfo_called = False
+        self.pocket_id_user_called = False
 
     def validate_token(self, token: str) -> dict:
         return self.claims
@@ -231,6 +239,10 @@ class FakeOidcClient:
     async def get_userinfo(self, token: str) -> dict:
         self.userinfo_called = True
         return self.userinfo
+
+    async def get_user_by_id(self, user_id: str) -> dict:
+        self.pocket_id_user_called = True
+        return self.pocket_id_user
 
 
 class FakeFailingUserinfoOidcClient(FakeOidcClient):
@@ -244,7 +256,7 @@ class FakeFailingUserinfoOidcClient(FakeOidcClient):
 @pytest.mark.asyncio
 async def test_auth_service_merges_userinfo_for_oauth_user_token() -> None:
     oidc = FakeOidcClient(
-        {"sub": "user-1", "type": "oauth-access-token"},
+        {"iss": "issuer", "sub": "user-1", "type": "oauth-access-token"},
         {"email": "user@example.com", "groups": ["dev"]},
     )
 
@@ -257,7 +269,9 @@ async def test_auth_service_merges_userinfo_for_oauth_user_token() -> None:
 
 @pytest.mark.asyncio
 async def test_auth_service_does_not_call_userinfo_for_machine_token() -> None:
-    oidc = FakeOidcClient({"sub": "client-rag", "type": "oauth-access-token"})
+    oidc = FakeOidcClient(
+        {"iss": "issuer", "sub": "client-rag", "type": "oauth-access-token"}
+    )
 
     user = await AuthService(oidc).authenticate("token")
 
@@ -268,7 +282,12 @@ async def test_auth_service_does_not_call_userinfo_for_machine_token() -> None:
 @pytest.mark.asyncio
 async def test_auth_service_keeps_jwt_claims_when_userinfo_is_forbidden() -> None:
     oidc = FakeFailingUserinfoOidcClient(
-        {"sub": "user-1", "email": "user@example.com", "groups": ["dev"]}
+        {
+            "iss": "issuer",
+            "sub": "user-1",
+            "email": "user@example.com",
+            "groups": ["dev"],
+        }
     )
 
     user = await AuthService(oidc).authenticate("token")
@@ -277,6 +296,26 @@ async def test_auth_service_keeps_jwt_claims_when_userinfo_is_forbidden() -> Non
     assert user.sub == "user-1"
     assert user.email == "user@example.com"
     assert user.groups == ["dev"]
+
+
+@pytest.mark.asyncio
+async def test_auth_service_uses_pocket_id_api_when_userinfo_is_forbidden() -> None:
+    oidc = FakeFailingUserinfoOidcClient(
+        {"iss": "issuer", "sub": "user-1", "groups": ["dev"]},
+        pocket_id_user={
+            "email": "user@example.com",
+            "display_name": "User Example",
+            "preferred_username": "user",
+        },
+    )
+
+    user = await AuthService(oidc).authenticate("token")
+
+    assert oidc.userinfo_called
+    assert oidc.pocket_id_user_called
+    assert user.email == "user@example.com"
+    assert user.display_name == "User Example"
+    assert user.preferred_username == "user"
 
 
 def test_user_identity_hashes_normalized_identifier_and_rejects_empty_values() -> None:
@@ -289,3 +328,11 @@ def test_user_identity_hashes_normalized_identifier_and_rejects_empty_values() -
 
     with pytest.raises(ValueError):
         build_user_id_from_identifier("user", " ")
+
+
+def test_user_identity_hashes_issuer_and_subject() -> None:
+    assert build_user_id_from_oidc_subject(
+        " https://auth.example.com/ ", " User-1 ", "secret"
+    ) == build_user_id_from_identifier(
+        "https://auth.example.com/|user-1", "secret"
+    )

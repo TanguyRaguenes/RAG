@@ -57,7 +57,7 @@ async def test_get_current_user_maps_jwt_errors_to_401() -> None:
 
 @pytest.mark.asyncio
 async def test_get_current_user_returns_authenticated_user() -> None:
-    expected = AuthenticatedUser(sub="user")
+    expected = AuthenticatedUser(issuer="issuer", sub="user")
 
     class AuthService:
         async def authenticate(self, token: str):

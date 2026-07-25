@@ -93,8 +93,8 @@ def _render_admin_panel(config, access_token: str | None) -> None:
     st.divider()
     st.subheader("Administration des quotas")
     st.caption(
-        "Les utilisateurs avec email sont identifiés par cet email. "
-        "Les comptes sans email restent affichés avec un identifiant raccourci."
+        "Les quotas sont rattachés à l'identité Pocket ID stable. "
+        "L'email et le nom servent uniquement à l'affichage."
     )
 
     flash_message = st.session_state.pop(ADMIN_QUOTA_FLASH_KEY, None)
@@ -203,10 +203,20 @@ def _quota_label(quota: dict) -> str:
     Returns:
         Libellé lisible du quota utilisateur.
     """
-    return (
-        quota.get("email")
-        or f"Compte machine ({_short_user_id(quota['utilisateur_id'])})"
-    )
+    display_name = quota.get("display_name")
+    email = quota.get("email")
+    preferred_username = quota.get("preferred_username")
+
+    if display_name and email and display_name != email:
+        return f"{display_name} ({email})"
+    if email:
+        return email
+    if display_name:
+        return display_name
+    if preferred_username:
+        return preferred_username
+
+    return f"Utilisateur Pocket ID ({_short_user_id(quota['utilisateur_id'])})"
 
 
 def _quota_by_user_id(quotas: list[dict], user_id: str) -> dict:

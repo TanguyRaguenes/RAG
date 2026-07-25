@@ -116,6 +116,8 @@ class QuotaRepository:
             )
             SELECT
                 utilisateur.email,
+                utilisateur.display_name,
+                utilisateur.preferred_username,
                 quota_utilisateur.utilisateur_id,
                 quota_utilisateur.max_tokens_par_mois,
                 quota_utilisateur.actif,
@@ -142,6 +144,8 @@ class QuotaRepository:
               )
             GROUP BY
                 utilisateur.email,
+                utilisateur.display_name,
+                utilisateur.preferred_username,
                 quota_utilisateur.utilisateur_id,
                 quota_utilisateur.max_tokens_par_mois,
                 quota_utilisateur.actif,
@@ -174,6 +178,8 @@ class QuotaRepository:
             SELECT
                 utilisateur.id AS utilisateur_id,
                 utilisateur.email,
+                utilisateur.display_name,
+                utilisateur.preferred_username,
                 quota_utilisateur.max_tokens_par_mois,
                 quota_utilisateur.actif,
                 quota_utilisateur.date_debut,
@@ -194,6 +200,8 @@ class QuotaRepository:
             GROUP BY
                 utilisateur.id,
                 utilisateur.email,
+                utilisateur.display_name,
+                utilisateur.preferred_username,
                 quota_utilisateur.max_tokens_par_mois,
                 quota_utilisateur.actif,
                 quota_utilisateur.date_debut,

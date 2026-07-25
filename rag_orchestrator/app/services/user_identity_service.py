@@ -17,6 +17,25 @@ def build_user_id_from_email(email: str, secret: str) -> str:
     return build_user_id_from_identifier(normalized_email, secret)
 
 
+def build_user_id_from_oidc_subject(issuer: str, subject: str, secret: str) -> str:
+    """Construit l'identifiant interne stable d'un utilisateur OIDC.
+
+    Args:
+        issuer: Émetteur OIDC qui a produit le token utilisateur.
+        subject: Claim `sub` stable de l'utilisateur chez cet émetteur.
+        secret: Secret applicatif utilisé pour pseudonymiser l'identité OIDC.
+
+    Returns:
+        Identifiant utilisateur pseudonymisé dérivé du couple `issuer + sub`.
+    """
+    normalized_issuer = _normalize_identifier(issuer)
+    normalized_subject = _normalize_identifier(subject)
+
+    return build_user_id_from_identifier(
+        f"{normalized_issuer}|{normalized_subject}", secret
+    )
+
+
 def build_user_id_from_identifier(identifier: str, secret: str) -> str:
     """Construit un identifiant utilisateur pseudonymisé à partir d'un identifiant OIDC.
 

@@ -57,6 +57,8 @@ def get_auth_service() -> AuthService:
         jwks_uri=os.environ["OIDC_JWKS_URI"],
         audience=allowed_audiences,
         userinfo_url=os.environ.get("OIDC_USERINFO_URL"),
+        pocket_id_api_url=os.environ.get("POCKET_ID_API_URL"),
+        pocket_id_api_key=os.environ.get("POCKET_ID_API_KEY"),
     )
 
     return AuthService(oidc_client)

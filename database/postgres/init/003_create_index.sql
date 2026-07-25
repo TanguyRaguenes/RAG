@@ -5,9 +5,9 @@
 CREATE INDEX idx_session_usage_utilisateur_id
     ON session_usage(utilisateur_id);
 
-CREATE UNIQUE INDEX uq_utilisateur_email
-    ON utilisateur(lower(email))
-    WHERE email IS NOT NULL;
+CREATE UNIQUE INDEX uq_utilisateur_issuer_subject
+    ON utilisateur(issuer, subject)
+    WHERE issuer IS NOT NULL AND subject IS NOT NULL;
 
 CREATE INDEX idx_session_usage_canal_id
     ON session_usage(canal_id);
