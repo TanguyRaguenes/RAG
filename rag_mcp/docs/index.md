@@ -2,15 +2,16 @@
 
 ## 1. Présentation Générale
 
-`rag_mcp` expose le RAG interne à Kilo Code via le protocole MCP. Il sert de pont entre l'outil `interroger_documentation_interne` et `rag_orchestrator`.
+`rag_mcp` expose le RAG interne à Kilo Code via le protocole MCP. Il sert de pont entre l'outil `interroger_documentation_interne` et `rag_orchestrator`, en exigeant un bearer token utilisateur Pocket ID.
 
 ## 2. Architecture du service
 
 ```mermaid
 flowchart TD
-    Kilo[Kilo Code] --> MCP[rag_mcp FastMCP]
-    MCP --> OIDC[Pocket ID / OIDC]
+    Kilo[Kilo Code + token utilisateur] --> MCP[rag_mcp FastMCP]
+    MCP --> OIDC[Pocket ID JWKS]
     MCP --> Orchestrator[rag_orchestrator /retrieve_chunks]
+    Orchestrator --> DB[(PostgreSQL usage)]
 ```
 
 ## 3. Structure du projet
@@ -19,7 +20,7 @@ flowchart TD
 |---|---|
 | `server.py` | Déclaration FastMCP et outil exposé. |
 | `config.py` | Chargement des variables obligatoires. |
-| `auth_client.py` | Client credentials OIDC et cache token. |
+| `token_verifier.py` | Validation des bearer tokens utilisateur Pocket ID reçus par MCP. |
 | `rag_client.py` | Appel à `rag_orchestrator` et formatage des chunks. |
 
 ## 4. Configuration
@@ -27,9 +28,11 @@ flowchart TD
 | Variable | Description |
 |---|---|
 | `RAG_ORCHESTRATOR_RETRIEVE_CHUNKS_URL` | Endpoint orchestrator `/retrieve_chunks`. |
-| `RAG_MCP_OIDC_TOKEN_URL` | URL de token OIDC. |
-| `RAG_MCP_OIDC_CLIENT_ID` | Identifiant client machine. |
-| `RAG_MCP_OIDC_CLIENT_SECRET` | Secret client machine, jamais documenté en clair. |
+| `RAG_MCP_OIDC_ISSUER` | Issuer Pocket ID attendu dans les tokens utilisateur. |
+| `RAG_MCP_OIDC_JWKS_URI` | Endpoint JWKS utilisé pour valider la signature des tokens. |
+| `RAG_MCP_OIDC_ALLOWED_AUDIENCES` | Audiences OIDC autorisées, typiquement le resource API Pocket ID du MCP. |
+| `RAG_MCP_REQUIRED_SCOPES` | Permissions API Pocket ID obligatoires côté MCP, par exemple `rag:mcp`. |
+| `RAG_MCP_RESOURCE_SERVER_URL` | URL publique du serveur MCP protégée par OAuth. |
 
 ## 5. Interface MCP exposée
 
@@ -43,23 +46,26 @@ Le retour est une chaîne JSON formatée contenant les chunks récupérés, ou u
 sequenceDiagram
     participant K as Kilo Code
     participant M as rag_mcp
-    participant OIDC as OIDC
+    participant OIDC as Pocket ID
     participant R as rag_orchestrator
-    K->>M: interroger_documentation_interne(question)
-    M->>OIDC: client_credentials
-    OIDC-->>M: access_token
-    M->>R: POST /retrieve_chunks + Bearer
+    participant DB as PostgreSQL usage
+    K->>OIDC: authentification utilisateur
+    OIDC-->>K: access_token utilisateur
+    K->>M: interroger_documentation_interne(question) + Bearer utilisateur
+    M->>OIDC: validation signature JWKS
+    M->>R: POST /retrieve_chunks + même Bearer utilisateur
+    R->>DB: session usage channel=mcp liée à l'utilisateur
     R-->>M: chunks
     M-->>K: JSON chunks
 ```
 
 ## 7. Erreurs et observabilité
 
-Le service évite d'exposer le token et le secret client. Les erreurs HTTP et réseau sont converties en messages courts pour l'appelant MCP. Les logs Docker sont collectés par Alloy/Loki via le conteneur.
+Le service évite de logger les tokens utilisateur. Les erreurs HTTP et réseau sont converties en messages courts pour l'appelant MCP. Les logs Docker sont collectés par Alloy/Loki via le conteneur.
 
 ## 8. Docker Compose
 
-Le service est exposé sur le port host `8005` et écoute en SSE sur `0.0.0.0:8000`.
+Le service est exposé sur le port host `8005` et écoute en Streamable HTTP sur `0.0.0.0:8000/mcp`.
 
 ```bash
 docker compose up --build rag_mcp
@@ -77,6 +83,9 @@ uv run mkdocs build --strict
 
 ## 10. Bonnes pratiques
 
-- Ne jamais logger l'access token ni le client secret.
+- Ne jamais logger l'access token utilisateur.
 - Garder le format de retour lisible par Kilo Code.
-- Ne pas exposer le service MCP directement sur Internet sans contrôle d'accès réseau.
+- Configurer Kilo avec OAuth pour que chaque développeur s'authentifie avec son compte Pocket ID.
+- Déclarer une API Pocket ID dont le resource correspond à l'URL MCP annoncée, par exemple `http://localhost:8005/` en local.
+- Autoriser le client OIDC Kilo/MCP à demander la permission API `rag:mcp` en accès utilisateur délégué.
+- Ajouter le client OIDC Kilo/MCP dans `OIDC_ALLOWED_AUDIENCES` côté `rag_orchestrator`, sinon `/retrieve_chunks` refusera le token transmis.

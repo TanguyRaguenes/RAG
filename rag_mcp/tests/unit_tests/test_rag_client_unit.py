@@ -6,6 +6,17 @@ import rag_client
 from config import McpConfig
 
 
+def _config() -> McpConfig:
+    return McpConfig(
+        rag_orchestrator_url="http://rag/retrieve_chunks",
+        oidc_issuer="https://auth.example.test",
+        oidc_jwks_uri="https://auth.example.test/jwks.json",
+        oidc_allowed_audiences=["https://mcp.example.test/"],
+        required_scopes=["rag:mcp"],
+        resource_server_url="https://mcp.example.test",
+    )
+
+
 class FakeResponse:
     def __init__(self, payload: dict):
         self.payload = payload
@@ -45,9 +56,7 @@ async def test_retrieve_documentation_chunks_posts_question_with_bearer_token(
     monkeypatch.setattr(rag_client.httpx, "AsyncClient", FakeAsyncClient)
 
     result = await rag_client.retrieve_documentation_chunks(
-        config=McpConfig(
-            "http://rag/retrieve_chunks", "http://oidc", "client", "secret"
-        ),
+        config=_config(),
         question="Comment deployer ?",
         access_token="token",
     )

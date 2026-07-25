@@ -2,14 +2,24 @@ import logging
 
 import httpx
 from mcp.server.fastmcp import FastMCP
+from mcp.server.auth.middleware.auth_context import get_access_token
+from mcp.server.auth.settings import AuthSettings
 from mcp.server.transport_security import TransportSecuritySettings
 
-from auth_client import get_access_token
-from config import McpError, load_mcp_config
+from config import McpAuthError, McpError, load_mcp_config
 from rag_client import retrieve_documentation_chunks
+from token_verifier import PocketIdTokenVerifier
+
+config = load_mcp_config()
 
 mcp = FastMCP(
     "RAG Entreprise",
+    auth=AuthSettings(
+        issuer_url=config.oidc_issuer,
+        required_scopes=config.required_scopes,
+        resource_server_url=config.resource_server_url,
+    ),
+    token_verifier=PocketIdTokenVerifier(config),
     transport_security=TransportSecuritySettings(
         enable_dns_rebinding_protection=True,
         allowed_hosts=[
@@ -46,13 +56,14 @@ async def interroger_documentation_interne(question: str) -> str:
         Chaîne JSON des chunks récupérés ou message d'erreur exploitable par Kilo.
     """
     try:
-        config = load_mcp_config()
-        access_token = await get_access_token(config)
+        access_token = get_access_token()
+        if access_token is None:
+            raise McpAuthError("Token utilisateur MCP manquant")
 
         return await retrieve_documentation_chunks(
             config=config,
             question=question,
-            access_token=access_token,
+            access_token=access_token.token,
         )
 
     except McpError as exception:
@@ -99,4 +110,4 @@ async def interroger_documentation_interne(question: str) -> str:
 if __name__ == "__main__":
     mcp.settings.port = 8000
     mcp.settings.host = "0.0.0.0"
-    mcp.run(transport="sse")
+    mcp.run(transport="streamable-http")

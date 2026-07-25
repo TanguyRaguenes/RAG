@@ -3701,6 +3701,7 @@ source = { virtual = "rag_mcp" }
 dependencies = [
     { name = "httpx" },
     { name = "mcp", extra = ["cli"] },
+    { name = "pyjwt", extra = ["crypto"] },
     { name = "uvicorn" },
 ]
 
@@ -3714,6 +3715,7 @@ dev = [
 requires-dist = [
     { name = "httpx" },
     { name = "mcp", extras = ["cli"] },
+    { name = "pyjwt", extras = ["crypto"] },
     { name = "uvicorn" },
 ]
 

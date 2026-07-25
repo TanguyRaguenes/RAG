@@ -203,11 +203,14 @@ services:
       - DEBUG=1
       - FORWARDED_ALLOW_IPS=*
       - RAG_ORCHESTRATOR_RETRIEVE_CHUNKS_URL=http://rag_orchestrator:8000/retrieve_chunks
-      - RAG_MCP_OIDC_TOKEN_URL=http://pocket-id:1411/api/oidc/token
+      - RAG_MCP_OIDC_ISSUER=http://localhost:1411
+      - RAG_MCP_OIDC_JWKS_URI=http://pocket-id:1411/.well-known/jwks.json
+      - RAG_MCP_RESOURCE_SERVER_URL=http://localhost:8005
     volumes:
       - ./rag_mcp:/workspace
     depends_on:
       - rag_orchestrator
+      - pocket-id
 
   # Prometheus : collecte les metriques exposees par les microservices.
   prometheus:

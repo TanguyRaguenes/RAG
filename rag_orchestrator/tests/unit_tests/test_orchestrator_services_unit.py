@@ -1,3 +1,4 @@
+import httpx
 import pytest
 
 from app.services import ask_question_service, retrieve_chunks_service
@@ -232,6 +233,14 @@ class FakeOidcClient:
         return self.userinfo
 
 
+class FakeFailingUserinfoOidcClient(FakeOidcClient):
+    async def get_userinfo(self, token: str) -> dict:
+        self.userinfo_called = True
+        request = httpx.Request("GET", "http://pocket-id/userinfo")
+        response = httpx.Response(403, request=request)
+        raise httpx.HTTPStatusError("forbidden", request=request, response=response)
+
+
 @pytest.mark.asyncio
 async def test_auth_service_merges_userinfo_for_oauth_user_token() -> None:
     oidc = FakeOidcClient(
@@ -254,6 +263,20 @@ async def test_auth_service_does_not_call_userinfo_for_machine_token() -> None:
 
     assert not oidc.userinfo_called
     assert user.sub == "client-rag"
+
+
+@pytest.mark.asyncio
+async def test_auth_service_keeps_jwt_claims_when_userinfo_is_forbidden() -> None:
+    oidc = FakeFailingUserinfoOidcClient(
+        {"sub": "user-1", "email": "user@example.com", "groups": ["dev"]}
+    )
+
+    user = await AuthService(oidc).authenticate("token")
+
+    assert oidc.userinfo_called
+    assert user.sub == "user-1"
+    assert user.email == "user@example.com"
+    assert user.groups == ["dev"]
 
 
 def test_user_identity_hashes_normalized_identifier_and_rejects_empty_values() -> None:

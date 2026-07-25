@@ -2,26 +2,9 @@ import json
 
 import pytest
 
-from auth_client import cache_access_token, is_cached_token_valid
 from config import McpConfigError, load_mcp_config
 from rag_client import format_retrieved_chunks_response
 from server import mcp
-
-
-def test_is_cached_token_valid_requires_safety_window() -> None:
-    assert is_cached_token_valid({"access_token": "abc", "expires_at": 150}, now=100)
-    assert not is_cached_token_valid(
-        {"access_token": "abc", "expires_at": 120}, now=100
-    )
-    assert not is_cached_token_valid({"expires_at": 150}, now=100)
-
-
-def test_cache_access_token_updates_cache_in_place() -> None:
-    cache: dict[str, str | int] = {}
-
-    cache_access_token(cache, "token", 123)
-
-    assert cache == {"access_token": "token", "expires_at": 123}
 
 
 def test_format_retrieved_chunks_response_returns_empty_message() -> None:
@@ -47,3 +30,9 @@ def test_load_mcp_config_reports_missing_env(monkeypatch: pytest.MonkeyPatch) ->
 
 def test_mcp_transport_allows_public_host() -> None:
     assert "mcp.isilograginterne.fr" in mcp.settings.transport_security.allowed_hosts
+
+
+def test_mcp_server_requires_bearer_auth() -> None:
+    assert mcp.settings.auth is not None
+    assert mcp.settings.auth.required_scopes == ["rag:mcp"]
+    assert mcp.settings.auth.resource_server_url is not None

@@ -12,7 +12,7 @@
           - ansible_facts["os_family"] == "Debian"
         fail_msg: "This playbook currently supports Debian/Ubuntu servers only."
 
-    # Les fichiers .env.prod restent sur ton Mac et ne sont copies que s'ils existent.
+    # Les fichiers .env.prod restent localement et ne sont copies que s'ils existent.
     - name: Check required local env files exist
       ansible.builtin.stat:
         path: "{{ item.src }}"

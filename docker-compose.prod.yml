@@ -177,7 +177,8 @@ services:
     environment:
       - FORWARDED_ALLOW_IPS=*
       - RAG_ORCHESTRATOR_RETRIEVE_CHUNKS_URL=http://rag_orchestrator:8000/retrieve_chunks
-      - RAG_MCP_OIDC_TOKEN_URL=http://pocket-id:1411/api/oidc/token
+      - RAG_MCP_OIDC_JWKS_URI=http://pocket-id:1411/.well-known/jwks.json
+      - RAG_MCP_RESOURCE_SERVER_URL=https://${RAG_MCP_HOST}
     depends_on:
       - rag_orchestrator
       - pocket-id

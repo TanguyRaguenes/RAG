@@ -1,3 +1,5 @@
+import httpx
+
 from app.dal.clients.oidc_client import OidcClient
 from app.schemas.authenticated_user_schema import AuthenticatedUser
 
@@ -25,8 +27,11 @@ class AuthService:
         is_machine_token = claims.get("sub", "").startswith("client-")
 
         if not is_machine_token:
-            userinfo = await self.oidc_client.get_userinfo(token)
-            claims = {**claims, **userinfo}
+            try:
+                userinfo = await self.oidc_client.get_userinfo(token)
+                claims = {**claims, **userinfo}
+            except httpx.HTTPStatusError:
+                pass
 
         return AuthenticatedUser(
             sub=claims["sub"],

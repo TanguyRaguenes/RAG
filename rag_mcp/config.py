@@ -7,9 +7,11 @@ class McpConfig:
     """Configuration nécessaire au serveur MCP."""
 
     rag_orchestrator_url: str
-    oidc_token_url: str
-    oidc_client_id: str
-    oidc_client_secret: str
+    oidc_issuer: str
+    oidc_jwks_uri: str
+    oidc_allowed_audiences: list[str]
+    required_scopes: list[str]
+    resource_server_url: str
 
 
 class McpError(RuntimeError):
@@ -35,7 +37,7 @@ class McpConfigError(McpError):
 
 
 class McpAuthError(McpError):
-    """Erreur lors de l'authentification machine-to-machine."""
+    """Erreur lors de l'authentification entrante du client MCP."""
 
 
 class McpRagClientError(McpError):
@@ -53,9 +55,11 @@ def load_mcp_config() -> McpConfig:
     """
     return McpConfig(
         rag_orchestrator_url=_required_env("RAG_ORCHESTRATOR_RETRIEVE_CHUNKS_URL"),
-        oidc_token_url=_required_env("RAG_MCP_OIDC_TOKEN_URL"),
-        oidc_client_id=_required_env("RAG_MCP_OIDC_CLIENT_ID"),
-        oidc_client_secret=_required_env("RAG_MCP_OIDC_CLIENT_SECRET"),
+        oidc_issuer=_required_env("RAG_MCP_OIDC_ISSUER"),
+        oidc_jwks_uri=_required_env("RAG_MCP_OIDC_JWKS_URI"),
+        oidc_allowed_audiences=_required_csv_env("RAG_MCP_OIDC_ALLOWED_AUDIENCES"),
+        required_scopes=_optional_csv_env("RAG_MCP_REQUIRED_SCOPES"),
+        resource_server_url=_required_env("RAG_MCP_RESOURCE_SERVER_URL"),
     )
 
 
@@ -75,3 +79,17 @@ def _required_env(name: str) -> str:
     if not value:
         raise McpConfigError(f"Variable d'environnement manquante : {name}")
     return value
+
+
+def _required_csv_env(name: str) -> list[str]:
+    """Lit une variable CSV obligatoire et retire les valeurs vides."""
+    values = _optional_csv_env(name)
+    if not values:
+        raise McpConfigError(f"Variable d'environnement manquante : {name}")
+    return values
+
+
+def _optional_csv_env(name: str) -> list[str]:
+    """Lit une variable CSV optionnelle et retourne une liste normalisée."""
+    value = os.getenv(name, "")
+    return [item.strip() for item in value.split(",") if item.strip()]

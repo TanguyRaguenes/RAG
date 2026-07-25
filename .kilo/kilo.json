@@ -3,13 +3,21 @@
   "mcp": {
     "rag-interne-local": {
       "type": "remote",
-      "url": "http://localhost:8005/sse",
-      "enabled": false,
+      "url": "http://localhost:8005/mcp",
+      "oauth": {
+        "clientId": "31434b53-f12f-46c1-8d45-c6b412b1f69a",
+        "scope": "openid email profile groups rag:mcp"
+      },
+      "enabled": true,
       "timeout": 120000
     },
     "rag-interne-vps": {
       "type": "remote",
-      "url": "https://mcp.isilograginterne.fr/sse",
+      "url": "https://mcp.isilograginterne.fr/mcp",
+      "oauth": {
+        "clientId": "30da23a7-f53c-4b12-ba05-eaf804b828cd",
+        "scope": "openid email profile groups rag:mcp"
+      },
       "enabled": true,
       "timeout": 120000
     }
