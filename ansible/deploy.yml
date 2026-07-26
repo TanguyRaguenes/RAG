@@ -132,6 +132,7 @@
         mode: "0755"
       loop:
         - "{{ deploy_dir }}"
+        - "{{ deploy_dir }}/rag_embedder"
         - "{{ deploy_dir }}/rag_orchestrator"
         - "{{ deploy_dir }}/rag_ihm"
         - "{{ deploy_dir }}/rag_mcp"
