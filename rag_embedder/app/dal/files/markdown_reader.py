@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 
 import aiofiles
@@ -7,16 +8,19 @@ from app.domain.models.document_model import DocumentBase, DocumentsBase
 
 
 async def read_markdown_documents() -> DocumentsBase:
-    """Lit les fichiers Markdown et construit les modèles de documents à ingérer.
+    """Lit les fichiers Markdown depuis le dossier configuré.
+
+    Le dossier source est défini par `RAG_WIKIS_DIR`. Si la variable est absente,
+    le service lit `./data/wikis` relativement à son dossier de travail.
 
     Returns:
-        Collection de documents Markdown avec leur chemin et contenu.
+        Collection de documents Markdown avec leur chemin relatif et contenu.
 
     Raises:
-        MarkdownProcessingException: Si le traitement rencontre une erreur applicative explicitement propagée.
+        MarkdownProcessingException: Si un fichier Markdown ne peut pas être lu.
     """
     found_documents: list[DocumentBase] = []
-    root: Path = Path("./wikis").resolve()
+    root: Path = Path(os.getenv("RAG_WIKIS_DIR", "./data/wikis")).resolve()
 
     for path in root.rglob("*.md"):
         if ".git" in path.parts:

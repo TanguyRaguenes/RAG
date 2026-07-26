@@ -85,8 +85,8 @@ services:
     container_name: rag_embedder_container
     expose:
       - "8000"
-    environment:
-      - RAG_RETRIEVER_INGEST_DOCUMENTS_URL=http://rag_retriever:8000/save_items
+    env_file:
+      - ./rag_embedder/.env.prod
     volumes:
       - ${RAG_WIKIS_PATH:-./wikis}:/data/wikis:ro
     depends_on:
@@ -109,16 +109,9 @@ services:
     image: ${DOCKERHUB_NAMESPACE}/rag_orchestrator:0.1.1
     container_name: rag_orchestrator_container
     env_file:
-      - ./rag_orchestrator/.env
+      - ./rag_orchestrator/.env.prod
     expose:
       - "8000"
-    environment:
-      - RAG_EMBEDDER_EMBED_URL=http://rag_embedder:8000/embed
-      - RAG_RETRIEVER_RETRIEVE_CHUNKS_URL=http://rag_retriever:8000/retrieve_chunks
-      - RAG_RETRIEVER_RETRIEVE_DOCUMENT_CHUNKS_URL=http://rag_retriever:8000/retrieve_document_chunks
-      - RAG_RERANKER_RERANK_CHUNKS_URL=http://rag_reranker:8000/rerank_chunks
-      - RAG_USAGE_ADMIN_GROUPS=rag_admin
-      - POCKET_ID_API_URL=http://pocket-id:1411/api
     depends_on:
       - ollama
       - rag_embedder
@@ -132,12 +125,9 @@ services:
     image: ${DOCKERHUB_NAMESPACE}/rag_evaluator:0.1.1
     container_name: rag_evaluator_container
     env_file:
-      - ./rag_evaluator/.env
+      - ./rag_evaluator/.env.prod
     expose:
       - "8000"
-    environment:
-      - RAG_ORCHESTRATOR_ASK_QUESTION_URL=http://rag_orchestrator:8000/ask_question
-      - DATASET_PATH=/data/dataset.json
     volumes:
       - ${RAG_EVALUATOR_DATASET_PATH:-./rag_evaluator/dataset.json}:/data/dataset.json:ro
     depends_on:
@@ -149,18 +139,9 @@ services:
     image: ${DOCKERHUB_NAMESPACE}/rag_ihm:0.1.1
     container_name: rag_ihm_container
     env_file:
-      - ./rag_ihm/.env
+      - ./rag_ihm/.env.prod
     expose:
       - "8501"
-    environment:
-      - RAG_ORCHESTRATOR_TEST_CONNEXION_URL=http://rag_orchestrator:8000
-      - RAG_EVALUATOR_TEST_CONNEXION_URL=http://rag_evaluator:8000
-      - RAG_ORCHESTRATOR_ASK_QUESTION_URL=http://rag_orchestrator:8000/ask_question
-      - RAG_EVALUATOR_EVALUATE_RAG_URL=http://rag_evaluator:8000/evaluate_rag
-      - RAG_IHM_OIDC_AUTHORIZE_URL=${RAG_IHM_OIDC_AUTHORIZE_URL}
-      - RAG_IHM_OIDC_TOKEN_URL=${RAG_IHM_OIDC_TOKEN_URL}
-      - RAG_IHM_OIDC_REDIRECT_URI=${RAG_IHM_OIDC_REDIRECT_URI}
-      - RAG_IHM_OIDC_SCOPE=openid email profile groups
     depends_on:
       - rag_orchestrator
       - rag_evaluator
@@ -172,14 +153,9 @@ services:
     image: ${DOCKERHUB_NAMESPACE}/rag_mcp:0.1.1
     container_name: rag_mcp_container
     env_file:
-      - ./rag_mcp/.env
+      - ./rag_mcp/.env.prod
     expose:
       - "8000"
-    environment:
-      - FORWARDED_ALLOW_IPS=*
-      - RAG_ORCHESTRATOR_RETRIEVE_CHUNKS_URL=http://rag_orchestrator:8000/retrieve_chunks
-      - RAG_MCP_OIDC_JWKS_URI=http://pocket-id:1411/.well-known/jwks.json
-      - RAG_MCP_RESOURCE_SERVER_URL=https://${RAG_MCP_HOST}
     depends_on:
       - rag_orchestrator
       - pocket-id
@@ -268,7 +244,7 @@ services:
     image: ghcr.io/pocket-id/pocket-id:v2
     container_name: pocket_id_container
     env_file:
-      - ./pocket-id/.env
+      - ./pocket-id/.env.prod
     expose:
       - "1411"
     volumes:

@@ -56,8 +56,8 @@ services:
     ports:
       - "8001:8000"
       - "5678:5678" # Port par defaut utilisé par debugpy (library de débogage)
-    environment:
-      - DEBUG=1
+    env_file:
+      - ./rag_retriever/.env
     volumes:
       - ./rag_retriever:/workspace # HotReload : Montage du code source pour que les modifs soient prises en compte sans rebuild
     depends_on:
@@ -76,9 +76,8 @@ services:
       - "8002:8000"
       - "5679:5678" # Port par defaut utilisé par debugpy pour débugger uvicorn
       - "5689:5689" # Port par defaut utilisé par debugpy pour débugger pytest
-    environment:
-      - DEBUG=1
-      - RAG_RETRIEVER_INGEST_DOCUMENTS_URL=http://rag_retriever:8000/save_items
+    env_file:
+      - ./rag_embedder/.env
     volumes:
       - ./rag_embedder:/workspace # HotReload : Montage du code source pour que les modifs soient prises en compte sans rebuild
       - ../wikis:/data/wikis:ro # On charge dans le container en lecture seule "ro=ReadOnly" les wikis
@@ -97,8 +96,8 @@ services:
     ports:
       - "8006:8000"
       - "5684:5678" # Port par defaut utilisé par debugpy pour débugger uvicorn
-    environment:
-      - DEBUG=1
+    env_file:
+      - ./rag_reranker/.env
     volumes:
       - ./rag_reranker:/workspace # HotReload : Montage du code source pour que les modifs soient prises en compte sans rebuild
     depends_on:
@@ -117,14 +116,6 @@ services:
     ports:
       - "8003:8000"
       - "5680:5678" # port debug côté host (évite conflit avec rag_embedder:5678)
-    environment:
-      - DEBUG=1
-      - RAG_EMBEDDER_EMBED_URL=http://rag_embedder:8000/embed
-      - RAG_RETRIEVER_RETRIEVE_CHUNKS_URL=http://rag_retriever:8000/retrieve_chunks
-      - RAG_RETRIEVER_RETRIEVE_DOCUMENT_CHUNKS_URL=http://rag_retriever:8000/retrieve_document_chunks
-      - RAG_RERANKER_RERANK_CHUNKS_URL=http://rag_reranker:8000/rerank_chunks
-      - RAG_USAGE_ADMIN_GROUPS=rag_admin
-      - POCKET_ID_API_URL=http://pocket-id:1411/api
     volumes:
       - ./rag_orchestrator:/workspace # HotReload : Montage du code source pour que les modifs soient prises en compte sans rebuild
     depends_on:
@@ -147,10 +138,6 @@ services:
     ports:
       - "8004:8000"   # evaluator expose 8000 en interne (au sein du container), publié sur 8004 host (host= ma machine = pc/serveur)
       - "5681:5678"   # port debug côté host (évite conflit avec rag_embedder:5678)
-    environment:
-      - DEBUG=1
-      - RAG_ORCHESTRATOR_ASK_QUESTION_URL=http://rag_orchestrator:8000/ask_question
-      - DATASET_PATH=/data/dataset.json
     volumes:
       - ./rag_evaluator:/workspace
       - ./rag_evaluator/dataset.json:/data/dataset.json:ro # On charge dans le container en lecture seule "ro=ReadOnly" le dataset
@@ -170,16 +157,6 @@ services:
     ports:
       - "8501:8501" # Port par défaut utilisé par Streamlit.
       - "5682:5678"   # port debug côté host (évite conflit avec rag_embedder:5678)
-    environment:
-      - DEBUG=1
-      - RAG_ORCHESTRATOR_TEST_CONNEXION_URL=http://rag_orchestrator:8000
-      - RAG_EVALUATOR_TEST_CONNEXION_URL=http://rag_evaluator:8000
-      - RAG_ORCHESTRATOR_ASK_QUESTION_URL=http://rag_orchestrator:8000/ask_question
-      - RAG_EVALUATOR_EVALUATE_RAG_URL=http://rag_evaluator:8000/evaluate_rag
-      - RAG_IHM_OIDC_AUTHORIZE_URL=http://localhost:1411/authorize
-      - RAG_IHM_OIDC_TOKEN_URL=http://pocket-id:1411/api/oidc/token
-      - RAG_IHM_OIDC_REDIRECT_URI=http://localhost:8501
-      - RAG_IHM_OIDC_SCOPE=openid email profile groups
     volumes:
       - ./rag_ihm:/workspace # HotReload : Montage du code source pour que les modifs soient prises en compte sans rebuild
     depends_on:
@@ -200,13 +177,6 @@ services:
     ports:
       - "8005:8000"
       - "5683:5678"   # port debug côté host (évite conflit avec rag_embedder:5678)
-    environment:
-      - DEBUG=1
-      - FORWARDED_ALLOW_IPS=*
-      - RAG_ORCHESTRATOR_RETRIEVE_CHUNKS_URL=http://rag_orchestrator:8000/retrieve_chunks
-      - RAG_MCP_OIDC_ISSUER=http://localhost:1411
-      - RAG_MCP_OIDC_JWKS_URI=http://pocket-id:1411/.well-known/jwks.json
-      - RAG_MCP_RESOURCE_SERVER_URL=http://localhost:8005
     volumes:
       - ./rag_mcp:/workspace
     depends_on:

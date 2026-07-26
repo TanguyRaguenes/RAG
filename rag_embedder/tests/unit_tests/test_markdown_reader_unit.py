@@ -9,8 +9,8 @@ async def test_read_markdown_documents_returns_relative_paths_and_ignores_git(
     tmp_path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    wiki_root = tmp_path / "wikis"
-    wiki_root.mkdir()
+    wiki_root = tmp_path / "data" / "wikis"
+    wiki_root.mkdir(parents=True)
     (wiki_root / "guide.md").write_text("Guide", encoding="utf-8")
     nested = wiki_root / "nested"
     nested.mkdir()
@@ -29,12 +29,31 @@ async def test_read_markdown_documents_returns_relative_paths_and_ignores_git(
 
 
 @pytest.mark.asyncio
+async def test_read_markdown_documents_uses_env_wikis_dir(
+    tmp_path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    wiki_root = tmp_path / "custom_wikis"
+    wiki_root.mkdir()
+    (wiki_root / "guide.md").write_text("Guide", encoding="utf-8")
+
+    monkeypatch.setenv("RAG_WIKIS_DIR", str(wiki_root))
+
+    result = await read_markdown_documents()
+
+    documents_by_path = {
+        document.path: document.content for document in result.documents
+    }
+    assert documents_by_path == {"guide.md": "Guide"}
+
+
+@pytest.mark.asyncio
 async def test_read_markdown_documents_wraps_read_errors(
     tmp_path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    wiki_root = tmp_path / "wikis"
-    wiki_root.mkdir()
+    wiki_root = tmp_path / "data" / "wikis"
+    wiki_root.mkdir(parents=True)
     broken_file = wiki_root / "broken.md"
     broken_file.write_text("Broken", encoding="utf-8")
     monkeypatch.chdir(tmp_path)
