@@ -43,17 +43,36 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+TOOL_DESCRIPTION = """
+Recherche dans le RAG documentaire interne de l'entreprise.
 
-@mcp.tool()
+Utilise cet outil pour retrouver des informations dans les wikis et
+documentations techniques internes. L'outil retourne les chunks documentaires les
+plus pertinents avec leurs métadonnées, scores et chemins de fichiers. Il ne
+génère pas directement une réponse finale : l'appelant doit synthétiser les
+chunks retournés pour répondre à l'utilisateur.
+
+Ne pas utiliser cet outil pour des questions générales sans lien avec la
+documentation interne.
+""".strip()
+
+
+@mcp.tool(description=TOOL_DESCRIPTION)
 async def interroger_documentation_interne(question: str) -> str:
-    """Pose une question à la documentation interne.
-    Retourne les données brutes JSON des chunks trouvés.
+    """Recherche des chunks dans la documentation interne via le RAG.
+
+    L'outil transmet la question utilisateur à l'orchestrator RAG avec le bearer
+    token MCP courant, puis retourne les chunks récupérés. Le résultat sert de
+    contexte documentaire à synthétiser par l'appelant.
 
     Args:
-        question: Question à transmettre au RAG, non loggée.
+        question: Question utilisateur à rechercher dans la documentation
+            interne. Ne pas inclure de secrets, tokens, mots de passe ou données
+            sensibles.
 
     Returns:
-        Chaîne JSON des chunks récupérés ou message d'erreur exploitable par Kilo.
+        Chaîne JSON contenant une liste de chunks pertinents, ou un message
+        lisible si la recherche échoue ou ne trouve aucun résultat.
     """
     try:
         access_token = get_access_token()
