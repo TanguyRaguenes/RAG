@@ -1,8 +1,9 @@
 from pydantic import BaseModel
 
-from app.schemas.save_items_response_schema import SaveItemsResponseBase
-
 
 class IngestBulkResponseBase(BaseModel):
+    started_at: str
+    finished_at: str
     duration: str
-    savedItems: SaveItemsResponseBase
+    collection_count_before: int
+    collection_count_after: int

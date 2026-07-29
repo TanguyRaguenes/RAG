@@ -37,6 +37,7 @@
           - ca-certificates
           - curl
           - gnupg
+          - logrotate
           - ufw
         state: present
         update_cache: true
@@ -185,6 +186,29 @@
         dest: "{{ deploy_dir }}/observability/"
         mode: preserve
 
+    # Installe le script appele par cron pour declencher l'ingestion des wikis.
+    - name: Install wiki ingestion script
+      ansible.builtin.template:
+        src: rag-ingest-wikis.sh.j2
+        dest: "{{ rag_ingest_script_path }}"
+        mode: "0755"
+
+    # Cree le fichier de log avec des droits lisibles par les administrateurs du VPS.
+    - name: Ensure wiki ingestion log file exists
+      ansible.builtin.file:
+        path: "{{ rag_ingest_log_file }}"
+        state: touch
+        mode: "0644"
+        access_time: preserve
+        modification_time: preserve
+
+    # Limite la taille du fichier local, car l'historique long terme est consulte dans Loki/Grafana.
+    - name: Configure wiki ingestion log rotation
+      ansible.builtin.template:
+        src: rag-ingest-wikis.logrotate.j2
+        dest: /etc/logrotate.d/rag-ingest-wikis
+        mode: "0644"
+
     # Telecharge les images depuis Docker Hub sur le VPS, sans build local.
     - name: Pull Docker images
       ansible.builtin.command: docker compose -f docker-compose.prod.yml pull
@@ -198,6 +222,15 @@
       args:
         chdir: "{{ deploy_dir }}"
       changed_when: true
+
+    # Planifie l'ingestion quotidienne et evite deux executions simultanees avec flock.
+    - name: Schedule daily wiki ingestion
+      ansible.builtin.cron:
+        name: RAG wiki ingestion
+        user: root
+        minute: "{{ rag_ingest_cron_minute }}"
+        hour: "{{ rag_ingest_cron_hour }}"
+        job: "/usr/bin/flock -n {{ rag_ingest_lock_file }} {{ rag_ingest_script_path }} >> {{ rag_ingest_log_file }} 2>&1"
 
   handlers:
     # Handler appele uniquement quand /etc/docker/daemon.json est modifie.

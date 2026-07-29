@@ -1,0 +1,11 @@
+#!/bin/sh
+set -eu
+
+echo "============================================================"
+echo "RAG wiki ingestion started at $(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+
+curl -fsS -X POST http://127.0.0.1:8002/ingest/bulk
+printf '\n'
+
+echo "RAG wiki ingestion finished at $(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+echo "============================================================"

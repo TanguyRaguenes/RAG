@@ -163,6 +163,16 @@
       "targets": [ { "datasource": { "type": "prometheus", "uid": "prometheus" }, "editorMode": "code", "expr": "(sum(increase(rag_requests_total{service=\"rag_orchestrator\",operation=\"ask_question\",status=\"error\"}[$__range])) or vector(0)) / clamp_min((sum(increase(rag_requests_total{service=\"rag_orchestrator\",operation=\"ask_question\"}[$__range])) or vector(0)), 1)", "legendFormat": "error rate", "range": true, "refId": "A" } ],
       "title": "Taux d'erreur questions",
       "type": "stat"
+    },
+    {
+      "datasource": { "type": "loki", "uid": "loki" },
+      "description": "Historique des executions cron qui declenchent l'ingestion des wikis.",
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 15 },
+      "id": 13,
+      "options": { "dedupStrategy": "none", "enableLogDetails": true, "prettifyLogMessage": false, "showCommonLabels": false, "showLabels": false, "showTime": true, "sortOrder": "Descending", "wrapLogMessage": true },
+      "targets": [ { "datasource": { "type": "loki", "uid": "loki" }, "editorMode": "code", "expr": "{service=\"rag-ingest-wikis\"}", "queryType": "range", "refId": "A" } ],
+      "title": "Logs ingestion wikis",
+      "type": "logs"
     }
   ],
   "preload": false,

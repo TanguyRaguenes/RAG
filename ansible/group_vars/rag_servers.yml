@@ -5,6 +5,14 @@ configure_ufw: false
 docker_log_max_size: 10m
 docker_log_max_file: "3"
 
+rag_ingest_script_path: /usr/local/bin/rag-ingest-wikis
+rag_ingest_log_file: /var/log/rag-ingest-wikis.log
+rag_ingest_lock_file: /var/lock/rag-ingest-wikis.lock
+rag_ingest_cron_minute: "0"
+rag_ingest_cron_hour: "23"
+rag_ingest_logrotate_size: 2M
+rag_ingest_logrotate_rotate: 5
+
 env_files:
   - src: "{{ project_root }}/.env.prod"
     dest: "{{ deploy_dir }}/.env"

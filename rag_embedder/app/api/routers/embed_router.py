@@ -1,3 +1,4 @@
+from datetime import UTC, datetime
 import time
 from typing import Annotated
 
@@ -63,6 +64,7 @@ async def ingest_bulk_route(config: ConfigDep) -> IngestBulkResponseBase:
         Réponse HTTP contenant la durée et le résultat de sauvegarde.
     """
     start: float = time.perf_counter()
+    started_at: str = datetime.now(UTC).isoformat(timespec="seconds")
 
     documents: DocumentsBase = await load_documents()
 
@@ -73,5 +75,12 @@ async def ingest_bulk_route(config: ConfigDep) -> IngestBulkResponseBase:
     elapsed: float = time.perf_counter() - start
     minutes, seconds = divmod(int(elapsed), 60)
     duration: str = f"{minutes:02d}:{seconds:02d}"
+    finished_at: str = datetime.now(UTC).isoformat(timespec="seconds")
 
-    return IngestBulkResponseBase(duration=duration, savedItems=ingested_documents)
+    return IngestBulkResponseBase(
+        started_at=started_at,
+        finished_at=finished_at,
+        duration=duration,
+        collection_count_before=ingested_documents["collection_count_before"],
+        collection_count_after=ingested_documents["collection_count_after"],
+    )

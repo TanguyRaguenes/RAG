@@ -1,0 +1,10 @@
+{{ rag_ingest_log_file }} {
+    size {{ rag_ingest_logrotate_size }}
+    rotate {{ rag_ingest_logrotate_rotate }}
+    missingok
+    notifempty
+    compress
+    delaycompress
+    copytruncate
+    create 0644 root root
+}

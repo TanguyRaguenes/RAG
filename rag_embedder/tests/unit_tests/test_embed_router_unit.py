@@ -3,7 +3,6 @@ import pytest
 from app.api.routers import embed_router
 from app.domain.models.document_model import DocumentBase, DocumentsBase
 from app.domain.models.embed_request_model import EmbedRequestBase
-from app.schemas.save_items_response_schema import SaveItemsResponseBase
 
 
 @pytest.mark.asyncio
@@ -42,11 +41,11 @@ async def test_ingest_bulk_route_loads_documents_and_returns_saved_items(
     async def fake_ingest_documents(received_documents: DocumentsBase, config: dict):
         assert received_documents is documents
         assert config == {"config": True}
-        return SaveItemsResponseBase(
-            collection_count_before=0,
-            collection_count_after=1,
-            saved_items=[{"id": "id", "chunk": "content", "metadatas": {}}],
-        )
+        return {
+            "collection_count_before": 0,
+            "collection_count_after": 1,
+            "saved_items": [{"id": "id", "chunk": "content", "metadatas": {}}],
+        }
 
     monkeypatch.setattr(embed_router, "load_documents", fake_load_documents)
     monkeypatch.setattr(embed_router, "ingest_documents", fake_ingest_documents)
@@ -55,4 +54,5 @@ async def test_ingest_bulk_route_loads_documents_and_returns_saved_items(
     response = await embed_router.ingest_bulk_route({"config": True})
 
     assert response.duration == "00:01"
-    assert response.savedItems.collection_count_after == 1
+    assert response.collection_count_before == 0
+    assert response.collection_count_after == 1
