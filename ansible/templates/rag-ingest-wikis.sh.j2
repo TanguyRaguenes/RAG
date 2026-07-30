@@ -4,6 +4,11 @@ set -eu
 echo "============================================================"
 echo "RAG wiki ingestion started at $(date -u '+%Y-%m-%dT%H:%M:%SZ')"
 
+echo "Deleting existing wiki collection"
+curl -fsS -X POST http://127.0.0.1:8001/delete_collection
+printf '\n'
+
+echo "Ingesting wiki documents"
 curl -fsS -X POST http://127.0.0.1:8002/ingest/bulk
 printf '\n'
 

@@ -73,6 +73,8 @@ services:
   rag_retriever:
     image: ${DOCKERHUB_NAMESPACE}/rag_retriever:0.1.1
     container_name: rag_retriever_container
+    ports:
+      - "127.0.0.1:8001:8000"
     expose:
       - "8000"
     depends_on:
@@ -187,8 +189,9 @@ services:
     container_name: loki_container
     expose:
       - "3100"
-    command: -config.file=/etc/loki/local-config.yaml
+    command: -config.file=/etc/loki/loki.yml
     volumes:
+      - ./observability/loki.yml:/etc/loki/loki.yml:ro
       - loki_data:/loki
     restart: unless-stopped
 

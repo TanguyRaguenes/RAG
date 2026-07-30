@@ -1,0 +1,74 @@
+# Desactive l'authentification interne de Loki.
+# Dans cette stack, Loki n'est pas expose publiquement : seuls Grafana et Alloy
+# l'appellent depuis le reseau Docker interne.
+auth_enabled: false
+
+# Port HTTP interne sur lequel Loki ecoute dans son conteneur.
+# Grafana et Alloy utilisent http://loki:3100 pour communiquer avec lui.
+server:
+  http_listen_port: 3100
+
+# Configuration commune du stockage et du fonctionnement mono-instance.
+# path_prefix pointe vers /loki, qui est persiste par le volume Docker loki_data.
+common:
+  instance_addr: 127.0.0.1
+  path_prefix: /loki
+  storage:
+    filesystem:
+      # Les chunks contiennent les donnees de logs compressees.
+      chunks_directory: /loki/chunks
+      # Dossier prevu pour les regles Loki, meme si on n'en utilise pas encore.
+      rules_directory: /loki/rules
+  # Une seule instance Loki tourne dans la stack, donc un seul replica suffit.
+  replication_factor: 1
+  ring:
+    kvstore:
+      # Stockage en memoire adapte a une instance Loki unique.
+      store: inmemory
+
+# Cache local pour accelerer certaines requetes Grafana sur une periode donnee.
+query_range:
+  results_cache:
+    cache:
+      embedded_cache:
+        enabled: true
+        max_size_mb: 100
+
+# Schema de stockage utilise par Loki pour indexer et retrouver les logs.
+# Le couple tsdb + filesystem est adapte a une petite stack auto-hebergee.
+schema_config:
+  configs:
+    - from: 2024-01-01
+      store: tsdb
+      object_store: filesystem
+      schema: v13
+      index:
+        # Prefixe des fichiers d'index dans le stockage Loki.
+        prefix: index_
+        # Un index par jour, standard avec ce schema.
+        period: 24h
+
+# Limite de retention globale des logs dans Loki.
+# 720h = 30 jours. Les logs plus anciens deviennent supprimables par le compactor.
+limits_config:
+  retention_period: 720h
+
+# Le compactor nettoie et compacte les donnees Loki.
+# Il applique aussi la retention definie dans limits_config.
+compactor:
+  working_directory: /loki/compactor
+  # Frequence de verification/compaction.
+  compaction_interval: 10m
+  # Active la suppression automatique des logs expires.
+  retention_enabled: true
+  # Delai de securite avant suppression effective apres expiration.
+  retention_delete_delay: 2h
+  # Nombre de workers utilises pour supprimer les donnees expirees.
+  retention_delete_worker_count: 150
+  # Stockage des demandes de suppression, necessaire avec le compactor.
+  delete_request_store: filesystem
+
+# Bloc de configuration du moteur de regles Loki.
+# On ne s'en sert pas encore, mais Loki attend souvent ce bloc dans une config complete.
+ruler:
+  alertmanager_url: http://localhost:9093
