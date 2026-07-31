@@ -87,10 +87,13 @@ jobs:
         run: |
           mkdir -p ../wikis
 
-          mkdir -p rag_orchestrator
+          mkdir -p rag_embedder
           mkdir -p rag_evaluator
           mkdir -p rag_ihm
           mkdir -p rag_mcp
+          mkdir -p rag_orchestrator
+          mkdir -p rag_reranker
+          mkdir -p rag_retriever
           mkdir -p pocket-id
 
           cat > .env <<EOF
@@ -99,10 +102,13 @@ jobs:
           POSTGRES_PASSWORD=postgres
           EOF
 
-          touch rag_orchestrator/.env
+          touch rag_embedder/.env
           touch rag_evaluator/.env
           touch rag_ihm/.env
           touch rag_mcp/.env
+          touch rag_orchestrator/.env
+          touch rag_reranker/.env
+          touch rag_retriever/.env
           touch pocket-id/.env
 
           # GitHub Actions est sensible a la casse des noms de fichiers.
