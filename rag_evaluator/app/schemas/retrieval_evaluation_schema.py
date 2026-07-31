@@ -6,3 +6,4 @@ class RetrievalEvaluationBase(BaseModel):
     ndcg: float
     recall: float
     precision: float
+    source_hit_at_5: float = 0

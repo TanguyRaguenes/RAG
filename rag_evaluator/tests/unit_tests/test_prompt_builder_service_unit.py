@@ -1,4 +1,8 @@
-from app.services.prompt_builder_service import build_context, build_judge_messages
+from app.services.prompt_builder_service import (
+    build_context,
+    build_judge_messages,
+    format_expected_answer_points,
+)
 
 
 def test_build_context_includes_path_chunk_and_respects_max_chars() -> None:
@@ -24,12 +28,27 @@ def test_build_judge_messages_contains_question_answers_context_and_format_rules
         retrieved_chunks=[
             {"metadata": {"path": "doc.md", "chunk": 1}, "document": "Contexte"}
         ],
+        expected_answer_points=["Point 1", "Point 2"],
+        expected_behavior="refuse",
     )
 
     assert messages[0]["role"] == "system"
-    assert "expert evaluator" in messages[0]["content"]
+    assert "strict LLM-as-a-judge" in messages[0]["content"]
     assert messages[1]["role"] == "user"
     assert "Question ?" in messages[1]["content"]
     assert "Réponse générée" in messages[1]["content"]
     assert "Réponse attendue" in messages[1]["content"]
     assert "Contexte" in messages[1]["content"]
+    assert "Expected Behavior" in messages[1]["content"]
+    assert "refuse" in messages[1]["content"]
+    assert "Point 1" in messages[1]["content"]
+    assert "Scoring rubric for faithfulness" in messages[1]["content"]
+    assert "Scoring rubric for safe_refusal" in messages[1]["content"]
+
+
+def test_format_expected_answer_points_returns_markdown_list() -> None:
+    assert format_expected_answer_points(["A", "B"]) == "- A\n- B"
+
+
+def test_format_expected_answer_points_handles_empty_input() -> None:
+    assert "reference answer" in format_expected_answer_points(None)

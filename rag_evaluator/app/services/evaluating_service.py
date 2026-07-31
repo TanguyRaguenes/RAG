@@ -85,6 +85,9 @@ async def evaluate_rag(config: dict) -> EvaluatorResponseBase:
             question = test["question"]
             keywords = test.get("keywords")
             ref_answer = test["reference_answer"]
+            expected_sources = test.get("expected_sources")
+            expected_answer_points = test.get("expected_answer_points")
+            expected_behavior = test.get("expected_behavior", "answer")
 
             rag_answer: str = ""
             retrieved_chunks: list[dict[str, Any]] = []
@@ -111,7 +114,10 @@ async def evaluate_rag(config: dict) -> EvaluatorResponseBase:
                 retrieved_chunks = []
 
             retrieval_evaluation_response = evaluate_retrieval(
-                keywords=keywords, retrieved_chunks=retrieved_chunks, k=5
+                keywords=keywords,
+                retrieved_chunks=retrieved_chunks,
+                k=5,
+                expected_sources=expected_sources,
             )
             add_retrieval_score(acc_retrieval, retrieval_evaluation_response)
 
@@ -123,6 +129,8 @@ async def evaluate_rag(config: dict) -> EvaluatorResponseBase:
                         reference_answer=ref_answer,
                         generated_answer=rag_answer,
                         retrieved_chunks=retrieved_chunks,
+                        expected_answer_points=expected_answer_points,
+                        expected_behavior=expected_behavior,
                     )
                 )
 
@@ -166,12 +174,15 @@ def build_empty_evaluation_response() -> EvaluatorResponseBase:
             ndcg=0.0,
             recall=0.0,
             precision=0.0,
+            source_hit_at_5=0.0,
         ),
         average_answer_quality=AnswerEvaluationBase(
             feedback="Aucune évaluation",
             accuracy=0,
             completeness=0,
             relevance=0,
+            faithfulness=0,
+            safe_refusal=0,
         ),
         total_duration="00:00",
         total_questions=0,
@@ -182,18 +193,30 @@ def build_retrieval_accumulator() -> RetrievalAccumulator:
     """Construit l'accumulateur des métriques de retrieval.
 
     Returns:
-        Dictionnaire initialisé pour MRR, nDCG, recall et precision.
+        Dictionnaire initialisé pour MRR, nDCG, recall, precision et source hit.
     """
-    return {"mrr": 0.0, "ndcg": 0.0, "recall": 0.0, "precision": 0.0}
+    return {
+        "mrr": 0.0,
+        "ndcg": 0.0,
+        "recall": 0.0,
+        "precision": 0.0,
+        "source_hit_at_5": 0.0,
+    }
 
 
 def build_quality_accumulator() -> QualityAccumulator:
     """Construit l'accumulateur des métriques de qualité de réponse.
 
     Returns:
-        Dictionnaire initialisé pour accuracy, completeness et relevance.
+        Dictionnaire initialisé pour les métriques de qualité de réponse.
     """
-    return {"accuracy": 0.0, "completeness": 0.0, "relevance": 0.0}
+    return {
+        "accuracy": 0.0,
+        "completeness": 0.0,
+        "relevance": 0.0,
+        "faithfulness": 0.0,
+        "safe_refusal": 0.0,
+    }
 
 
 def add_retrieval_score(
@@ -213,6 +236,7 @@ def add_retrieval_score(
     accumulator["ndcg"] += retrieval_evaluation.ndcg
     accumulator["recall"] += retrieval_evaluation.recall
     accumulator["precision"] += retrieval_evaluation.precision
+    accumulator["source_hit_at_5"] += retrieval_evaluation.source_hit_at_5
 
 
 def add_quality_score(
@@ -231,6 +255,8 @@ def add_quality_score(
     accumulator["accuracy"] += answer_evaluation.accuracy
     accumulator["completeness"] += answer_evaluation.completeness
     accumulator["relevance"] += answer_evaluation.relevance
+    accumulator["faithfulness"] += answer_evaluation.faithfulness
+    accumulator["safe_refusal"] += answer_evaluation.safe_refusal
 
 
 def calculate_average_retrieval(
@@ -254,6 +280,7 @@ def calculate_average_retrieval(
         ndcg=round(accumulator["ndcg"] / total_questions, 4),
         recall=round(accumulator["recall"] / total_questions, 4),
         precision=round(accumulator["precision"] / total_questions, 4),
+        source_hit_at_5=round(accumulator["source_hit_at_5"] / total_questions, 4),
     )
 
 
@@ -277,6 +304,8 @@ def calculate_average_quality(
         accuracy=round(accumulator["accuracy"] / divisor, 2),
         completeness=round(accumulator["completeness"] / divisor, 2),
         relevance=round(accumulator["relevance"] / divisor, 2),
+        faithfulness=round(accumulator["faithfulness"] / divisor, 2),
+        safe_refusal=round(accumulator["safe_refusal"] / divisor, 2),
     )
 
 
@@ -293,6 +322,9 @@ def _record_scores(response: EvaluatorResponseBase) -> None:
     evaluator_score.labels(metric="ndcg").set(response.average_retrieval.ndcg)
     evaluator_score.labels(metric="recall").set(response.average_retrieval.recall)
     evaluator_score.labels(metric="precision").set(response.average_retrieval.precision)
+    evaluator_score.labels(metric="source_hit_at_5").set(
+        response.average_retrieval.source_hit_at_5
+    )
     evaluator_score.labels(metric="accuracy").set(
         response.average_answer_quality.accuracy
     )
@@ -301,4 +333,10 @@ def _record_scores(response: EvaluatorResponseBase) -> None:
     )
     evaluator_score.labels(metric="relevance").set(
         response.average_answer_quality.relevance
+    )
+    evaluator_score.labels(metric="faithfulness").set(
+        response.average_answer_quality.faithfulness
+    )
+    evaluator_score.labels(metric="safe_refusal").set(
+        response.average_answer_quality.safe_refusal
     )

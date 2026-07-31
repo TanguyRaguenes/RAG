@@ -6,7 +6,14 @@ from app.services import evaluating_answer_service as service
 
 class FakeJudgeOutput:
     def model_dump(self) -> dict:
-        return {"feedback": "ok", "accuracy": 4, "completeness": 3, "relevance": 5}
+        return {
+            "feedback": "ok",
+            "accuracy": 4,
+            "completeness": 3,
+            "relevance": 5,
+            "faithfulness": 4,
+            "safe_refusal": 5,
+        }
 
 
 class FakeParser:
@@ -39,10 +46,15 @@ async def test_evaluate_answer_uses_local_judge_client(
         "generated",
         "reference",
         [],
+        expected_answer_points=["point attendu"],
+        expected_behavior="answer",
     )
 
     assert isinstance(result, AnswerEvaluationBase)
     assert result.accuracy == 4
+    assert result.faithfulness == 4
+    assert calls[0][1]["expected_answer_points"] == ["point attendu"]
+    assert calls[0][1]["expected_behavior"] == "answer"
     assert calls[1] == (
         "local",
         {"evaluation_method": {"use_api_openai": False}},
@@ -80,8 +92,11 @@ async def test_evaluate_answer_uses_openai_judge_client(
         "generated",
         "reference",
         [],
+        expected_answer_points=["refuser"],
+        expected_behavior="refuse",
     )
 
     assert result.relevance == 5
+    assert result.safe_refusal == 5
     assert calls[0][0]["model"] == "gpt-4o"
     assert calls[0][1:] == (12, "https://api.openai.com/v1/chat/completions", "api-key")

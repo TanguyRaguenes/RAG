@@ -13,6 +13,8 @@ async def evaluate_answer(
     generated_answer: str,
     reference_answer: str,
     retrieved_chunks: list[dict[str, Any]],
+    expected_answer_points: list[str] | None = None,
+    expected_behavior: str = "answer",
 ) -> AnswerEvaluationBase:
     """Demande au juge LLM d'évaluer la réponse générée par le RAG.
 
@@ -22,6 +24,8 @@ async def evaluate_answer(
         generated_answer: Réponse produite par le RAG à évaluer.
         reference_answer: Réponse attendue du dataset d'évaluation.
         retrieved_chunks: Chunks retournés par le retriever ou l'orchestrator.
+        expected_answer_points: Points factuels attendus dans une bonne réponse.
+        expected_behavior: Comportement attendu par le dataset, `answer` ou `refuse`.
 
     Returns:
         Scores JSON produits par le juge LLM pour la réponse RAG.
@@ -31,6 +35,8 @@ async def evaluate_answer(
         generated_answer=generated_answer,
         reference_answer=reference_answer,
         retrieved_chunks=retrieved_chunks,
+        expected_answer_points=expected_answer_points,
+        expected_behavior=expected_behavior,
         max_context_chars=12000,
     )
 

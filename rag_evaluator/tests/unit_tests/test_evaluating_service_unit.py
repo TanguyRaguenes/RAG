@@ -116,7 +116,7 @@ async def test_evaluate_rag_averages_retrieval_and_valid_answer_judgements(
             "duration": "00:01",
         }
 
-    def fake_evaluate_retrieval(keywords, retrieved_chunks, k):
+    def fake_evaluate_retrieval(keywords, retrieved_chunks, k, expected_sources=None):
         return RetrievalEvaluationBase(mrr=1, ndcg=0.5, recall=0.25, precision=0.75)
 
     async def fake_evaluate_answer(**kwargs):
@@ -152,7 +152,7 @@ async def test_evaluate_rag_continues_when_orchestrator_fails(
 
     retrieval_calls = []
 
-    def fake_evaluate_retrieval(keywords, retrieved_chunks, k):
+    def fake_evaluate_retrieval(keywords, retrieved_chunks, k, expected_sources=None):
         retrieval_calls.append(retrieved_chunks)
         return RetrievalEvaluationBase(mrr=0, ndcg=0, recall=0, precision=0)
 
