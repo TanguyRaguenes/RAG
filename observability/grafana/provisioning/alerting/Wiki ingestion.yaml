@@ -1,0 +1,72 @@
+apiVersion: 1
+
+groups:
+  - orgId: 1
+    name: Wiki ingestion
+    folder: RAG
+    interval: 1m
+    rules:
+      - uid: rag-wiki-ingestion-failed
+        title: RAG wiki ingestion failed
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange:
+              from: 900
+              to: 0
+            datasourceUid: loki
+            model:
+              datasource:
+                type: loki
+                uid: loki
+              editorMode: code
+              expr: sum(count_over_time({service="rag-ingest-wikis"} |= "RAG wiki ingestion failed" [15m]))
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              queryType: range
+              refId: A
+          - refId: B
+            datasourceUid: __expr__
+            model:
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              reducer: last
+              refId: B
+              type: reduce
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params:
+                      - 0
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params:
+                      - C
+                  reducer:
+                    params: []
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: B
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        noDataState: OK
+        execErrState: Error
+        for: 1m
+        annotations:
+          description: Le cron d'ingestion des wikis a journalise un echec dans les 15 dernieres minutes. Verifier /var/log/rag-ingest-wikis.log, le dossier des wikis et les endpoints retriever/embedder.
+          summary: Ingestion des wikis en echec.
+        isPaused: false
+        notification_settings:
+          receiver: Discord serveur RAG

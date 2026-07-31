@@ -1,16 +1,51 @@
 #!/bin/sh
 set -eu
 
+ENV_FILE="{{ deploy_dir }}/.env"
+RAG_WIKIS_PATH_FROM_ENV=""
+
+if [ -f "$ENV_FILE" ]; then
+    RAG_WIKIS_PATH_FROM_ENV=$(sed -n 's/^RAG_WIKIS_PATH=//p' "$ENV_FILE" | tail -n 1)
+fi
+
+WIKIS_DIR=${RAG_WIKIS_PATH:-${RAG_WIKIS_PATH_FROM_ENV:-{{ deploy_dir }}/wikis}}
+
+log() {
+    printf '%s %s\n' "$(date -u '+%Y-%m-%dT%H:%M:%SZ')" "$*"
+}
+
 echo "============================================================"
-echo "RAG wiki ingestion started at $(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+log "RAG wiki ingestion started"
+
+if [ ! -d "$WIKIS_DIR" ]; then
+    log "RAG wiki ingestion failed: ingestion not triggered because wiki directory does not exist: $WIKIS_DIR"
+    echo "============================================================"
+    exit 1
+fi
+
+if [ -z "$(find "$WIKIS_DIR" -type f -name '*.md' ! -path '*/.git/*' -print -quit)" ]; then
+    log "RAG wiki ingestion failed: ingestion not triggered because wiki directory is empty or contains no Markdown files: $WIKIS_DIR"
+    echo "============================================================"
+    exit 1
+fi
 
 echo "Deleting existing wiki collection"
-curl -fsS -X POST http://127.0.0.1:8001/delete_collection
+if ! curl -fsS -X POST http://127.0.0.1:8001/delete_collection; then
+    printf '\n'
+    log "RAG wiki ingestion failed: collection deletion request failed"
+    echo "============================================================"
+    exit 1
+fi
 printf '\n'
 
 echo "Ingesting wiki documents"
-curl -fsS -X POST http://127.0.0.1:8002/ingest/bulk
+if ! curl -fsS -X POST http://127.0.0.1:8002/ingest/bulk; then
+    printf '\n'
+    log "RAG wiki ingestion failed: bulk ingestion request failed"
+    echo "============================================================"
+    exit 1
+fi
 printf '\n'
 
-echo "RAG wiki ingestion finished at $(date -u '+%Y-%m-%dT%H:%M:%SZ')"
+log "RAG wiki ingestion finished"
 echo "============================================================"
