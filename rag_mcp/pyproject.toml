@@ -16,3 +16,12 @@ dev = [
     "debugpy",
     "pytest>=9.0.2",
 ]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+asyncio_mode = "auto"
+
+[tool.coverage.run]
+omit = [
+    "app/server.py",
+]

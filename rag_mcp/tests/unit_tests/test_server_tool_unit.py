@@ -1,8 +1,9 @@
 import httpx
 import pytest
-import server
-from config import McpConfig
 from mcp.server.auth.provider import AccessToken
+
+from app import server
+from app.core.config import McpConfig
 
 
 def _config() -> McpConfig:

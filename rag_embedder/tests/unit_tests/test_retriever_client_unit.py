@@ -2,6 +2,7 @@ from typing import ClassVar
 
 import httpx
 import pytest
+
 from app.core.exceptions import RetrievalServiceException
 from app.dal.clients import retriever_client
 from app.domain.models.vector_store_item_model import VectorStoreItemsBase

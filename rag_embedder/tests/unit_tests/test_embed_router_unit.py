@@ -1,4 +1,5 @@
 import pytest
+
 from app.api.routers import embed_router
 from app.domain.models.document_model import DocumentBase, DocumentsBase
 from app.domain.models.embed_request_model import EmbedRequestBase

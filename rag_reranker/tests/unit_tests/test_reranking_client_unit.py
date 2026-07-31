@@ -1,6 +1,7 @@
 from typing import ClassVar
 
 import pytest
+
 from app.core.exceptions import (
     RerankingResponseFormatException,
     RerankingServiceException,

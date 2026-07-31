@@ -2,6 +2,7 @@ import base64
 import json
 
 import pytest
+
 from app.services import auth_service
 from app.services.auth_service import OidcConfig
 

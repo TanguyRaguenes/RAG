@@ -2,6 +2,7 @@ from typing import ClassVar
 
 import httpx
 import pytest
+
 from app.core.exceptions import LlmApiException
 from app.dal.clients import llm_client, oidc_client
 

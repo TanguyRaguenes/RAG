@@ -1,6 +1,7 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
+
 from app.services.usage_tracking_service import (
     _decode_chunks,
     _get_default_user_monthly_token_quota,
@@ -34,7 +35,7 @@ def test_get_default_user_monthly_token_quota_rejects_invalid_values(
 
 
 def test_quota_row_to_response_calculates_remaining_tokens_and_ratio() -> None:
-    start = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    start = datetime(2026, 1, 1, tzinfo=UTC)
     row = {
         "utilisateur_id": "user-1",
         "email": "user@example.com",

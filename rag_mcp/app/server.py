@@ -1,14 +1,15 @@
 import logging
 
 import httpx
-from config import McpAuthError, McpError, load_mcp_config
-from log_config import configure_json_logging
 from mcp.server.auth.middleware.auth_context import get_access_token
 from mcp.server.auth.settings import AuthSettings
 from mcp.server.mcpserver.server import MCPServer
 from mcp.server.transport_security import TransportSecuritySettings
-from rag_client import retrieve_documentation_chunks
-from token_verifier import PocketIdTokenVerifier
+
+from app.core.config import McpAuthError, McpError, load_mcp_config
+from app.core.logging import configure_json_logging
+from app.core.token_verifier import PocketIdTokenVerifier
+from app.dal.clients.rag_client import retrieve_documentation_chunks
 
 configure_json_logging("rag_mcp")
 logger = logging.getLogger(__name__)

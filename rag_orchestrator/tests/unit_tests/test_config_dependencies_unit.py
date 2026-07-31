@@ -3,11 +3,12 @@ from types import SimpleNamespace
 
 import jwt
 import pytest
+from fastapi import HTTPException
+from fastapi.security import HTTPAuthorizationCredentials
+
 from app.api import dependencies
 from app.core import config as config_module
 from app.schemas.authenticated_user_schema import AuthenticatedUser
-from fastapi import HTTPException
-from fastapi.security import HTTPAuthorizationCredentials
 
 
 def test_get_config_and_db_pool_return_app_state_values() -> None:

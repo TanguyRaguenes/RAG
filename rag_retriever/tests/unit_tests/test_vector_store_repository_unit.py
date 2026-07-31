@@ -1,3 +1,7 @@
+import pytest
+
+from app.core.exceptions import VectorStoreException
+from app.dal.repositories import vector_store_repository as repository_module
 from app.dal.repositories.vector_store_repository import (
     VectorStoreRepository,
     build_enriched_chunks,
@@ -155,10 +159,82 @@ class FakeCollection:
         return self.query_payload
 
 
+class FailingCollection:
+    def __init__(self, failure: Exception | None = None):
+        self.failure = failure or RuntimeError("chroma unavailable")
+
+    def upsert(self, **kwargs):
+        raise self.failure
+
+    def get(self, **kwargs):
+        raise self.failure
+
+    def delete(self, **kwargs):
+        raise self.failure
+
+    def query(self, **kwargs):
+        raise self.failure
+
+
+class FakeChromaClient:
+    def __init__(self):
+        self.get_or_create_calls = []
+        self.delete_calls = []
+
+    def get_or_create_collection(self, **kwargs):
+        self.get_or_create_calls.append(kwargs)
+        return "collection"
+
+    def delete_collection(self, **kwargs):
+        self.delete_calls.append(kwargs)
+
+
 def _repository() -> VectorStoreRepository:
     repository = VectorStoreRepository.__new__(VectorStoreRepository)
     repository.config = {}
     return repository
+
+
+def test_repository_initializes_http_client_and_creates_cosine_collection(
+    monkeypatch,
+) -> None:
+    clients = []
+
+    def fake_http_client(host: str, port: int):
+        client = FakeChromaClient()
+        clients.append((host, port, client))
+        return client
+
+    monkeypatch.setattr(repository_module.chromadb, "HttpClient", fake_http_client)
+
+    repository = VectorStoreRepository(
+        {"collection": {"name": "wiki"}}, "localhost", 8123
+    )
+    collection = repository.get_or_create_collection("wiki")
+
+    assert collection == "collection"
+    assert repository.config == {"collection": {"name": "wiki"}}
+    assert clients[0][:2] == ("localhost", 8123)
+    assert clients[0][2].get_or_create_calls == [
+        {"name": "wiki", "configuration": {"hnsw": {"space": "cosine"}}}
+    ]
+
+
+def test_get_or_create_collection_wraps_chroma_error(monkeypatch) -> None:
+    class FailingClient:
+        def get_or_create_collection(self, **kwargs):
+            raise RuntimeError("boom")
+
+    def fake_http_client(host: str, port: int):
+        return FailingClient()
+
+    monkeypatch.setattr(repository_module.chromadb, "HttpClient", fake_http_client)
+    repository = VectorStoreRepository({}, "localhost", 8123)
+
+    with pytest.raises(VectorStoreException) as exception_info:
+        repository.get_or_create_collection("wiki")
+
+    assert exception_info.value.details == {"collection": "wiki"}
 
 
 def test_insert_or_update_items_in_collection_upserts_all_fields() -> None:
@@ -182,6 +258,20 @@ def test_insert_or_update_items_in_collection_upserts_all_fields() -> None:
     ]
 
 
+def test_insert_or_update_items_in_collection_wraps_chroma_error() -> None:
+    items = VectorStoreItemsBase(
+        ids=["id"],
+        documents=["doc"],
+        embeddings=[[0.1]],
+        metadatas=[{"path": "doc.md"}],
+    )
+
+    with pytest.raises(VectorStoreException) as exception_info:
+        _repository().insert_or_update_items_in_collection(FailingCollection(), items)
+
+    assert exception_info.value.details == {"item_count": 1}
+
+
 def test_get_collection_items_maps_chroma_payload_to_saved_items() -> None:
     items = _repository().get_collection_items(
         FakeCollection(), ["id"], ["documents", "metadatas"]
@@ -190,6 +280,38 @@ def test_get_collection_items_maps_chroma_payload_to_saved_items() -> None:
     assert items[0].id == "id"
     assert items[0].chunk == "doc"
     assert items[0].metadatas == {"path": "doc.md"}
+
+
+def test_get_collection_items_wraps_chroma_error() -> None:
+    with pytest.raises(VectorStoreException) as exception_info:
+        _repository().get_collection_items(
+            FailingCollection(), ["id-1", "id-2"], ["documents"]
+        )
+
+    assert exception_info.value.details == {"item_count": 2}
+
+
+def test_delete_collection_by_name_delegates_to_client() -> None:
+    repository = _repository()
+    repository.client = FakeChromaClient()
+
+    repository.delete_collection_by_name("wiki")
+
+    assert repository.client.delete_calls == [{"name": "wiki"}]
+
+
+def test_delete_collection_by_name_wraps_chroma_error() -> None:
+    class FailingClient:
+        def delete_collection(self, **kwargs):
+            raise RuntimeError("boom")
+
+    repository = _repository()
+    repository.client = FailingClient()
+
+    with pytest.raises(VectorStoreException) as exception_info:
+        repository.delete_collection_by_name("wiki")
+
+    assert exception_info.value.details == {"collection": "wiki"}
 
 
 def test_delete_items_by_ids_ignores_empty_list_and_deletes_non_empty_list() -> None:
@@ -202,12 +324,39 @@ def test_delete_items_by_ids_ignores_empty_list_and_deletes_non_empty_list() -> 
     assert collection.delete_calls == [{"ids": ["id"]}]
 
 
+def test_delete_items_by_ids_wraps_chroma_error() -> None:
+    with pytest.raises(VectorStoreException) as exception_info:
+        _repository().delete_items_by_ids(FailingCollection(), ["id"])
+
+    assert exception_info.value.details == {"item_count": 1}
+
+
 def test_delete_all_items_deletes_existing_ids() -> None:
     collection = FakeCollection()
 
     _repository().delete_all_items(collection)
 
     assert collection.delete_calls == [{"ids": ["id"]}]
+
+
+def test_retrieve_chunks_returns_raw_chroma_response() -> None:
+    collection = FakeCollection()
+
+    result = _repository().retrieve_chunks(collection, [0.1], 3)
+
+    assert result == collection.query_payload
+    assert collection.query_call == {
+        "query_embeddings": [[0.1]],
+        "n_results": 3,
+        "include": ["documents", "metadatas"],
+    }
+
+
+def test_retrieve_chunks_wraps_chroma_error() -> None:
+    with pytest.raises(VectorStoreException) as exception_info:
+        _repository().retrieve_chunks(FailingCollection(), [0.1], 3)
+
+    assert exception_info.value.details == {"top_k": 3}
 
 
 def test_retrieve_chunks_filtered_filters_and_does_not_add_related_chunks() -> None:
@@ -227,6 +376,13 @@ def test_retrieve_chunks_filtered_filters_and_does_not_add_related_chunks() -> N
     assert collection.query_call["include"] == ["documents", "metadatas", "distances"]
 
 
+def test_retrieve_chunks_filtered_wraps_chroma_error() -> None:
+    with pytest.raises(VectorStoreException) as exception_info:
+        _repository().retrieve_chunks_filtered(FailingCollection(), [0.1], 3, 0.8, 1)
+
+    assert exception_info.value.details == {"top_k": 3, "minimum_similarity": 0.8}
+
+
 def test_retrieve_document_chunks_by_paths_deduplicates_paths_and_sorts_chunks() -> (
     None
 ):
@@ -239,6 +395,43 @@ def test_retrieve_document_chunks_by_paths_deduplicates_paths_and_sorts_chunks()
 
     assert [chunk["metadata"]["chunk_index"] for chunk in result] == [0, 1, 2]
     assert [call["where"] for call in collection.get_calls] == [{"path": "a.md"}]
+
+
+def test_retrieve_document_chunks_by_paths_wraps_chroma_error() -> None:
+    with pytest.raises(VectorStoreException) as exception_info:
+        _repository().retrieve_document_chunks_by_paths(FailingCollection(), ["a.md"])
+
+    assert exception_info.value.details == {"path": "a.md"}
+
+
+def test_retrieve_related_chunks_adds_non_duplicate_linked_documents() -> None:
+    class RelatedCollection:
+        def get(self, **kwargs):
+            return {
+                "documents": ["linked content"],
+                "metadatas": [
+                    {"path": "linked.md", "title": "Linked", "chunk_index": 0}
+                ],
+            }
+
+    chunks = [
+        {
+            "document": "source content",
+            "metadata": {"has_links": True, "related_links": "linked.md"},
+            "distance": 0.1,
+            "similarity": 0.9,
+        }
+    ]
+
+    result = _repository().retrieve_related_chunks(chunks, RelatedCollection(), 1)
+
+    assert len(result) == 2
+    assert result[1] == {
+        "document": "CONTEXTE : DOCUMENT LIÉ (Détail)\nlinked content",
+        "metadata": {"path": "linked.md", "title": "Linked", "chunk_index": 0},
+        "distance": 0.0,
+        "similarity": 0.9,
+    }
 
 
 def test_build_enriched_chunks_and_filter_by_similarity_sort_results() -> None:

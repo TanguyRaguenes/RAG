@@ -1,4 +1,6 @@
 import pytest
+from fastapi import HTTPException
+
 from app.api.routers import query_router
 from app.schemas.ask_question_request_schema import AskQuestionRequestBase
 from app.schemas.ask_question_response_schema import AskQuestionResponseBase
@@ -6,7 +8,6 @@ from app.schemas.authenticated_user_schema import AuthenticatedUser
 from app.schemas.retrieve_chunks_request_schema import RetrieveChunksRequestBase
 from app.schemas.retrieve_chunks_response_schema import RetrieveChunksResponseBase
 from app.services.usage_tracking_service import QuotaExceededError
-from fastapi import HTTPException
 
 
 def _user() -> AuthenticatedUser:

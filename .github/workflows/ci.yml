@@ -28,7 +28,7 @@ jobs:
           - service: rag_ihm
             coverage: app
           - service: rag_mcp
-            coverage: .
+            coverage: app
 
     steps:
       # 1. Recupere le code du depot dans la VM GitHub

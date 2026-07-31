@@ -2,8 +2,9 @@ import json
 from typing import ClassVar
 
 import pytest
-import rag_client
-from config import McpConfig
+
+from app.core.config import McpConfig
+from app.dal.clients import rag_client
 
 
 def _config() -> McpConfig:

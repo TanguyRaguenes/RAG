@@ -1,9 +1,10 @@
 import json
 
 import pytest
-from config import McpConfigError, load_mcp_config
-from rag_client import format_retrieved_chunks_response
-from server import AUTH_SETTINGS, TRANSPORT_SECURITY
+
+from app.core.config import McpConfigError, load_mcp_config
+from app.dal.clients.rag_client import format_retrieved_chunks_response
+from app.server import AUTH_SETTINGS, TRANSPORT_SECURITY
 
 
 def test_format_retrieved_chunks_response_returns_empty_message() -> None:

@@ -24,8 +24,8 @@ CMD ["sh", "-lc", "\
   if [ \"$DEBUG\" = \"1\" ]; then \
     exec uv run --no-sync python -Xfrozen_modules=off -m debugpy \
       --listen 0.0.0.0:5678 \
-      server.py; \
+      -m app.server; \
   else \
-    exec uv run --no-sync python server.py; \
+    exec uv run --no-sync python -m app.server; \
   fi \
 "]

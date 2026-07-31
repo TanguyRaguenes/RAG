@@ -2,7 +2,8 @@ import json
 from typing import Any
 
 import httpx
-from config import McpConfig, McpRagClientError
+
+from app.core.config import McpConfig, McpRagClientError
 
 
 async def retrieve_documentation_chunks(

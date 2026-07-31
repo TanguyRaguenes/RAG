@@ -1,4 +1,8 @@
-from token_verifier import _extract_client_id, _extract_expires_at, _extract_scopes
+from app.core.token_verifier import (
+    _extract_client_id,
+    _extract_expires_at,
+    _extract_scopes,
+)
 
 
 def test_extract_client_id_prefers_explicit_client_id() -> None:

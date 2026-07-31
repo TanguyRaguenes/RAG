@@ -1,6 +1,7 @@
 from typing import ClassVar
 
 import pytest
+
 from app.core.exceptions import RerankerContainerException, RetrieverContainerException
 from app.dal.clients import embedder_client, reranker_client, retriever_client
 

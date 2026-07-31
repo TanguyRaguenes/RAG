@@ -1,4 +1,5 @@
 import streamlit as st
+
 from app.components.chat import (
     build_assistant_message,
     build_user_message,

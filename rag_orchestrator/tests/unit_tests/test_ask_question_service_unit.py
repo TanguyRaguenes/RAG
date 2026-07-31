@@ -2,6 +2,7 @@ from decimal import Decimal
 from typing import Any
 
 import pytest
+
 from app.services import ask_question_service
 from app.services.ask_question_service import calculate_cost, design_source
 

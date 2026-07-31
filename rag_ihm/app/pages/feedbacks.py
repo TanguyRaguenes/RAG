@@ -1,6 +1,7 @@
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta
 
 import streamlit as st
+
 from app.components.common import render_api_error, render_page_header
 from app.services.auth_service import (
     get_access_token,
@@ -34,7 +35,7 @@ def _render_period_selector() -> tuple[date, date]:
     Returns:
         Dates de début et de fin choisies pour filtrer les feedbacks affichés.
     """
-    today = datetime.now(timezone.utc).date()
+    today = datetime.now(UTC).date()
     default_start = today - timedelta(days=7)
 
     start_column, end_column = st.columns(2)
