@@ -2,7 +2,6 @@ from typing import Any
 
 import streamlit as st
 
-
 CHAT_MESSAGES_KEY = "chat_messages"
 CHAT_PENDING_PROMPT_KEY = "chat_pending_prompt"
 DASHBOARD_RESULT_KEY = "dashboard_result"

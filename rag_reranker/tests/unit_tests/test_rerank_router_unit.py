@@ -1,5 +1,4 @@
 import pytest
-
 from app.api.routers import rerank_router
 from app.domain.models.rerank_chunks_request_model import RerankChunksRequestBase
 

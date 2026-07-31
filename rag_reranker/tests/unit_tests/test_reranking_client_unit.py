@@ -1,5 +1,6 @@
-import pytest
+from typing import ClassVar
 
+import pytest
 from app.core.exceptions import (
     RerankingResponseFormatException,
     RerankingServiceException,
@@ -19,7 +20,7 @@ class FakeResponse:
 
 
 class FakeAsyncClient:
-    calls: list[dict] = []
+    calls: ClassVar[list[dict]] = []
 
     def __init__(self, timeout: int):
         self.timeout = timeout

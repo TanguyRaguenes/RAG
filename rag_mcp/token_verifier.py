@@ -3,10 +3,9 @@ import logging
 from typing import Any
 
 import jwt
+from config import McpConfig
 from jwt import PyJWKClient
 from mcp.server.auth.provider import AccessToken
-
-from config import McpConfig
 
 logger = logging.getLogger(__name__)
 

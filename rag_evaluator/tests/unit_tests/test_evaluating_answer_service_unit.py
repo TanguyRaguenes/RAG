@@ -1,6 +1,5 @@
 import pytest
-
-from app.schemas.Answer_evaluation_schema import AnswerEvaluationBase
+from app.schemas.answer_evaluation_schema import AnswerEvaluationBase
 from app.services import evaluating_answer_service as service
 
 

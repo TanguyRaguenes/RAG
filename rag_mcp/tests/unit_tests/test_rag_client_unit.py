@@ -1,7 +1,7 @@
 import json
+from typing import ClassVar
 
 import pytest
-
 import rag_client
 from config import McpConfig
 
@@ -30,7 +30,7 @@ class FakeResponse:
 
 
 class FakeAsyncClient:
-    calls: list[dict] = []
+    calls: ClassVar[list[dict]] = []
 
     def __init__(self, timeout: int):
         self.timeout = timeout

@@ -1,7 +1,6 @@
 from datetime import datetime, timezone
 
 import pytest
-
 from app.services.usage_tracking_service import (
     _decode_chunks,
     _get_default_user_monthly_token_quota,
@@ -39,6 +38,8 @@ def test_quota_row_to_response_calculates_remaining_tokens_and_ratio() -> None:
     row = {
         "utilisateur_id": "user-1",
         "email": "user@example.com",
+        "display_name": "User Example",
+        "preferred_username": "user.example",
         "max_tokens_par_mois": 100,
         "consumed_tokens": 125,
         "actif": True,
@@ -51,6 +52,8 @@ def test_quota_row_to_response_calculates_remaining_tokens_and_ratio() -> None:
     assert response.remaining_tokens == 0
     assert response.usage_ratio == 1.0
     assert response.date_debut == start
+    assert response.display_name == "User Example"
+    assert response.preferred_username == "user.example"
 
 
 def test_normalize_groups_trims_and_lowercases_values() -> None:

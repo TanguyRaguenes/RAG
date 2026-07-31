@@ -1,8 +1,9 @@
-import pytest
-import httpx
+from typing import ClassVar
 
-from app.dal.client import judge_client as client
+import httpx
+import pytest
 from app.core.exceptions import EvaluatorClientError
+from app.dal.client import judge_client as client
 from app.dal.client.judge_client import (
     build_auth_headers,
     build_judge_payload,
@@ -84,7 +85,7 @@ class FakeResponse:
 
 
 class FakeAsyncClient:
-    calls: list[dict] = []
+    calls: ClassVar[list[dict]] = []
     response = FakeResponse({"choices": [{"message": {"content": "ok"}}]})
 
     def __init__(self, timeout: int):

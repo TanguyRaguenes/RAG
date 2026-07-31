@@ -1,5 +1,4 @@
 import streamlit as st
-
 from app.components.common import (
     render_api_error,
     render_page_header,

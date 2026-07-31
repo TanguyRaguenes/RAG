@@ -1,48 +1,53 @@
 import logging
 
 import httpx
-from mcp.server.fastmcp import FastMCP
+from config import McpAuthError, McpError, load_mcp_config
+from log_config import configure_json_logging
 from mcp.server.auth.middleware.auth_context import get_access_token
 from mcp.server.auth.settings import AuthSettings
+from mcp.server.mcpserver.server import MCPServer
 from mcp.server.transport_security import TransportSecuritySettings
-
-from config import McpAuthError, McpError, load_mcp_config
 from rag_client import retrieve_documentation_chunks
 from token_verifier import PocketIdTokenVerifier
 
-config = load_mcp_config()
-
-mcp = FastMCP(
-    "RAG Entreprise",
-    auth=AuthSettings(
-        issuer_url=config.oidc_issuer,
-        required_scopes=config.required_scopes,
-        resource_server_url=config.resource_server_url,
-    ),
-    token_verifier=PocketIdTokenVerifier(config),
-    transport_security=TransportSecuritySettings(
-        enable_dns_rebinding_protection=True,
-        allowed_hosts=[
-            "127.0.0.1:*",
-            "localhost:*",
-            "[::1]:*",
-            "mcp.isilograginterne.fr",
-            "mcp.isilograginterne.fr:*",
-        ],
-        allowed_origins=[
-            "http://127.0.0.1:*",
-            "http://localhost:*",
-            "http://[::1]:*",
-            "https://mcp.isilograginterne.fr",
-        ],
-    ),
-)
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s %(levelname)s %(name)s %(message)s",
-)
+configure_json_logging("rag_mcp")
 logger = logging.getLogger(__name__)
 
+config = load_mcp_config()
+
+AUTH_SETTINGS = AuthSettings(
+    issuer_url=config.oidc_issuer,
+    required_scopes=config.required_scopes,
+    resource_server_url=config.resource_server_url,
+)
+TRANSPORT_SECURITY = TransportSecuritySettings(
+    enable_dns_rebinding_protection=True,
+    allowed_hosts=[
+        "127.0.0.1:*",
+        "localhost:*",
+        "[::1]:*",
+        "mcp.isilograginterne.fr",
+        "mcp.isilograginterne.fr:*",
+    ],
+    allowed_origins=[
+        "http://127.0.0.1:*",
+        "http://localhost:*",
+        "http://[::1]:*",
+        "https://mcp.isilograginterne.fr",
+    ],
+)
+
+
+def _create_mcp_server():
+    server = MCPServer(
+        "RAG Entreprise",
+        auth=AUTH_SETTINGS,
+        token_verifier=PocketIdTokenVerifier(config),
+    )
+    return server
+
+
+mcp = _create_mcp_server()
 TOOL_DESCRIPTION = """
 Recherche dans le RAG documentaire interne de l'entreprise.
 
@@ -127,6 +132,9 @@ async def interroger_documentation_interne(question: str) -> str:
 
 
 if __name__ == "__main__":
-    mcp.settings.port = 8000
-    mcp.settings.host = "0.0.0.0"
-    mcp.run(transport="streamable-http")
+    mcp.run(
+        transport="streamable-http",
+        host="0.0.0.0",
+        port=8000,
+        transport_security=TRANSPORT_SECURITY,
+    )

@@ -1,5 +1,4 @@
 import pytest
-
 from app.services import rag_api_client as client
 from app.services.rag_api_client import ChatApiConfig, EvaluatorApiConfig, RagApiError
 

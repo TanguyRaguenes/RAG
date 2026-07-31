@@ -1,5 +1,5 @@
-from app.domain.models.document_model import DocumentsBase
 from app.dal.files.markdown_reader import read_markdown_documents
+from app.domain.models.document_model import DocumentsBase
 
 
 async def load_documents() -> DocumentsBase:

@@ -2,8 +2,8 @@ import logging
 import time
 
 import asyncpg
-from opentelemetry import trace
 from fastapi import APIRouter, Depends, HTTPException
+from opentelemetry import trace
 
 from app.api.dependencies import get_config, get_current_user, get_db_pool
 from app.core.metrics import (
@@ -40,14 +40,17 @@ from app.services.usage_tracking_service import (
 router = APIRouter()
 logger = logging.getLogger(__name__)
 tracer = trace.get_tracer(__name__)
+config_dependency = Depends(get_config)
+current_user_dependency = Depends(get_current_user)
+db_pool_dependency = Depends(get_db_pool)
 
 
 @router.post("/ask_question", response_model=AskQuestionResponseBase)
 async def ask_question_route(
     body: AskQuestionRequestBase,
-    current_user: AuthenticatedUser = Depends(get_current_user),
-    config=Depends(get_config),
-    db_pool: asyncpg.Pool = Depends(get_db_pool),
+    current_user: AuthenticatedUser = current_user_dependency,
+    config=config_dependency,
+    db_pool: asyncpg.Pool = db_pool_dependency,
 ):
     """Traite une question utilisateur via le pipeline RAG complet.
 
@@ -159,9 +162,9 @@ async def ask_question_route(
 @router.post("/retrieve_chunks", response_model=RetrieveChunksResponseBase)
 async def retrieve_chunks_route(
     body: RetrieveChunksRequestBase,
-    current_user: AuthenticatedUser = Depends(get_current_user),
-    config=Depends(get_config),
-    db_pool: asyncpg.Pool = Depends(get_db_pool),
+    current_user: AuthenticatedUser = current_user_dependency,
+    config=config_dependency,
+    db_pool: asyncpg.Pool = db_pool_dependency,
 ):
     """Récupère les chunks pertinents pour le serveur MCP.
 

@@ -1,6 +1,7 @@
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 
-from contextlib import asynccontextmanager
 from app.core.config import load_config
 
 

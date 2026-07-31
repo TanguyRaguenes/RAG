@@ -1,6 +1,5 @@
 import math
 
-
 # Rappel format du dataset :
 # {
 # "question": "Quelle est la différence d'usage entre Kelio et Moffi ?",

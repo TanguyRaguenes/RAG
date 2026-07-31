@@ -1,3 +1,5 @@
+from typing import ClassVar
+
 import pytest
 from app.core.exceptions import EmbeddingServiceException
 from app.dal.clients import embedding_client
@@ -13,7 +15,7 @@ class FakeResponse:
 
 
 class FakeAsyncClient:
-    calls: list[dict] = []
+    calls: ClassVar[list[dict]] = []
 
     def __init__(self, timeout: int):
         self.timeout = timeout

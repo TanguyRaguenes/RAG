@@ -1,4 +1,5 @@
 import base64
+import binascii
 import html
 import json
 import os
@@ -9,7 +10,6 @@ from urllib.parse import urlencode
 
 import requests
 import streamlit as st
-
 
 ACCESS_TOKEN_KEY = "auth_access_token"
 ID_TOKEN_KEY = "auth_id_token"
@@ -193,7 +193,7 @@ def _decode_jwt_payload_without_verification(token: str) -> dict[str, Any]:
         payload += "=" * (-len(payload) % 4)
         decoded_payload = base64.urlsafe_b64decode(payload.encode("utf-8"))
         return json.loads(decoded_payload)
-    except Exception:
+    except (IndexError, UnicodeDecodeError, binascii.Error, json.JSONDecodeError):
         return {}
 
 

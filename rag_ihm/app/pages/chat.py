@@ -1,5 +1,4 @@
 import streamlit as st
-
 from app.components.chat import (
     build_assistant_message,
     build_user_message,
@@ -29,7 +28,6 @@ from app.state.session_state import (
     set_pending_prompt,
 )
 from app.styles.theme import apply_theme
-
 
 PROVIDER_OPTIONS = {
     "Cloud": "api",

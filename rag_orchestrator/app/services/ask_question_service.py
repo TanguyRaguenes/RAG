@@ -6,17 +6,17 @@ from typing import Any
 import asyncpg
 from opentelemetry import trace
 
-from app.dal.clients.llm_client import ask_question_to_api as ask_question_to_api_client
-from app.dal.clients.llm_client import ask_question_to_llm as ask_question_to_llm_client
-from app.dal.repositories.usage_repository import UsageRepository
 from app.core.metrics import (
     SERVICE_NAME,
     orchestrator_cost_total,
-    rag_cost_eur_total,
     orchestrator_tokens_total,
+    rag_cost_eur_total,
     rag_cost_usd_total,
     rag_tokens_total,
 )
+from app.dal.clients.llm_client import ask_question_to_api as ask_question_to_api_client
+from app.dal.clients.llm_client import ask_question_to_llm as ask_question_to_llm_client
+from app.dal.repositories.usage_repository import UsageRepository
 from app.schemas.ask_question_response_schema import AskQuestionResponseBase
 from app.services.prompt_builder_service import build_prompt
 from app.services.retrieve_chunks_service import retrieve_and_rerank_chunks
@@ -212,8 +212,8 @@ async def calculate_cost(
     output_tokens = Decimal(llm_response["usage"]["output_tokens"])
 
     cost = input_tokens * input_price / Decimal(
-        "1000000"
-    ) + output_tokens * output_price / Decimal("1000000")
+        1000000
+    ) + output_tokens * output_price / Decimal(1000000)
 
     return float(cost.quantize(Decimal("0.000001")))
 

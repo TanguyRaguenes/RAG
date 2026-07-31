@@ -1,6 +1,6 @@
+import httpx
 import jwt
 from jwt import PyJWKClient
-import httpx
 
 
 class OidcClient:
@@ -27,7 +27,9 @@ class OidcClient:
         self.audience = audience
         self.jwks_client = PyJWKClient(jwks_uri)
         self.userinfo_url = userinfo_url
-        self.pocket_id_api_url = pocket_id_api_url.rstrip("/") if pocket_id_api_url else None
+        self.pocket_id_api_url = (
+            pocket_id_api_url.rstrip("/") if pocket_id_api_url else None
+        )
         self.pocket_id_api_key = pocket_id_api_key
 
     def validate_token(self, token: str) -> dict:

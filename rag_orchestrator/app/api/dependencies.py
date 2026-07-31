@@ -41,6 +41,7 @@ def get_db_pool(request: Request) -> asyncpg.Pool:
 # - si le header est absent, FastAPI ne déclenche pas l'erreur tout seul ;
 # - on gère nous-mêmes l'erreur dans get_current_user.
 security = HTTPBearer(auto_error=False)
+security_dependency = Depends(security)
 
 
 @lru_cache
@@ -64,9 +65,12 @@ def get_auth_service() -> AuthService:
     return AuthService(oidc_client)
 
 
+auth_service_dependency = Depends(get_auth_service)
+
+
 async def get_current_user(
-    credentials: HTTPAuthorizationCredentials | None = Depends(security),
-    auth_service: AuthService = Depends(get_auth_service),
+    credentials: HTTPAuthorizationCredentials | None = security_dependency,
+    auth_service: AuthService = auth_service_dependency,
 ):
     """Valide le bearer token courant et retourne l'utilisateur authentifié.
 

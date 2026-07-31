@@ -2,7 +2,6 @@ from typing import Any
 
 import streamlit as st
 
-
 ROLE_ASSISTANT = "assistant"
 ROLE_USER = "user"
 FEEDBACK_STATE_PREFIX = "chat_feedback_"

@@ -6,8 +6,8 @@ from opentelemetry import trace
 
 from app.core.exceptions import EvaluatorClientError
 from app.core.metrics import (
-    evaluator_external_call_duration_seconds,
     evaluator_errors_total,
+    evaluator_external_call_duration_seconds,
 )
 
 tracer = trace.get_tracer(__name__)

@@ -1,6 +1,7 @@
+from typing import ClassVar
+
 import httpx
 import pytest
-
 from app.core.exceptions import EvaluatorClientError
 from app.dal.client import rag_orchestrator_client as client
 
@@ -23,7 +24,7 @@ class FakeResponse:
 
 
 class FakeAsyncClient:
-    calls: list[dict] = []
+    calls: ClassVar[list[dict]] = []
     response = FakeResponse({"llm_response": "ok"})
 
     def __init__(self, timeout: float):

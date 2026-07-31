@@ -10,7 +10,7 @@ from app.core.metrics import evaluator_questions_total, evaluator_score
 from app.dal.client.rag_orchestrator_client import ask_question
 from app.domain.models.ask_question_response_model import AskQuestionResponseBase
 from app.domain.models.chunk_model import ChunkBase
-from app.schemas.Answer_evaluation_schema import AnswerEvaluationBase
+from app.schemas.answer_evaluation_schema import AnswerEvaluationBase
 from app.schemas.evaluator_response_schema import EvaluatorResponseBase
 from app.schemas.retrieval_evaluation_schema import RetrievalEvaluationBase
 from app.services.evaluating_answer_service import evaluate_answer

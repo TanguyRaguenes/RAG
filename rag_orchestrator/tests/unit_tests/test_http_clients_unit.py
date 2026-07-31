@@ -1,6 +1,7 @@
-import pytest
+from typing import ClassVar
 
-from app.core.exceptions import RetrieverContainerException, RerankerContainerException
+import pytest
+from app.core.exceptions import RerankerContainerException, RetrieverContainerException
 from app.dal.clients import embedder_client, reranker_client, retriever_client
 
 
@@ -16,7 +17,7 @@ class FakeResponse:
 
 
 class FakeAsyncClient:
-    calls: list[dict] = []
+    calls: ClassVar[list[dict]] = []
 
     def __init__(self, timeout: int):
         self.timeout = timeout

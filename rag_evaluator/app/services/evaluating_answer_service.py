@@ -3,7 +3,7 @@ from typing import Any
 
 from app.dal.client.judge_client import judge_client, judge_client_api_openia
 from app.domain.models.judge_response_model import judge_parser
-from app.schemas.Answer_evaluation_schema import AnswerEvaluationBase
+from app.schemas.answer_evaluation_schema import AnswerEvaluationBase
 from app.services.prompt_builder_service import build_judge_messages
 
 

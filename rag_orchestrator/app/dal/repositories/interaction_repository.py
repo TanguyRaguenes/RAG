@@ -39,45 +39,44 @@ class InteractionRepository:
         Returns:
             Identifiant de l'interaction RAG créée en base.
         """
-        async with self.db_pool.acquire() as connection:
-            async with connection.transaction():
-                interaction_id = await self._insert_interaction(
-                    connection=connection,
-                    session_id=session_id,
-                    question=question,
-                    answer=answer,
-                    status="success",
-                    duration_ms=duration_ms,
-                )
+        async with self.db_pool.acquire() as connection, connection.transaction():
+            interaction_id = await self._insert_interaction(
+                connection=connection,
+                session_id=session_id,
+                question=question,
+                answer=answer,
+                status="success",
+                duration_ms=duration_ms,
+            )
 
-                model_id = await self._upsert_model(
-                    connection=connection,
-                    provider=provider,
-                    model_name=model_name,
-                )
+            model_id = await self._upsert_model(
+                connection=connection,
+                provider=provider,
+                model_name=model_name,
+            )
 
-                await self._insert_token_usage(
+            await self._insert_token_usage(
+                connection=connection,
+                interaction_id=interaction_id,
+                model_id=model_id,
+                prompt_tokens=prompt_tokens,
+                completion_tokens=completion_tokens,
+                total_tokens=total_tokens,
+                estimated_cost_eur=estimated_cost_eur,
+            )
+
+            for rank, chunk in enumerate(retrieved_chunks, start=1):
+                chunk_id = await self._upsert_chunk(
+                    connection=connection,
+                    chunk=chunk,
+                )
+                await self._insert_interaction_chunk(
                     connection=connection,
                     interaction_id=interaction_id,
-                    model_id=model_id,
-                    prompt_tokens=prompt_tokens,
-                    completion_tokens=completion_tokens,
-                    total_tokens=total_tokens,
-                    estimated_cost_eur=estimated_cost_eur,
+                    chunk_id=chunk_id,
+                    rank=rank,
+                    score=chunk.get("similarity"),
                 )
-
-                for rank, chunk in enumerate(retrieved_chunks, start=1):
-                    chunk_id = await self._upsert_chunk(
-                        connection=connection,
-                        chunk=chunk,
-                    )
-                    await self._insert_interaction_chunk(
-                        connection=connection,
-                        interaction_id=interaction_id,
-                        chunk_id=chunk_id,
-                        rank=rank,
-                        score=chunk.get("similarity"),
-                    )
 
         return interaction_id
 
@@ -100,16 +99,15 @@ class InteractionRepository:
         Returns:
             Identifiant de l'interaction échouée créée en base.
         """
-        async with self.db_pool.acquire() as connection:
-            async with connection.transaction():
-                return await self._insert_interaction(
-                    connection=connection,
-                    session_id=session_id,
-                    question=question,
-                    answer=None,
-                    status=status,
-                    duration_ms=duration_ms,
-                )
+        async with self.db_pool.acquire() as connection, connection.transaction():
+            return await self._insert_interaction(
+                connection=connection,
+                session_id=session_id,
+                question=question,
+                answer=None,
+                status=status,
+                duration_ms=duration_ms,
+            )
 
     async def _insert_interaction(
         self,

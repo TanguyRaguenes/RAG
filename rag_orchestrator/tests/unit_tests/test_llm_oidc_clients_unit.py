@@ -1,6 +1,7 @@
+from typing import ClassVar
+
 import httpx
 import pytest
-
 from app.core.exceptions import LlmApiException
 from app.dal.clients import llm_client, oidc_client
 
@@ -23,7 +24,7 @@ class FakeResponse:
 
 
 class FakeAsyncClient:
-    calls: list[dict] = []
+    calls: ClassVar[list[dict]] = []
     response = FakeResponse({"ok": True})
 
     def __init__(self, timeout: int):

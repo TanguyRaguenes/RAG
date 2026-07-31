@@ -8,13 +8,6 @@ from app.api.dependencies import (
     get_vector_store_repository,
     get_wikis_collection,
 )
-from app.domain.models.retrieve_chunks_request_model import RetrieveChunksRequestBase
-from app.domain.models.retrieve_chunks_request_model import (
-    RetrieveDocumentChunksRequestBase,
-)
-from app.domain.models.vector_store_item_model import VectorStoreItemsBase
-from app.schemas.retrieve_chunks_response_schema import RetrievedChunksModelBase
-from app.schemas.save_items_response_schema import SaveItemsResponseBase
 from app.core.metrics import (
     SERVICE_NAME,
     rag_errors_total,
@@ -24,18 +17,28 @@ from app.core.metrics import (
     retriever_errors_total,
     retriever_requests_total,
 )
+from app.domain.models.retrieve_chunks_request_model import (
+    RetrieveChunksRequestBase,
+    RetrieveDocumentChunksRequestBase,
+)
+from app.domain.models.vector_store_item_model import VectorStoreItemsBase
+from app.schemas.retrieve_chunks_response_schema import RetrievedChunksModelBase
+from app.schemas.save_items_response_schema import SaveItemsResponseBase
 from app.services.manage_collection_service import delete_collection
 from app.services.retrieval_service import retrieve_chunks, retrieve_document_chunks
 from app.services.saving_service import save_items
 
 router = APIRouter()
 tracer = trace.get_tracer(__name__)
+config_dependency = Depends(get_config)
+vector_store_repository_dependency = Depends(get_vector_store_repository)
+wikis_collection_dependency = Depends(get_wikis_collection)
 
 
 @router.post("/save_items", response_model=SaveItemsResponseBase)
 def save_items_route(
     items: VectorStoreItemsBase,
-    vector_store_repository=Depends(get_vector_store_repository),
+    vector_store_repository=vector_store_repository_dependency,
 ) -> SaveItemsResponseBase:
     """Sauvegarde ou met à jour des items vectoriels dans ChromaDB.
 
@@ -65,9 +68,9 @@ def save_items_route(
 @router.post("/retrieve_chunks", response_model=RetrievedChunksModelBase)
 def retrieve_chunk_route(
     request_data: RetrieveChunksRequestBase,
-    wikis_collection=Depends(get_wikis_collection),
-    config=Depends(get_config),
-    vector_store_repository=Depends(get_vector_store_repository),
+    wikis_collection=wikis_collection_dependency,
+    config=config_dependency,
+    vector_store_repository=vector_store_repository_dependency,
 ) -> RetrievedChunksModelBase:
     """Recherche les chunks les plus proches d'un embedding de question.
 
@@ -104,8 +107,8 @@ def retrieve_chunk_route(
 @router.post("/retrieve_document_chunks", response_model=RetrievedChunksModelBase)
 def retrieve_document_chunks_route(
     request_data: RetrieveDocumentChunksRequestBase,
-    wikis_collection=Depends(get_wikis_collection),
-    vector_store_repository=Depends(get_vector_store_repository),
+    wikis_collection=wikis_collection_dependency,
+    vector_store_repository=vector_store_repository_dependency,
 ) -> RetrievedChunksModelBase:
     """Récupère les chunks complets des documents demandés.
 
@@ -137,8 +140,8 @@ def retrieve_document_chunks_route(
 
 @router.post("/delete_collection")
 def delete_collection_route(
-    vector_store_repository=Depends(get_vector_store_repository),
-    config=Depends(get_config),
+    vector_store_repository=vector_store_repository_dependency,
+    config=config_dependency,
 ) -> str:
     """Supprime puis recrée la collection configurée.
 

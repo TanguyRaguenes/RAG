@@ -1,6 +1,5 @@
 import httpx
 import pytest
-
 from app.services import ask_question_service, retrieve_chunks_service
 from app.services.auth_service import AuthService
 from app.services.user_identity_service import (
@@ -333,6 +332,4 @@ def test_user_identity_hashes_normalized_identifier_and_rejects_empty_values() -
 def test_user_identity_hashes_issuer_and_subject() -> None:
     assert build_user_id_from_oidc_subject(
         " https://auth.example.com/ ", " User-1 ", "secret"
-    ) == build_user_id_from_identifier(
-        "https://auth.example.com/|user-1", "secret"
-    )
+    ) == build_user_id_from_identifier("https://auth.example.com/|user-1", "secret")

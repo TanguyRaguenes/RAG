@@ -1,5 +1,5 @@
-from typing import Any
 import time
+from typing import Any
 
 import chromadb
 from chromadb.api.models.Collection import Collection, QueryResult

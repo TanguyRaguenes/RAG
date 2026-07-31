@@ -1,7 +1,6 @@
 from datetime import date
 
 import pytest
-
 from app.schemas.authenticated_user_schema import AuthenticatedUser
 from app.services import usage_tracking_service as service
 

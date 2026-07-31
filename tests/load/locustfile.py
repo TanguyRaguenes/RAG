@@ -1,6 +1,6 @@
-from locust import HttpUser, task, between
-
 import random
+
+from locust import HttpUser, between, task
 
 QUESTIONS = [
     "C'est quoi Kelio ?",

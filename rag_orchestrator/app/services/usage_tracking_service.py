@@ -1,7 +1,7 @@
-import os
 import json
+import os
+from collections.abc import Iterable
 from datetime import date
-from typing import Iterable
 
 import asyncpg
 

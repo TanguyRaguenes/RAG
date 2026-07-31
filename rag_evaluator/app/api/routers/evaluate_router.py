@@ -1,7 +1,7 @@
 import time
 
-from opentelemetry import trace
 from fastapi import APIRouter, Depends
+from opentelemetry import trace
 
 from app.api.dependencies import get_config
 from app.core.metrics import (
@@ -18,11 +18,12 @@ from app.services.evaluating_service import evaluate_rag
 
 router = APIRouter()
 tracer = trace.get_tracer(__name__)
+config_dependency = Depends(get_config)
 
 
 @router.post("/evaluate_rag", response_model=EvaluatorResponseBase)
 async def ask_question_route(
-    config=Depends(get_config),
+    config=config_dependency,
 ) -> EvaluatorResponseBase:
     """Lance une évaluation complète du RAG sur le dataset configuré.
 

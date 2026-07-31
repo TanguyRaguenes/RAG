@@ -57,7 +57,7 @@ async def ask_question_to_llm(
                 message=f"Erreur HTTP {exception.response.status_code}",
                 details={
                     "url": url,
-                    "error": f"{str(exception)} ; {exception.response.text}",
+                    "error": f"{exception!s} ; {exception.response.text}",
                 },
             ) from exception
         except httpx.RequestError as exception:
@@ -114,7 +114,7 @@ async def ask_question_to_api(
                     message=f"Erreur HTTP {exception.response.status_code}",
                     details={
                         "url": url,
-                        "error": f"{str(exception)} ; {exception.response.text}",
+                        "error": f"{exception!s} ; {exception.response.text}",
                     },
                 ) from exception
         except httpx.ConnectError as exception:

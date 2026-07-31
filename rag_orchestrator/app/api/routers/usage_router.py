@@ -28,12 +28,14 @@ from app.services.usage_tracking_service import (
 )
 
 router = APIRouter(prefix="/usage", tags=["usage"])
+current_user_dependency = Depends(get_current_user)
+db_pool_dependency = Depends(get_db_pool)
 
 
 @router.get("/quota/me", response_model=QuotaUsageResponse)
 async def get_my_quota_usage(
-    current_user: AuthenticatedUser = Depends(get_current_user),
-    db_pool: asyncpg.Pool = Depends(get_db_pool),
+    current_user: AuthenticatedUser = current_user_dependency,
+    db_pool: asyncpg.Pool = db_pool_dependency,
 ) -> QuotaUsageResponse:
     """Récupère le quota et la consommation de l'utilisateur connecté.
 
@@ -49,8 +51,8 @@ async def get_my_quota_usage(
 
 @router.get("/preferences/me", response_model=UserPreferencesResponse)
 async def get_my_preferences(
-    current_user: AuthenticatedUser = Depends(get_current_user),
-    db_pool: asyncpg.Pool = Depends(get_db_pool),
+    current_user: AuthenticatedUser = current_user_dependency,
+    db_pool: asyncpg.Pool = db_pool_dependency,
 ) -> UserPreferencesResponse:
     """Récupère les préférences d'affichage de l'utilisateur connecté.
 
@@ -67,8 +69,8 @@ async def get_my_preferences(
 @router.patch("/preferences/me", response_model=UserPreferencesResponse)
 async def update_my_preferences(
     body: UpdateUserPreferencesRequest,
-    current_user: AuthenticatedUser = Depends(get_current_user),
-    db_pool: asyncpg.Pool = Depends(get_db_pool),
+    current_user: AuthenticatedUser = current_user_dependency,
+    db_pool: asyncpg.Pool = db_pool_dependency,
 ) -> UserPreferencesResponse:
     """Met à jour la préférence de thème de l'utilisateur connecté.
 
@@ -97,8 +99,8 @@ async def update_my_preferences(
 async def save_interaction_feedback(
     interaction_id: int,
     body: FeedbackRequest,
-    current_user: AuthenticatedUser = Depends(get_current_user),
-    db_pool: asyncpg.Pool = Depends(get_db_pool),
+    current_user: AuthenticatedUser = current_user_dependency,
+    db_pool: asyncpg.Pool = db_pool_dependency,
 ) -> FeedbackResponse:
     """Enregistre la note et le commentaire d'un utilisateur sur une interaction RAG.
 
@@ -128,8 +130,8 @@ async def save_interaction_feedback(
 
 @router.get("/quota/admin/users", response_model=list[QuotaUsageResponse])
 async def list_user_quota_usages(
-    current_user: AuthenticatedUser = Depends(get_current_user),
-    db_pool: asyncpg.Pool = Depends(get_db_pool),
+    current_user: AuthenticatedUser = current_user_dependency,
+    db_pool: asyncpg.Pool = db_pool_dependency,
 ) -> list[QuotaUsageResponse]:
     """Retourne la liste administrative des quotas et consommations utilisateur.
 
@@ -149,8 +151,8 @@ async def list_user_quota_usages(
 async def update_user_quota_usage(
     user_id: str,
     body: UpdateQuotaRequest,
-    current_user: AuthenticatedUser = Depends(get_current_user),
-    db_pool: asyncpg.Pool = Depends(get_db_pool),
+    current_user: AuthenticatedUser = current_user_dependency,
+    db_pool: asyncpg.Pool = db_pool_dependency,
 ) -> QuotaUsageResponse:
     """Met à jour le quota mensuel et l'activation d'un utilisateur administré.
 
@@ -186,8 +188,8 @@ async def update_user_quota_usage(
 async def list_interaction_feedbacks(
     start_date: date,
     end_date: date,
-    current_user: AuthenticatedUser = Depends(get_current_user),
-    db_pool: asyncpg.Pool = Depends(get_db_pool),
+    current_user: AuthenticatedUser = current_user_dependency,
+    db_pool: asyncpg.Pool = db_pool_dependency,
 ) -> list[AdminInteractionFeedbackResponse]:
     """Retourne les feedbacks d'interactions filtrés par période.
 

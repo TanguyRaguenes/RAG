@@ -1,5 +1,10 @@
 from opentelemetry import trace
 
+# Exporteur OTLP vers Tempo.
+from opentelemetry.exporter.otlp.proto.http.trace_exporter import (
+    OTLPSpanExporter,
+)
+
 # Permet de décrire l'application qui envoie les traces.
 from opentelemetry.sdk.resources import Resource
 
@@ -8,11 +13,6 @@ from opentelemetry.sdk.trace import TracerProvider
 
 # Envoie les traces par lot (plus performant qu'un envoi immédiat).
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
-
-# Exporteur OTLP vers Tempo.
-from opentelemetry.exporter.otlp.proto.http.trace_exporter import (
-    OTLPSpanExporter,
-)
 
 
 def configure_telemetry() -> None:

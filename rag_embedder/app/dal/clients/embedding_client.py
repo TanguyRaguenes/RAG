@@ -1,6 +1,7 @@
-import httpx
 import logging
 import time
+
+import httpx
 from opentelemetry import trace
 
 from app.core.exceptions import EmbeddingServiceException

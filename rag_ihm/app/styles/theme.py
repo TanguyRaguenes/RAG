@@ -14,7 +14,6 @@ from app.state.session_state import (
     set_theme_mode,
 )
 
-
 THEME_OPTIONS = ["Sombre", "Clair"]
 
 

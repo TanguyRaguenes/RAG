@@ -1,8 +1,8 @@
 import logging
 
-from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
+from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from prometheus_client import make_asgi_app
 
 from app.api.lifespan import lifespan
@@ -11,7 +11,7 @@ from app.core.exceptions import RetrieverContainerCustomException
 from app.core.logging import configure_json_logging
 from app.core.telemetry import configure_telemetry
 
-configure_json_logging()
+configure_json_logging("rag_retriever")
 logger = logging.getLogger(__name__)
 
 app = FastAPI(title="RAG_RETRIEVER", description="", version="1.0.0", lifespan=lifespan)

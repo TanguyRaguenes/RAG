@@ -1,6 +1,7 @@
 import streamlit as st
 
 from app.components.common import render_sidebar_brand
+from app.core.logging import configure_json_logging
 from app.services.auth_service import (
     get_access_token,
     get_current_user,
@@ -12,6 +13,8 @@ from app.services.auth_service import (
 )
 from app.services.rag_api_client import RagApiError, load_chat_api_config
 from app.styles.theme import apply_theme, render_theme_selector, sync_theme_preference
+
+configure_json_logging("rag_ihm")
 
 st.set_page_config(
     page_title="IsiDore",

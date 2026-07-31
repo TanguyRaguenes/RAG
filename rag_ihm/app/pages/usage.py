@@ -1,5 +1,4 @@
 import streamlit as st
-
 from app.components.common import (
     render_api_error,
     render_page_header,
@@ -17,7 +16,6 @@ from app.services.rag_api_client import (
     update_admin_quota_usage,
 )
 from app.styles.theme import apply_theme
-
 
 ADMIN_QUOTA_FLASH_KEY = "admin_quota_flash_message"
 

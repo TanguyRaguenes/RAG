@@ -1,9 +1,9 @@
 import json
 
 import pytest
-
-from app.schemas.Answer_evaluation_schema import AnswerEvaluationBase
+from app.schemas.answer_evaluation_schema import AnswerEvaluationBase
 from app.schemas.retrieval_evaluation_schema import RetrievalEvaluationBase
+from app.services import evaluating_service
 from app.services.evaluating_service import (
     add_quality_score,
     add_retrieval_score,
@@ -14,7 +14,6 @@ from app.services.evaluating_service import (
     calculate_average_retrieval,
     load_dataset,
 )
-from app.services import evaluating_service
 
 
 def test_load_dataset_reads_list_from_configured_path(

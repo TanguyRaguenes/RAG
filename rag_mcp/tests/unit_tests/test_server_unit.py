@@ -1,10 +1,9 @@
 import json
 
 import pytest
-
 from config import McpConfigError, load_mcp_config
 from rag_client import format_retrieved_chunks_response
-from server import mcp
+from server import AUTH_SETTINGS, TRANSPORT_SECURITY
 
 
 def test_format_retrieved_chunks_response_returns_empty_message() -> None:
@@ -29,10 +28,9 @@ def test_load_mcp_config_reports_missing_env(monkeypatch: pytest.MonkeyPatch) ->
 
 
 def test_mcp_transport_allows_public_host() -> None:
-    assert "mcp.isilograginterne.fr" in mcp.settings.transport_security.allowed_hosts
+    assert "mcp.isilograginterne.fr" in TRANSPORT_SECURITY.allowed_hosts
 
 
 def test_mcp_server_requires_bearer_auth() -> None:
-    assert mcp.settings.auth is not None
-    assert mcp.settings.auth.required_scopes == ["rag:mcp"]
-    assert mcp.settings.auth.resource_server_url is not None
+    assert AUTH_SETTINGS.required_scopes == ["rag:mcp"]
+    assert AUTH_SETTINGS.resource_server_url is not None

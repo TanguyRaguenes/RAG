@@ -46,7 +46,9 @@ class AuthService:
                     },
                 )
                 try:
-                    pocket_id_user = await self.oidc_client.get_user_by_id(claims["sub"])
+                    pocket_id_user = await self.oidc_client.get_user_by_id(
+                        claims["sub"]
+                    )
                 except httpx.HTTPError as api_exception:
                     logger.warning(
                         "Enrichissement utilisateur Pocket ID indisponible",
@@ -87,7 +89,9 @@ def _log_user_claims(event: str, claims: dict) -> None:
             "issuer": claims.get("iss"),
             "subject_present": bool(claims.get("sub")),
             "email_present": bool(claims.get("email")),
-            "display_name_present": bool(claims.get("display_name") or claims.get("name")),
+            "display_name_present": bool(
+                claims.get("display_name") or claims.get("name")
+            ),
             "preferred_username_present": bool(claims.get("preferred_username")),
             "audience": claims.get("aud"),
             "scope": claims.get("scope") or claims.get("scp"),
