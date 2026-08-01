@@ -36,19 +36,6 @@ loki.source.docker "docker_logs" {
   forward_to = [loki.write.default.receiver]
 }
 
-// Lecture du fichier de log produit par la tache cron d'ingestion des wikis.
-// Le fichier est monte en lecture seule depuis le VPS dans le conteneur Alloy.
-loki.source.file "rag_ingest_logs" {
-  targets = [
-    {
-      "__path__" = "/var/log/rag-ingest-wikis.log",
-      "service"  = "rag-ingest-wikis",
-    },
-  ]
-
-  forward_to = [loki.write.default.receiver]
-}
-
 // Destination finale des logs.
 // Tous les logs collectés sont envoyés à Loki.
 loki.write "default" {

@@ -193,45 +193,12 @@ services:
       - ./observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus_data:/prometheus
     depends_on:
-      - node_exporter
-      - cadvisor
       - rag_embedder
       - rag_retriever
       - rag_reranker
       - rag_evaluator
       - rag_orchestrator
       - pocket-id
-
-  # Node Exporter : expose les metriques systeme du VPS pour Prometheus.
-  node_exporter:
-    image: prom/node-exporter:v1.9.1
-    container_name: node_exporter_container
-    command:
-      - --path.rootfs=/host
-    expose:
-      - "9100"
-    volumes:
-      - /:/host:ro,rslave
-    restart: unless-stopped
-
-  # cAdvisor : expose les metriques des conteneurs Docker pour Prometheus.
-  cadvisor:
-    image: gcr.io/cadvisor/cadvisor:v0.52.1
-    container_name: cadvisor_container
-    command:
-      - --docker_only=true
-      - --housekeeping_interval=30s
-      - --store_container_labels=false
-    expose:
-      - "8080"
-    privileged: true
-    volumes:
-      - /:/rootfs:ro
-      - /var/run:/var/run:ro
-      - /var/run/docker.sock:/var/run/docker.sock:ro
-      - /sys:/sys:ro
-      - /var/lib/docker:/var/lib/docker:ro
-    restart: unless-stopped
 
   # Loki : stocke les logs applicatifs pour les consulter dans Grafana.
   loki:
@@ -253,7 +220,6 @@ services:
     volumes:
       - ./observability/config.alloy:/etc/alloy/config.alloy:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
-      - /var/log:/var/log:ro
     command:
       - run
       - --server.http.listen-addr=0.0.0.0:12345

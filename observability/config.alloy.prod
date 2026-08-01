@@ -1,0 +1,48 @@
+// Configuration des logs internes d'Alloy.
+// Permet de voir les evenements et erreurs d'Alloy lui-meme.
+logging {
+  level  = "info"
+  format = "logfmt"
+}
+
+// Decouverte automatique des conteneurs Docker.
+// Alloy interroge l'API Docker via le socket Docker.
+discovery.docker "containers" {
+  host = "unix:///var/run/docker.sock"
+}
+
+// Ajout du nom du conteneur afin de pouvoir filtrer les logs dans Grafana.
+discovery.relabel "docker_logs" {
+  targets = discovery.docker.containers.targets
+
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    target_label  = "container"
+  }
+}
+
+// Lecture des logs de tous les conteneurs Docker.
+loki.source.docker "docker_logs" {
+  host       = "unix:///var/run/docker.sock"
+  targets    = discovery.relabel.docker_logs.output
+  forward_to = [loki.write.default.receiver]
+}
+
+// Lecture du fichier de log produit par la tache planifiee d'ingestion.
+loki.source.file "rag_ingest_logs" {
+  targets = [
+    {
+      "__path__" = "/var/log/rag-ingest-wikis.log",
+      "service"  = "rag-ingest-wikis",
+    },
+  ]
+
+  forward_to = [loki.write.default.receiver]
+}
+
+// Destination finale des logs.
+loki.write "default" {
+  endpoint {
+    url = "http://loki:3100/loki/api/v1/push"
+  }
+}

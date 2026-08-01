@@ -176,7 +176,7 @@ services:
     expose:
       - "9090"
     volumes:
-      - ./observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./observability/prometheus.prod.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus_data:/prometheus
     depends_on:
       - node_exporter
@@ -239,7 +239,7 @@ services:
     expose:
       - "12345"
     volumes:
-      - ./observability/config.alloy:/etc/alloy/config.alloy:ro
+      - ./observability/config.alloy.prod:/etc/alloy/config.alloy:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - /var/log:/var/log:ro
     command:
