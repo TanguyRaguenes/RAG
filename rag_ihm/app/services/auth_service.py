@@ -2,6 +2,7 @@ import base64
 import binascii
 import hashlib
 import hmac
+import html
 import json
 import os
 import secrets
@@ -304,9 +305,10 @@ def require_authenticated_user() -> dict[str, Any] | None:
     if is_authenticated():
         return get_current_user()
 
+    login_url = html.escape(build_login_url(), quote=True)
     st.title("IsiDore")
     st.caption("Assistant RAG sur la documentation interne ISILOG.")
-    st.link_button("Se connecter", build_login_url(), type="primary")
+    st.html(f'<a href="{login_url}" target="_self">Se connecter</a>')
     st.stop()
 
 

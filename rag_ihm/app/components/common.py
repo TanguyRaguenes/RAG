@@ -65,11 +65,9 @@ def render_healthchecks_status(
 
     if all_available:
         st.success(f"Toutes les API sont accessibles.\n\n{message}")
-        st.toast("Toutes les API sont accessibles.")
         return
 
     st.warning(f"Certaines API sont inaccessibles.\n\n{message}")
-    st.toast("Certaines API sont inaccessibles.")
 
 
 def _run_healthcheck(

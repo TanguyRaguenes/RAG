@@ -92,9 +92,9 @@ def _render_sidebar(config) -> tuple[str, bool]:
         details_label = st.radio(
             "Détails techniques",
             ["Masqués", "Affichés"],
-            index=1,
+            index=0,
             horizontal=True,
-            help="À réserver au diagnostic : prompt généré et détails d'erreur.",
+            help="À réserver au diagnostic : données JSON, prompt et détails d'erreur.",
         )
 
         if st.button("État API", width="stretch"):
@@ -178,8 +178,6 @@ def _process_prompt(
             render_api_error(error, debug_enabled=show_technical_details)
             return
 
-    st.toast("Réponse prête.")
-
     assistant_message = build_assistant_message(response)
     append_chat_message(assistant_message)
     render_chat_message(
@@ -202,8 +200,12 @@ provider, show_technical_details = _render_sidebar(config)
 render_page_header("IsiDore", "")
 
 messages = get_chat_messages()
+examples_placeholder = st.empty()
 if not messages:
-    render_empty_chat_state(lambda question: (set_pending_prompt(question), st.rerun()))
+    with examples_placeholder.container():
+        render_empty_chat_state(
+            lambda question: (set_pending_prompt(question), st.rerun())
+        )
 
 _render_history(show_technical_details, config)
 
@@ -212,4 +214,5 @@ typed_prompt = st.chat_input("Pose ta question sur la documentation interne")
 prompt = typed_prompt or pending_prompt
 
 if prompt:
+    examples_placeholder.empty()
     _process_prompt(prompt, provider, show_technical_details, config)

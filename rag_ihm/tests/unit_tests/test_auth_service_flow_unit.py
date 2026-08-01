@@ -29,7 +29,7 @@ class FakeStreamlit:
         self.errors = []
         self.titles = []
         self.captions = []
-        self.link_buttons = []
+        self.html_blocks = []
         self.rerun_called = False
 
     def error(self, message: str) -> None:
@@ -41,8 +41,8 @@ class FakeStreamlit:
     def caption(self, message: str) -> None:
         self.captions.append(message)
 
-    def link_button(self, label: str, url: str, *, type: str) -> None:
-        self.link_buttons.append({"label": label, "url": url, "type": type})
+    def html(self, body: str) -> None:
+        self.html_blocks.append(body)
 
     def stop(self) -> None:
         raise StopCalled()
@@ -193,7 +193,7 @@ def test_oauth_state_expires_after_ten_minutes(
     assert not auth_service._is_valid_oauth_state(state, "secret")
 
 
-def test_require_authenticated_user_renders_native_login_link(
+def test_require_authenticated_user_renders_same_tab_login_link(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     fake_st = FakeStreamlit()
@@ -208,12 +208,8 @@ def test_require_authenticated_user_renders_native_login_link(
         auth_service.require_authenticated_user()
 
     assert fake_st.titles == ["IsiDore"]
-    assert fake_st.link_buttons == [
-        {
-            "label": "Se connecter",
-            "url": 'https://idp.example/login?state=abc&return="app"',
-            "type": "primary",
-        }
+    assert fake_st.html_blocks == [
+        '<a href="https://idp.example/login?state=abc&amp;return=&quot;app&quot;" target="_self">Se connecter</a>'
     ]
 
 

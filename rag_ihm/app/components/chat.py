@@ -1,3 +1,4 @@
+import math
 from typing import Any
 
 import streamlit as st
@@ -70,6 +71,8 @@ def render_chat_message(
         if debug_enabled and message.get("generated_prompt"):
             with st.expander("Prompt généré"):
                 _render_generated_prompt(message["generated_prompt"])
+            with st.expander("Prompt généré - JSON"):
+                st.json(message["generated_prompt"])
 
         if on_submit_feedback:
             _render_feedback_form(message, on_submit_feedback)
@@ -142,26 +145,35 @@ def _render_sources(chunks: Any, debug_enabled: bool) -> None:
         st.caption("Le RAG n'a retourné aucune source.")
         return
 
-    with st.expander(f"Extraits pertinents ({len(chunks)})"):
-        for index, chunk in enumerate(chunks, start=1):
-            metadata = chunk.get("metadata", {}) if isinstance(chunk, dict) else {}
+    sorted_chunks = _sort_chunks_by_rerank_score(chunks)
+
+    with st.expander(f"Extraits pertinents ({len(sorted_chunks)})"):
+        for index, chunk in enumerate(sorted_chunks, start=1):
+            metadata = chunk.get("metadata") if isinstance(chunk, dict) else None
+            metadata = metadata if isinstance(metadata, dict) else {}
             title = metadata.get("title") or metadata.get("path") or "Source inconnue"
-            similarity = chunk.get("similarity") if isinstance(chunk, dict) else None
+            rerank_score = (
+                chunk.get("rerank_score") if isinstance(chunk, dict) else None
+            )
+            retriever_score = (
+                chunk.get("similarity") if isinstance(chunk, dict) else None
+            )
             document = chunk.get("document", "") if isinstance(chunk, dict) else ""
             excerpt = _shorten_text(str(document), limit=700)
-            score = _format_similarity(similarity) if similarity is not None else None
 
-            line = f"[{index}] {title}"
-            if score:
-                line = f"{line} · score {score}"
+            line = (
+                f"[{index}] {title} · score reranker {_format_score(rerank_score)} "
+                f"(score retriever {_format_score(retriever_score)})"
+            )
             st.markdown(f"**{line}**")
             if excerpt:
                 st.markdown(excerpt)
-            if index < len(chunks):
+            if index < len(sorted_chunks):
                 st.divider()
 
-        if debug_enabled:
-            st.json(chunks)
+    if debug_enabled:
+        with st.expander(f"Extraits pertinents - JSON ({len(sorted_chunks)})"):
+            st.json(sorted_chunks)
 
 
 def _render_feedback_form(message: dict[str, Any], on_submit_feedback) -> None:
@@ -238,14 +250,29 @@ def _shorten_text(text: str, limit: int = 700) -> str:
     return f"{normalized[:limit].rstrip()}..."
 
 
-def _format_similarity(value: object) -> str:
-    """Formate un score de similarité pour l'affichage utilisateur.
+def _sort_chunks_by_rerank_score(chunks: list[Any]) -> list[Any]:
+    """Trie les extraits par score reranker décroissant, sans perdre les invalides."""
+
+    def score(chunk: Any) -> float:
+        if not isinstance(chunk, dict):
+            return float("-inf")
+        try:
+            value = float(chunk.get("rerank_score"))
+        except (TypeError, ValueError):
+            return float("-inf")
+        return value if math.isfinite(value) else float("-inf")
+
+    return sorted(chunks, key=score, reverse=True)
+
+
+def _format_score(value: object) -> str:
+    """Formate un score de pertinence pour l'affichage utilisateur.
 
     Args:
         value: Valeur à convertir, borner ou formater.
 
     Returns:
-        Score de similarité formaté ou valeur vide si absent.
+        Score formaté ou indication de valeur indisponible.
     """
     try:
         return f"{float(value):.2f}"
