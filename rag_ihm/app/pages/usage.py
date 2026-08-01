@@ -11,6 +11,7 @@ from app.services.auth_service import (
     require_authenticated_user,
 )
 from app.services.rag_api_client import (
+    ChatApiConfig,
     RagApiError,
     get_my_quota_usage,
     list_admin_quota_usages,
@@ -21,7 +22,10 @@ from app.services.rag_api_client import (
 ADMIN_QUOTA_FLASH_KEY = "admin_quota_flash_message"
 
 
-def _load_my_quota(config, access_token: str | None) -> dict | None:
+def _load_my_quota(
+    config: ChatApiConfig,
+    access_token: str | None,
+) -> dict[str, object] | None:
     """Charge le quota de l'utilisateur connecté pour la page consommation.
 
     Args:
@@ -39,7 +43,7 @@ def _load_my_quota(config, access_token: str | None) -> dict | None:
             return None
 
 
-def _render_quota_progress(quota: dict) -> None:
+def _render_quota_progress(quota: dict[str, object]) -> None:
     """Affiche la progression de consommation du quota mensuel.
 
     Args:
@@ -69,7 +73,7 @@ def _render_quota_progress(quota: dict) -> None:
         st.warning("Tu approches de la limite mensuelle.")
 
 
-def _render_admin_panel(config, access_token: str | None) -> None:
+def _render_admin_panel(config: ChatApiConfig, access_token: str | None) -> None:
     """Affiche le panneau d'administration des quotas utilisateur.
 
     Args:
@@ -146,7 +150,7 @@ def _render_admin_panel(config, access_token: str | None) -> None:
     st.rerun()
 
 
-def _quota_to_table_row(quota: dict) -> dict:
+def _quota_to_table_row(quota: dict[str, object]) -> dict[str, object]:
     """Transforme un quota utilisateur en ligne de tableau administrateur.
 
     Args:
@@ -179,7 +183,7 @@ def _short_user_id(user_id: str) -> str:
     return f"{user_id[:10]}...{user_id[-6:]}"
 
 
-def _quota_label(quota: dict) -> str:
+def _quota_label(quota: dict[str, object]) -> str:
     """Construit le libellé d'affichage d'un quota utilisateur.
 
     Args:

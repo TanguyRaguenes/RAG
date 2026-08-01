@@ -2,21 +2,37 @@ import json
 
 import pytest
 
-from app.core.config import McpConfigError, load_mcp_config
-from app.dal.clients.rag_client import format_retrieved_chunks_response
+from app.core.config import load_mcp_config
+from app.core.errors import McpConfigError
+from app.schemas.rag_response import RetrievedChunksResponse
 from app.server import AUTH_SETTINGS, TRANSPORT_SECURITY
+from app.services.documentation_service import DocumentationService
 
 
-def test_format_retrieved_chunks_response_returns_empty_message() -> None:
-    assert format_retrieved_chunks_response({"retrieved_chunks": []}) == (
-        "Aucune information trouvée."
-    )
+class FakeRagClient:
+    def __init__(self, chunks: tuple[dict, ...]) -> None:
+        self.chunks = chunks
+
+    async def retrieve_documentation_chunks(
+        self, question: str, access_token: str
+    ) -> RetrievedChunksResponse:
+        return RetrievedChunksResponse(self.chunks)
 
 
-def test_format_retrieved_chunks_response_serializes_chunks() -> None:
+@pytest.mark.asyncio
+async def test_documentation_service_returns_empty_message() -> None:
+    result = await DocumentationService(FakeRagClient(())).answer("question", "token")
+
+    assert result == "Aucune information trouvée."
+
+
+@pytest.mark.asyncio
+async def test_documentation_service_serializes_chunks() -> None:
     chunks = [{"document": "Résumé", "metadata": {"title": "Doc"}}]
 
-    result = format_retrieved_chunks_response({"retrieved_chunks": chunks})
+    result = await DocumentationService(FakeRagClient(tuple(chunks))).answer(
+        "question", "token"
+    )
 
     assert json.loads(result) == chunks
 
@@ -26,6 +42,22 @@ def test_load_mcp_config_reports_missing_env(monkeypatch: pytest.MonkeyPatch) ->
 
     with pytest.raises(McpConfigError):
         load_mcp_config()
+
+
+def test_load_mcp_config_requires_rag_scope_when_env_is_absent(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("RAG_MCP_REQUIRED_SCOPES", raising=False)
+
+    assert load_mcp_config().required_scopes == ("rag:mcp",)
+
+
+def test_load_mcp_config_adds_rag_scope_to_custom_scopes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("RAG_MCP_REQUIRED_SCOPES", "openid,custom")
+
+    assert load_mcp_config().required_scopes == ("rag:mcp", "openid", "custom")
 
 
 def test_mcp_transport_allows_public_host() -> None:

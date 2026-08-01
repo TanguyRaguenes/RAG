@@ -1,9 +1,13 @@
 from types import SimpleNamespace
 
+import pytest
+
 from app.state import session_state
 
 
-def test_chat_messages_are_initialized_appended_and_cleared(monkeypatch) -> None:
+def test_chat_messages_are_initialized_appended_and_cleared(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     fake_streamlit = SimpleNamespace(session_state={})
     monkeypatch.setattr(session_state, "st", fake_streamlit)
 
@@ -18,7 +22,7 @@ def test_chat_messages_are_initialized_appended_and_cleared(monkeypatch) -> None
     assert session_state.get_chat_messages() == []
 
 
-def test_pending_prompt_is_popped_once(monkeypatch) -> None:
+def test_pending_prompt_is_popped_once(monkeypatch: pytest.MonkeyPatch) -> None:
     fake_streamlit = SimpleNamespace(session_state={})
     monkeypatch.setattr(session_state, "st", fake_streamlit)
 
@@ -28,7 +32,9 @@ def test_pending_prompt_is_popped_once(monkeypatch) -> None:
     assert session_state.pop_pending_prompt() is None
 
 
-def test_dashboard_result_is_returned_only_when_it_is_a_dict(monkeypatch) -> None:
+def test_dashboard_result_is_returned_only_when_it_is_a_dict(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     fake_streamlit = SimpleNamespace(session_state={})
     monkeypatch.setattr(session_state, "st", fake_streamlit)
 

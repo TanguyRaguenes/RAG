@@ -2,29 +2,31 @@ import logging
 import os
 from dataclasses import dataclass
 from datetime import date
-from typing import Any
+from typing import Any, cast
+from urllib.parse import urlsplit, urlunsplit
 
-import requests
+from app.core.errors import RagApiError
+from app.dal.clients.http_client import HttpClientProtocol, RequestsHttpClient
+from app.dal.clients.rag_client import RagClient
+from app.schemas.api import (
+    AdminInteractionFeedback,
+    AskQuestionResponse,
+    AuthenticatedUser,
+    EvaluationResponse,
+    FeedbackResponse,
+    JsonValue,
+    QuotaUsageResponse,
+    ResponseContractError,
+    validate_admin_feedback_list,
+    validate_ask_question_response,
+    validate_authenticated_user,
+    validate_evaluation_response,
+    validate_feedback_response,
+    validate_quota_usage_list,
+    validate_quota_usage_response,
+)
 
 logger = logging.getLogger(__name__)
-
-
-class RagApiError(Exception):
-    """Erreur affichable côté IHM sans exposer de données sensibles."""
-
-    def __init__(self, user_message: str, details: dict[str, Any] | None = None):
-        """Initialise une erreur affichable côté IHM.
-
-        Args:
-            user_message: Message destiné à l'utilisateur.
-            details: Détails techniques non sensibles pour diagnostic.
-
-        Returns:
-            Aucune valeur.
-        """
-        self.user_message = user_message
-        self.details = details or {}
-        super().__init__(user_message)
 
 
 @dataclass(frozen=True)
@@ -33,6 +35,26 @@ class ChatApiConfig:
 
     health_url: str
     ask_question_url: str
+
+    @property
+    def base_url(self) -> str:
+        """Retourne la base orchestrator dérivée de l'endpoint de question.
+
+        Returns:
+            URL sans le segment final `/ask_question`, query string ni fragment.
+
+        Raises:
+            RagApiError: Si l'endpoint configuré n'est pas un endpoint de question.
+        """
+        parsed = urlsplit(self.ask_question_url)
+        path = parsed.path.rstrip("/")
+        if not path.endswith("/ask_question"):
+            raise RagApiError(
+                "L'URL de l'orchestrator est invalide.",
+                details={"configuration": "RAG_ORCHESTRATOR_ASK_QUESTION_URL"},
+            )
+        base_path = path[: -len("/ask_question")].rstrip("/")
+        return urlunsplit((parsed.scheme, parsed.netloc, base_path, "", "")).rstrip("/")
 
 
 @dataclass(frozen=True)
@@ -44,10 +66,10 @@ class EvaluatorApiConfig:
 
 
 def load_chat_api_config() -> ChatApiConfig:
-    """Charge la configuration du client orchestrator.
+    """Charge la configuration des endpoints orchestrator.
 
     Returns:
-        Configuration des endpoints de chat.
+        Configuration immuable des endpoints de chat.
 
     Raises:
         RagApiError: Si une variable obligatoire manque.
@@ -59,10 +81,10 @@ def load_chat_api_config() -> ChatApiConfig:
 
 
 def load_evaluator_api_config() -> EvaluatorApiConfig:
-    """Charge la configuration du client evaluator.
+    """Charge la configuration des endpoints evaluator.
 
     Returns:
-        Configuration des endpoints d'évaluation.
+        Configuration immuable des endpoints d'évaluation.
 
     Raises:
         RagApiError: Si une variable obligatoire manque.
@@ -73,39 +95,32 @@ def load_evaluator_api_config() -> EvaluatorApiConfig:
     )
 
 
-def check_api_health(base_url: str) -> None:
-    """Vérifie qu'un service expose sa documentation FastAPI.
+def create_rag_client(http_client: HttpClientProtocol | None = None) -> RagClient:
+    """Crée le client externe en permettant l'injection du transport.
 
     Args:
-        base_url: URL de base du service à vérifier.
+        http_client: Transport alternatif utilisé notamment par les tests.
 
     Returns:
-        Aucune valeur.
+        Client des APIs RAG prêt à être utilisé par les services.
+    """
+    return RagClient(http_client or RequestsHttpClient())
+
+
+def check_api_health(health_url: str, client: RagClient | None = None) -> None:
+    """Vérifie l'URL de santé explicite sans supposer FastAPI.
+
+    Args:
+        health_url: Endpoint de santé complet configuré pour le service.
+        client: Client externe injecté si nécessaire.
 
     Raises:
-        RagApiError: Si le service est indisponible ou retourne un statut non OK.
+        RagApiError: Si le service n'est pas disponible.
     """
     logger.info(
         "checking api health", extra={"service": "rag_ihm", "event": "api_health_check"}
     )
-    url = _docs_url(base_url)
-    try:
-        response = requests.get(url, timeout=5)
-    except requests.exceptions.Timeout as exception:
-        raise RagApiError("Le service met trop de temps à répondre.") from exception
-    except requests.exceptions.ConnectionError as exception:
-        raise RagApiError("Le service est injoignable pour le moment.") from exception
-    except requests.RequestException as exception:
-        raise RagApiError("Impossible de vérifier l'état du service.") from exception
-
-    if response.status_code != 200:
-        raise RagApiError(
-            f"Le service répond avec le code {response.status_code}.",
-            details={
-                "status_code": response.status_code,
-                **_safe_response_details(response),
-            },
-        )
+    (client or create_rag_client()).check_health(health_url)
 
 
 def ask_question(
@@ -113,98 +128,124 @@ def ask_question(
     question: str,
     provider: str,
     access_token: str | None,
-) -> dict[str, Any]:
-    """Envoie une question utilisateur à l'orchestrator.
+    client: RagClient | None = None,
+) -> AskQuestionResponse:
+    """Orchestre l'envoi d'une question authentifiée à l'orchestrator.
 
     Args:
-        config: Configuration des endpoints orchestrator.
+        config: Endpoints orchestrator.
         question: Question utilisateur, non loggée.
         provider: Provider LLM demandé.
-        access_token: Token OIDC utilisateur.
+        access_token: Bearer token de la session.
+        client: Client externe injecté si nécessaire.
 
     Returns:
-        Réponse JSON de l'orchestrator.
+        DTO de réponse du chat.
 
     Raises:
-        RagApiError: Si la session est absente, l'appel échoue ou la réponse est invalide.
+        RagApiError: Si la session manque ou si la réponse est invalide.
     """
-    if not access_token:
-        raise RagApiError("La session a expiré. Reconnecte-toi pour continuer.")
-
+    payload = _authenticated_request(
+        "POST",
+        config.ask_question_url,
+        access_token,
+        payload={"question": question, "provider": provider, "channel": "streamlit"},
+        timeout=360,
+        client=client,
+    )
     try:
-        response = requests.post(
-            config.ask_question_url,
-            json={"question": question, "provider": provider, "channel": "streamlit"},
-            headers={"Authorization": f"Bearer {access_token}"},
-            timeout=360,
-        )
-    except requests.exceptions.Timeout as exception:
+        return validate_ask_question_response(payload)
+    except ResponseContractError as exception:
         raise RagApiError(
-            "La réponse prend trop de temps. Réessaie dans quelques instants."
-        ) from exception
-    except requests.exceptions.ConnectionError as exception:
-        raise RagApiError(
-            "Le service de réponse est injoignable pour le moment."
-        ) from exception
-    except requests.RequestException as exception:
-        raise RagApiError(
-            "La demande n'a pas pu être envoyée au service RAG."
+            "Le service RAG a retourné une réponse invalide.",
+            {"contract": "ask_question", "dependency": "rag_orchestrator"},
+            code="response_contract_error",
         ) from exception
 
-    _raise_for_error_response(response)
-    return _response_json(response)
+
+def get_authenticated_user(
+    config: ChatApiConfig,
+    access_token: str | None,
+    client: RagClient | None = None,
+) -> AuthenticatedUser:
+    """Charge l'identité validée par l'orchestrator depuis `/auth/me`.
+
+    Args:
+        config: Endpoints permettant de calculer la base orchestrator.
+        access_token: Bearer token reçu de Pocket ID.
+        client: Client externe injecté si nécessaire.
+
+    Returns:
+        Profil dont le token et les claims ont été validés côté backend.
+
+    Raises:
+        RagApiError: Si le profil ne possède pas son identité stable minimale.
+    """
+    payload = _authenticated_request(
+        "GET", _orchestrator_url(config, "/auth/me"), access_token, client=client
+    )
+    try:
+        return validate_authenticated_user(payload)
+    except ResponseContractError as exception:
+        raise RagApiError(
+            "Le profil utilisateur retourné est invalide.",
+            {"contract": "authenticated_user", "dependency": "rag_orchestrator"},
+            code="response_contract_error",
+        ) from exception
 
 
 def get_my_quota_usage(
     config: ChatApiConfig,
     access_token: str | None,
-) -> dict[str, Any]:
-    """Récupère le quota et la consommation de l'utilisateur connecté.
+    client: RagClient | None = None,
+) -> QuotaUsageResponse:
+    """Récupère le quota de l'utilisateur connecté.
 
     Args:
-        config: Configuration applicative contenant les URLs, modèles ou paramètres métier nécessaires.
-        access_token: Access token OIDC utilisé pour authentifier l'appel HTTP sortant.
+        config: Endpoints orchestrator.
+        access_token: Bearer token de la session.
+        client: Client externe injecté si nécessaire.
 
     Returns:
-        Données de quota de l'utilisateur connecté retournées par l'orchestrator.
-
-    Raises:
-        RagApiError: Si l'API appelée par l'IHM est indisponible ou retourne une réponse inexploitable.
+        Données de quota validées comme objet JSON.
     """
-    data = _authenticated_request(
-        "GET", _usage_url(config, "/usage/quota/me"), access_token
+    payload = _authenticated_request(
+        "GET",
+        _orchestrator_url(config, "/usage/quota/me"),
+        access_token,
+        client=client,
     )
-
-    if not isinstance(data, dict):
-        raise RagApiError("Le service a retourné un format inattendu.")
-
-    return data
+    try:
+        return validate_quota_usage_response(payload)
+    except ResponseContractError as exception:
+        raise _quota_contract_error(exception) from exception
 
 
 def list_admin_quota_usages(
     config: ChatApiConfig,
     access_token: str | None,
-) -> list[dict[str, Any]]:
-    """Liste admin quota usages pour alimenter une réponse API ou un écran d'administration.
+    client: RagClient | None = None,
+) -> list[QuotaUsageResponse]:
+    """Liste les quotas visibles par un administrateur.
 
     Args:
-        config: Configuration applicative contenant les URLs, modèles ou paramètres métier nécessaires.
-        access_token: Access token OIDC utilisé pour authentifier l'appel HTTP sortant.
+        config: Endpoints orchestrator.
+        access_token: Bearer token de la session.
+        client: Client externe injecté si nécessaire.
 
     Returns:
-        Liste des quotas utilisateur retournée pour l'écran d'administration.
-
-    Raises:
-        RagApiError: Si l'API appelée par l'IHM est indisponible ou retourne une réponse inexploitable.
+        Liste validée d'objets quota.
     """
-    data = _authenticated_request(
-        "GET", _usage_url(config, "/usage/quota/admin/users"), access_token
+    payload = _authenticated_request(
+        "GET",
+        _orchestrator_url(config, "/usage/quota/admin/users"),
+        access_token,
+        client=client,
     )
-
-    if not isinstance(data, list):
-        raise RagApiError("Le service a retourné un format inattendu.")
-
-    return data
+    try:
+        return validate_quota_usage_list(payload)
+    except ResponseContractError as exception:
+        raise _quota_contract_error(exception) from exception
 
 
 def update_admin_quota_usage(
@@ -213,35 +254,32 @@ def update_admin_quota_usage(
     user_id: str,
     max_tokens_par_mois: int,
     actif: bool,
-) -> dict[str, Any]:
-    """Met à jour admin quota usage dans le stockage ou le service cible.
+    client: RagClient | None = None,
+) -> QuotaUsageResponse:
+    """Met à jour le quota d'un utilisateur via l'orchestrator.
 
     Args:
-        config: Configuration applicative contenant les URLs, modèles ou paramètres métier nécessaires.
-        access_token: Access token OIDC utilisé pour authentifier l'appel HTTP sortant.
-        user_id: Identifiant interne ou pseudonymisé de l'utilisateur ciblé.
-        max_tokens_par_mois: Plafond mensuel de tokens à appliquer à l'utilisateur.
-        actif: Indique si la règle de quota utilisateur est active.
+        config: Endpoints orchestrator.
+        access_token: Bearer token de la session.
+        user_id: Identifiant stable de l'utilisateur ciblé.
+        max_tokens_par_mois: Nouveau plafond mensuel.
+        actif: État d'activation du quota.
+        client: Client externe injecté si nécessaire.
 
     Returns:
-        Quota utilisateur mis à jour côté orchestrator.
-
-    Raises:
-        RagApiError: Si l'API appelée par l'IHM est indisponible ou retourne une réponse inexploitable.
+        Quota mis à jour validé comme objet JSON.
     """
-    url = _usage_url(config, f"/usage/quota/admin/users/{user_id}")
-
-    data = _authenticated_request(
+    payload = _authenticated_request(
         "PATCH",
-        url,
+        _orchestrator_url(config, f"/usage/quota/admin/users/{user_id}"),
         access_token,
         payload={"max_tokens_par_mois": max_tokens_par_mois, "actif": actif},
+        client=client,
     )
-
-    if not isinstance(data, dict):
-        raise RagApiError("Le service a retourné un format inattendu.")
-
-    return data
+    try:
+        return validate_quota_usage_response(payload)
+    except ResponseContractError as exception:
+        raise _quota_contract_error(exception) from exception
 
 
 def list_admin_interaction_feedbacks(
@@ -249,35 +287,35 @@ def list_admin_interaction_feedbacks(
     access_token: str | None,
     start_date: date,
     end_date: date,
-) -> list[dict[str, Any]]:
-    """Liste les feedbacks d'interactions sur une période pour les administrateurs.
+    client: RagClient | None = None,
+) -> list[AdminInteractionFeedback]:
+    """Liste les feedbacks administrateur sur une période.
 
     Args:
-        config: Configuration applicative contenant les URLs, modèles ou paramètres métier nécessaires.
-        access_token: Access token OIDC utilisé pour authentifier l'appel HTTP sortant.
-        start_date: Date de début du filtre de période.
-        end_date: Date de fin du filtre de période.
+        config: Endpoints orchestrator.
+        access_token: Bearer token de la session.
+        start_date: Date de début incluse.
+        end_date: Date de fin incluse.
+        client: Client externe injecté si nécessaire.
 
     Returns:
-        Feedbacks d'interactions prêts à être affichés dans l'IHM.
-
-    Raises:
-        RagApiError: Si l'API appelée par l'IHM est indisponible ou retourne une réponse inexploitable.
+        Liste validée d'objets feedback.
     """
-    data = _authenticated_request(
+    payload = _authenticated_request(
         "GET",
-        _usage_url(config, "/usage/admin/interactions/feedbacks"),
+        _orchestrator_url(config, "/usage/admin/interactions/feedbacks"),
         access_token,
-        params={
-            "start_date": start_date.isoformat(),
-            "end_date": end_date.isoformat(),
-        },
+        params={"start_date": start_date.isoformat(), "end_date": end_date.isoformat()},
+        client=client,
     )
-
-    if not isinstance(data, list):
-        raise RagApiError("Le service a retourné un format inattendu.")
-
-    return data
+    try:
+        return validate_admin_feedback_list(payload)
+    except ResponseContractError as exception:
+        raise RagApiError(
+            "Le service RAG a retourné des avis invalides.",
+            {"contract": "admin_feedbacks", "dependency": "rag_orchestrator"},
+            code="response_contract_error",
+        ) from exception
 
 
 def submit_interaction_feedback(
@@ -286,113 +324,119 @@ def submit_interaction_feedback(
     interaction_id: int,
     note: int,
     commentaire: str | None,
-) -> dict[str, Any]:
-    """Envoie au backend la note et le commentaire saisis pour une réponse RAG.
+    client: RagClient | None = None,
+) -> FeedbackResponse:
+    """Enregistre un feedback lié à une réponse RAG.
 
     Args:
-        config: Configuration applicative contenant les URLs, modèles ou paramètres métier nécessaires.
-        access_token: Access token OIDC utilisé pour authentifier l'appel HTTP sortant.
-        interaction_id: Identifiant de l'interaction RAG concernée.
-        note: Note utilisateur associée au feedback.
-        commentaire: Commentaire optionnel associé au feedback.
+        config: Endpoints orchestrator.
+        access_token: Bearer token de la session.
+        interaction_id: Interaction évaluée.
+        note: Vote positif ou négatif.
+        commentaire: Commentaire utilisateur facultatif.
+        client: Client externe injecté si nécessaire.
 
     Returns:
-        Feedback enregistré par l'orchestrator pour l'interaction donnée.
-
-    Raises:
-        RagApiError: Si l'API appelée par l'IHM est indisponible ou retourne une réponse inexploitable.
+        Feedback sauvegardé validé comme objet JSON.
     """
-    data = _authenticated_request(
+    payload = _authenticated_request(
         "POST",
-        _usage_url(config, f"/usage/interactions/{interaction_id}/feedback"),
+        _orchestrator_url(config, f"/usage/interactions/{interaction_id}/feedback"),
         access_token,
         payload={"note": note, "commentaire": commentaire},
+        client=client,
     )
+    try:
+        return validate_feedback_response(payload)
+    except ResponseContractError as exception:
+        raise RagApiError(
+            "Le service RAG a retourné un avis invalide.",
+            {"contract": "feedback", "dependency": "rag_orchestrator"},
+            code="response_contract_error",
+        ) from exception
 
-    if not isinstance(data, dict):
-        raise RagApiError("Le service a retourné un format inattendu.")
 
-    return data
-
-
-def run_evaluation(config: EvaluatorApiConfig) -> dict[str, Any]:
-    """Déclenche l'évaluation RAG auprès du service evaluator.
+def run_evaluation(
+    config: EvaluatorApiConfig,
+    access_token: str | None,
+    client: RagClient | None = None,
+) -> EvaluationResponse:
+    """Déclenche l'évaluation en propageant l'identité si le service l'accepte.
 
     Args:
-        config: Configuration applicative contenant les URLs, modèles ou paramètres métier nécessaires.
+        config: Endpoints evaluator.
+        access_token: Bearer token transmis à l'evaluator.
+        client: Client externe injecté si nécessaire.
 
     Returns:
-        Résultat complet de l'évaluation RAG retourné par l'evaluator.
+        DTO des résultats d'évaluation.
 
     Raises:
-        RagApiError: Si l'API appelée par l'IHM est indisponible ou retourne une réponse inexploitable.
+        RagApiError: Si la session manque ou si le résultat est invalide.
     """
+    payload = _authenticated_request(
+        "POST",
+        config.evaluate_url,
+        access_token,
+        timeout=300,
+        client=client,
+    )
     try:
-        response = requests.post(config.evaluate_url, timeout=300)
-    except requests.exceptions.Timeout as exception:
+        return validate_evaluation_response(payload)
+    except ResponseContractError as exception:
         raise RagApiError(
-            "L'évaluation prend trop de temps. Réessaie plus tard."
+            "Le service d'évaluation a retourné une réponse invalide.",
+            {"contract": "evaluation", "dependency": "rag_evaluator"},
+            code="response_contract_error",
         ) from exception
-    except requests.exceptions.ConnectionError as exception:
-        raise RagApiError(
-            "Le service d'évaluation est injoignable pour le moment."
-        ) from exception
-    except requests.RequestException as exception:
-        raise RagApiError("L'évaluation n'a pas pu être lancée.") from exception
-
-    _raise_for_error_response(response)
-    return _response_json(response)
 
 
 def _required_env(name: str) -> str:
-    """Lit une variable d'environnement obligatoire pour l'IHM.
+    """Lit une variable d'environnement obligatoire.
 
     Args:
-        name: Nom de la variable à lire.
+        name: Nom de la variable.
 
     Returns:
-        Valeur de la variable.
+        Valeur non vide.
 
     Raises:
-        RagApiError: Si la variable est absente ou vide.
+        RagApiError: Si la variable est absente.
     """
     value = os.getenv(name)
     if not value:
-        raise RagApiError(f"Configuration manquante : {name}.")
+        raise RagApiError(
+            "La configuration de l'interface est incomplète.",
+            {"configuration": name},
+            code="configuration_error",
+        )
     return value
 
 
-def _usage_url(config: ChatApiConfig, path: str) -> str:
-    """Construit une URL usage à partir de l'endpoint ask_question.
+def _orchestrator_url(config: ChatApiConfig, path: str) -> str:
+    """Joint un chemin absolu à la base orchestrator normalisée.
 
     Args:
-        config: Configuration des endpoints orchestrator.
-        path: Chemin usage à ajouter.
+        config: Configuration contenant l'endpoint de question.
+        path: Chemin d'API commençant par `/`.
+
+    Returns:
+        URL complète sans double slash de chemin.
+    """
+    return f"{config.base_url}/{path.lstrip('/')}"
+
+
+def _usage_url(config: ChatApiConfig, path: str) -> str:
+    """Conserve le helper historique en utilisant la base robuste.
+
+    Args:
+        config: Configuration contenant l'endpoint de question.
+        path: Chemin usage à joindre.
 
     Returns:
         URL complète de l'endpoint usage.
     """
-    base_url = config.ask_question_url.rsplit("/", 1)[0]
-
-    return f"{base_url}{path}"
-
-
-def _response_json_any(response: requests.Response):
-    """Décode une réponse JSON dont le type racine peut varier.
-
-    Args:
-        response: Réponse HTTP ou objet de réponse à décoder.
-
-    Returns:
-        Corps JSON décodé, quel que soit son type racine.
-
-    Raises:
-        RagApiError: Si l'API appelée par l'IHM est indisponible ou retourne une réponse inexploitable.
-    """
-    try:
-        return response.json()
-    except ValueError as exception:
-        raise RagApiError("Le service a retourné une réponse illisible.") from exception
+    return _orchestrator_url(config, path)
 
 
 def _authenticated_request(
@@ -402,163 +446,148 @@ def _authenticated_request(
     *,
     params: dict[str, Any] | None = None,
     payload: dict[str, Any] | None = None,
-) -> Any:
-    """Centralise l'envoi HTTP authentifié vers les APIs RAG.
+    timeout: int = 30,
+    client: RagClient | None = None,
+) -> JsonValue:
+    """Exécute un appel RAG authentifié via le client DAL.
 
     Args:
-        method: Méthode HTTP utilisée pour l'appel authentifié.
-        url: URL cible de l'appel HTTP.
-        access_token: Access token OIDC utilisé pour authentifier l'appel HTTP sortant.
-        params: Paramètres de query string transmis à l'API appelée.
-        payload: Corps JSON transmis à une API externe ou persisté en base.
+        method: Méthode HTTP cible.
+        url: Endpoint complet.
+        access_token: Bearer token obligatoire.
+        params: Paramètres de query string.
+        payload: Corps JSON.
+        timeout: Durée maximale de l'appel.
+        client: Client externe injecté si nécessaire.
 
     Returns:
-        Corps JSON décodé de la réponse authentifiée.
+        Corps JSON décodé.
 
     Raises:
-        RagApiError: Si l'API appelée par l'IHM est indisponible ou retourne une réponse inexploitable.
+        RagApiError: Si la session est absente.
     """
     if not access_token:
-        raise RagApiError("La session a expiré. Reconnecte-toi pour continuer.")
-
-    try:
-        response = requests.request(
-            method,
-            url,
-            params=params,
-            json=payload,
-            headers=_auth_headers(access_token),
-            timeout=30,
-        )
-    except requests.exceptions.Timeout as exception:
-        raise RagApiError("Le service met trop de temps à répondre.") from exception
-    except requests.exceptions.ConnectionError as exception:
-        raise RagApiError("Le service est injoignable pour le moment.") from exception
-    except requests.RequestException as exception:
         raise RagApiError(
-            "La demande n'a pas pu être envoyée au service RAG."
-        ) from exception
+            "La session a expiré. Reconnecte-toi pour continuer.",
+            {"status_code": 401},
+            code="authentication_required",
+        )
+    return (client or create_rag_client()).request_json(
+        method,
+        url,
+        timeout=timeout,
+        access_token=access_token,
+        params=params,
+        payload=payload,
+    )
 
-    _raise_for_error_response(response)
-    return _response_json_any(response)
+
+def _expect_dict(payload: JsonValue) -> dict[str, Any]:
+    """Valide qu'un corps JSON est un objet.
+
+    Args:
+        payload: Corps JSON à contrôler.
+
+    Returns:
+        Objet JSON typé pour la frontière de service.
+
+    Raises:
+        RagApiError: Si le type racine est inattendu.
+    """
+    if not isinstance(payload, dict):
+        raise RagApiError(
+            "Le service a retourné un format inattendu.",
+            {"contract": "json_object"},
+            code="response_contract_error",
+        )
+    return cast(dict[str, Any], payload)
+
+
+def _expect_dict_list(payload: JsonValue) -> list[dict[str, Any]]:
+    """Valide qu'un corps JSON est une liste d'objets.
+
+    Args:
+        payload: Corps JSON à contrôler.
+
+    Returns:
+        Liste d'objets JSON.
+
+    Raises:
+        RagApiError: Si la liste contient une valeur incompatible.
+    """
+    if not isinstance(payload, list) or not all(
+        isinstance(item, dict) for item in payload
+    ):
+        raise RagApiError(
+            "Le service a retourné un format inattendu.",
+            {"contract": "json_object_list"},
+            code="response_contract_error",
+        )
+    return cast(list[dict[str, Any]], payload)
 
 
 def _auth_headers(access_token: str) -> dict[str, str]:
-    """Construit l'en-tête Authorization à partir du token courant.
+    """Construit l'en-tête bearer pour les tests et intégrations existants.
 
     Args:
-        access_token: Access token OIDC utilisé pour authentifier l'appel HTTP sortant.
+        access_token: Token à transmettre.
 
     Returns:
-        Dictionnaire d'en-têtes contenant le bearer token à transmettre à l'orchestrator.
+        En-tête Authorization.
     """
     return {"Authorization": f"Bearer {access_token}"}
 
 
-def _docs_url(base_url: str) -> str:
-    """Construit l'URL de documentation FastAPI utilisée pour les healthchecks.
+def _docs_url(health_url: str) -> str:
+    """Retourne sans modification l'URL explicite de healthcheck.
 
     Args:
-        base_url: URL de base utilisée pour construire un endpoint complet.
+        health_url: Endpoint de santé configuré.
 
     Returns:
-        URL terminée par `/docs`, utilisée pour ouvrir la documentation ou tester le backend.
+        Même URL, normalisée uniquement des espaces extérieurs.
     """
-    clean_url = base_url.rstrip("/")
-    if clean_url.endswith("/docs"):
-        return clean_url
-    return f"{clean_url}/docs"
-
-
-def _raise_for_error_response(response: requests.Response) -> None:
-    """Transforme une réponse HTTP non OK en erreur affichable côté IHM.
-
-    Args:
-        response: Réponse HTTP ou objet de réponse à décoder.
-
-    Raises:
-        RagApiError: Si l'API appelée par l'IHM est indisponible ou retourne une réponse inexploitable.
-    """
-    if 200 <= response.status_code < 300:
-        return
-
-    details = _safe_response_details(response)
-    raise RagApiError(_extract_error_message(details), details=details)
-
-
-def _response_json(response: requests.Response) -> dict[str, Any]:
-    """Décode une réponse JSON dictionnaire.
-
-    Args:
-        response: Réponse HTTP `requests`.
-
-    Returns:
-        Corps JSON sous forme de dictionnaire.
-
-    Raises:
-        RagApiError: Si le JSON est invalide ou n'est pas un objet.
-    """
-    try:
-        data = response.json()
-    except ValueError as exception:
-        raise RagApiError("Le service a retourné une réponse illisible.") from exception
-
-    if not isinstance(data, dict):
-        raise RagApiError("Le service a retourné un format inattendu.")
-
-    return data
-
-
-def _safe_response_details(response: requests.Response) -> dict[str, Any]:
-    """Extrait des détails de réponse sans lever d'erreur de parsing.
-
-    Args:
-        response: Réponse HTTP `requests`.
-
-    Returns:
-        Détails JSON ou texte tronqué.
-    """
-    try:
-        data = response.json()
-    except ValueError:
-        data = {"response_text": _truncate(response.text)}
-
-    if isinstance(data, dict):
-        return data
-    return {"response": data}
+    return health_url.strip()
 
 
 def _extract_error_message(details: dict[str, Any]) -> str:
-    """Extrait le message d'erreur le plus utile depuis une réponse backend.
+    """Retourne un message stable sans recopier les détails backend.
 
     Args:
-        details: Informations non sensibles ajoutées à la réponse d'erreur pour faciliter le diagnostic.
+        details: Métadonnées techniques sûres ignorées pour l'affichage.
 
     Returns:
-        Message d'erreur le plus pertinent à afficher à l'utilisateur.
+        Message utilisateur générique.
     """
-    original_exception = details.get("original_exception")
-    if isinstance(original_exception, dict) and original_exception.get("message"):
-        return str(original_exception["message"])
-
-    for key in ("message", "detail", "error"):
-        value = details.get(key)
-        if value:
-            return str(value)
-
     return "Le service RAG a retourné une erreur."
 
 
 def _truncate(value: str, limit: int = 1000) -> str:
-    """Tronque une chaîne pour éviter d'afficher une réponse technique trop longue.
+    """Tronque une chaîne non affichée afin de préserver l'ancien helper.
 
     Args:
-        value: Valeur à convertir, borner ou formater.
-        limit: Nombre maximal de caractères conservés.
+        value: Chaîne à borner.
+        limit: Nombre maximal de caractères.
 
     Returns:
-        Chaîne d'origine ou version tronquée avec points de suspension.
+        Valeur éventuellement tronquée.
     """
     if len(value) <= limit:
         return value
     return f"{value[:limit].rstrip()}..."
+
+
+def _quota_contract_error(exception: ResponseContractError) -> RagApiError:
+    """Traduit une erreur de contrat quota sans reprendre sa valeur brute.
+
+    Args:
+        exception: Erreur de validation utilisée uniquement comme cause chaînée.
+
+    Returns:
+        Erreur publique stable pour le point central Streamlit.
+    """
+    return RagApiError(
+        "Le service RAG a retourné un quota invalide.",
+        {"contract": "quota_usage", "dependency": "rag_orchestrator"},
+        code="response_contract_error",
+    )

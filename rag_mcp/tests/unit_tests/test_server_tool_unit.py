@@ -1,20 +1,10 @@
-import httpx
+import logging
+
 import pytest
 from mcp.server.auth.provider import AccessToken
 
 from app import server
-from app.core.config import McpConfig
-
-
-def _config() -> McpConfig:
-    return McpConfig(
-        rag_orchestrator_url="http://rag",
-        oidc_issuer="https://auth.example.test",
-        oidc_jwks_uri="https://auth.example.test/jwks.json",
-        oidc_allowed_audiences=["https://mcp.example.test/"],
-        required_scopes=["rag:mcp"],
-        resource_server_url="https://mcp.example.test",
-    )
+from app.core.errors import McpResponseContractError, McpTimeoutError
 
 
 def _access_token(token: str = "user-token") -> AccessToken:
@@ -31,28 +21,22 @@ def _access_token(token: str = "user-token") -> AccessToken:
 async def test_interroger_documentation_interne_returns_rag_client_response(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    config = _config()
     calls = []
 
-    async def fake_retrieve_documentation_chunks(**kwargs) -> str:
-        calls.append(("rag", kwargs))
-        return "chunks"
+    class FakeDocumentationService:
+        async def answer(self, question: str, access_token: str) -> str:
+            calls.append((question, access_token))
+            return "chunks"
 
-    monkeypatch.setattr(server, "config", config)
     monkeypatch.setattr(server, "get_access_token", _access_token)
-    monkeypatch.setattr(
-        server, "retrieve_documentation_chunks", fake_retrieve_documentation_chunks
-    )
+    monkeypatch.setattr(server, "documentation_service", FakeDocumentationService())
 
     result = await server.interroger_documentation_interne("question")
 
-    assert result == "chunks"
-    assert calls == [
-        (
-            "rag",
-            {"config": config, "question": "question", "access_token": "user-token"},
-        ),
-    ]
+    assert result.is_error is False
+    assert result.content[0].text == "chunks"
+    assert result.structured_content == {"result": "chunks"}
+    assert calls == [("question", "user-token")]
 
 
 @pytest.mark.asyncio
@@ -63,24 +47,56 @@ async def test_interroger_documentation_interne_requires_user_token(
 
     result = await server.interroger_documentation_interne("question")
 
-    assert result == "Erreur MCP : Token utilisateur MCP manquant"
+    assert result.is_error is True
+    assert result.structured_content["error"]["code"] == "authentication_error"
+    assert result.content[0].text == "L'authentification MCP est requise."
 
 
 @pytest.mark.asyncio
-async def test_interroger_documentation_interne_formats_http_errors(
+@pytest.mark.parametrize(
+    ("error", "expected_level"),
+    [
+        (McpTimeoutError(), logging.WARNING),
+        (McpResponseContractError(), logging.ERROR),
+    ],
+)
+async def test_interroger_documentation_interne_returns_structured_client_errors(
+    monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
+    error: Exception,
+    expected_level: int,
+) -> None:
+    class FailingDocumentationService:
+        async def answer(self, question: str, access_token: str) -> str:
+            raise error
+
+    monkeypatch.setattr(server, "get_access_token", _access_token)
+    monkeypatch.setattr(server, "documentation_service", FailingDocumentationService())
+
+    with caplog.at_level(logging.DEBUG, logger=server.__name__):
+        result = await server.interroger_documentation_interne("private question")
+
+    assert result.is_error is True
+    assert result.structured_content["error"]["code"] == error.code
+    assert result.structured_content["error"]["retryable"] is error.retryable
+    assert caplog.records[-1].levelno == expected_level
+    assert caplog.records[-1].exc_info is None
+    assert "private question" not in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_interroger_documentation_interne_sanitizes_unexpected_errors(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    async def failing_retrieve_documentation_chunks(**kwargs) -> str:
-        request = httpx.Request("POST", "http://rag")
-        response = httpx.Response(503, text="down", request=request)
-        raise httpx.HTTPStatusError("failed", request=request, response=response)
+    class FailingDocumentationService:
+        async def answer(self, question: str, access_token: str) -> str:
+            raise RuntimeError("private backend body")
 
-    monkeypatch.setattr(server, "config", _config())
     monkeypatch.setattr(server, "get_access_token", _access_token)
-    monkeypatch.setattr(
-        server, "retrieve_documentation_chunks", failing_retrieve_documentation_chunks
-    )
+    monkeypatch.setattr(server, "documentation_service", FailingDocumentationService())
 
-    result = await server.interroger_documentation_interne("question")
+    result = await server.interroger_documentation_interne("private question")
 
-    assert result == "Erreur HTTP lors de l'appel au RAG : 503 - down"
+    assert result.is_error is True
+    assert result.structured_content["error"]["code"] == "mcp_error"
+    assert "private backend body" not in result.content[0].text

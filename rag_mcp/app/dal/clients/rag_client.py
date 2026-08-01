@@ -1,69 +1,136 @@
-import json
-from typing import Any
+from collections.abc import Callable
+from typing import Protocol, Self
 
 import httpx
 
-from app.core.config import McpConfig, McpRagClientError
+from app.core.config import McpConfig
+from app.core.errors import (
+    McpConnectionError,
+    McpForbiddenError,
+    McpInvalidJsonError,
+    McpRateLimitError,
+    McpTimeoutError,
+    McpUnauthorizedError,
+    McpUpstreamHttpError,
+    McpUpstreamServerError,
+)
+from app.schemas.rag_response import RetrievedChunksResponse
 
 
-async def retrieve_documentation_chunks(
-    *,
-    config: McpConfig,
-    question: str,
-    access_token: str,
-) -> str:
-    """Récupère les chunks de documentation auprès de l'orchestrator.
+class AsyncHttpClientProtocol(Protocol):
+    """Contrat HTTP minimal utilisé par le client RAG."""
 
-    Args:
-        config: Configuration MCP contenant l'URL orchestrator.
-        question: Question reçue via l'outil MCP, non loggée.
-        access_token: Token OIDC utilisé dans l'en-tête Authorization.
+    async def __aenter__(self) -> Self: ...
 
-    Returns:
-        Chaîne JSON formatée des chunks ou message d'absence de résultat.
+    async def __aexit__(self, *args: object) -> bool | None: ...
 
-    Raises:
-        McpRagClientError: Si l'appel orchestrator échoue ou retourne un JSON invalide.
-    """
-    try:
-        async with httpx.AsyncClient(timeout=120) as client:
-            response = await client.post(
-                config.rag_orchestrator_url,
-                json={"question": question},
-                headers={"Authorization": f"Bearer {access_token}"},
-            )
+    async def post(
+        self,
+        url: str,
+        *,
+        json: dict[str, str],
+        headers: dict[str, str],
+    ) -> httpx.Response: ...
 
+
+HttpClientFactory = Callable[..., AsyncHttpClientProtocol]
+
+
+class RagClient:
+    """Client HTTP de l'orchestrator dédié à la récupération de chunks."""
+
+    def __init__(
+        self,
+        config: McpConfig,
+        client_factory: HttpClientFactory = httpx.AsyncClient,
+    ) -> None:
+        """Prépare le client avec une factory HTTP remplaçable en test.
+
+        Args:
+            config: Configuration contenant l'endpoint de récupération.
+            client_factory: Factory créant le client HTTP asynchrone.
+        """
+        self._config = config
+        self._client_factory = client_factory
+
+    async def retrieve_documentation_chunks(
+        self,
+        question: str,
+        access_token: str,
+    ) -> RetrievedChunksResponse:
+        """Récupère et valide les chunks auprès de l'orchestrator.
+
+        Args:
+            question: Question reçue via l'outil MCP, non loggée.
+            access_token: Token OIDC transmis dans l'en-tête Authorization.
+
+        Returns:
+            DTO contenant les chunks retournés par l'orchestrator.
+
+        Raises:
+            McpRagClientError: Si l'appel échoue ou retourne une réponse invalide.
+        """
+        try:
+            async with self._client_factory(timeout=120) as client:
+                response = await client.post(
+                    self._config.rag_orchestrator_url,
+                    json={"question": question},
+                    headers={"Authorization": f"Bearer {access_token}"},
+                )
+        except httpx.TimeoutException as exception:
+            raise McpTimeoutError(
+                safe_details={
+                    "dependency": "rag_orchestrator",
+                    "operation": "retrieve_documentation_chunks",
+                }
+            ) from exception
+        except httpx.ConnectError as exception:
+            raise McpConnectionError(
+                safe_details={
+                    "dependency": "rag_orchestrator",
+                    "operation": "retrieve_documentation_chunks",
+                }
+            ) from exception
+        except httpx.RequestError as exception:
+            raise McpConnectionError(
+                safe_details={
+                    "dependency": "rag_orchestrator",
+                    "error_type": type(exception).__name__,
+                    "operation": "retrieve_documentation_chunks",
+                }
+            ) from exception
+
+        try:
             response.raise_for_status()
-            data = response.json()
-    except httpx.HTTPError as exception:
-        raise McpRagClientError(
-            "Erreur lors de l'appel à l'orchestrator",
-            details={
-                "url": config.rag_orchestrator_url,
-                "error_type": type(exception).__name__,
-            },
-        ) from exception
-    except ValueError as exception:
-        raise McpRagClientError(
-            "L'orchestrator a retourné un JSON invalide",
-            details={"url": config.rag_orchestrator_url},
-        ) from exception
+        except httpx.HTTPStatusError as exception:
+            raise _http_status_error(exception.response.status_code) from exception
 
-    return format_retrieved_chunks_response(data)
+        try:
+            payload = response.json()
+        except ValueError as exception:
+            raise McpInvalidJsonError(
+                safe_details={"dependency": "rag_orchestrator"}
+            ) from exception
+
+        return RetrievedChunksResponse.from_payload(payload)
 
 
-def format_retrieved_chunks_response(data: dict[str, Any]) -> str:
-    """Formate les chunks récupérés pour l'appelant MCP.
+def _http_status_error(status_code: int) -> McpUpstreamHttpError:
+    """Classe un statut HTTP sans lire le corps de la réponse.
 
     Args:
-        data: Réponse JSON de l'orchestrator.
+        status_code: Statut numérique retourné par l'orchestrator.
 
     Returns:
-        Chaîne JSON indentée des chunks ou message d'absence de résultat.
+        Erreur applicative correspondant au statut reçu.
     """
-    retrieved_chunks = data.get("retrieved_chunks", [])
-
-    if not retrieved_chunks:
-        return "Aucune information trouvée."
-
-    return json.dumps(retrieved_chunks, ensure_ascii=False, indent=2)
+    details = {"dependency": "rag_orchestrator", "status_code": status_code}
+    if status_code == 401:
+        return McpUnauthorizedError(safe_details=details)
+    if status_code == 403:
+        return McpForbiddenError(safe_details=details)
+    if status_code == 429:
+        return McpRateLimitError(safe_details=details)
+    if status_code >= 500:
+        return McpUpstreamServerError(safe_details=details)
+    return McpUpstreamHttpError(safe_details=details)

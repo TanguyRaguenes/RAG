@@ -1,11 +1,18 @@
+import pytest
 from streamlit.testing.v1 import AppTest
 
 from app.components.chat import EXAMPLE_QUESTIONS
 from app.services import rag_api_client
-from app.services.auth_service import ACCESS_TOKEN_KEY, USER_KEY
+from app.services.auth_service import (
+    ACCESS_TOKEN_KEY,
+    IDENTITY_VERIFIED_KEY,
+    USER_KEY,
+)
 
 
-def test_examples_disappear_after_first_question(monkeypatch) -> None:
+def test_examples_disappear_after_first_question(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     monkeypatch.setenv("RAG_ORCHESTRATOR_TEST_CONNEXION_URL", "http://rag.test")
     monkeypatch.setenv(
         "RAG_ORCHESTRATOR_ASK_QUESTION_URL", "http://rag.test/ask_question"
@@ -23,7 +30,8 @@ def test_examples_disappear_after_first_question(monkeypatch) -> None:
 
     app = AppTest.from_file("app/main.py")
     app.session_state[ACCESS_TOKEN_KEY] = "token"
-    app.session_state[USER_KEY] = {"groups": []}
+    app.session_state[USER_KEY] = {"issuer": "issuer", "sub": "user", "groups": []}
+    app.session_state[IDENTITY_VERIFIED_KEY] = True
     app.run(timeout=20)
 
     assert set(EXAMPLE_QUESTIONS).issubset({button.label for button in app.button})

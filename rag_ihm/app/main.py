@@ -1,11 +1,11 @@
-from typing import Any
-
 import streamlit as st
 
 from app.components.common import render_sidebar_header
 from app.core.logging import configure_json_logging
+from app.schemas.api import AuthenticatedUser
 from app.services.auth_service import (
     handle_oidc_callback,
+    is_evaluator_admin,
     is_usage_admin,
     logout,
     require_authenticated_user,
@@ -20,7 +20,7 @@ st.set_page_config(
 handle_oidc_callback()
 
 
-def _render_global_sidebar(current_user: dict[str, Any] | None) -> None:
+def _render_global_sidebar(current_user: AuthenticatedUser | None) -> None:
     """Affiche l'identité de l'utilisateur et l'action de déconnexion."""
     with st.sidebar:
         render_sidebar_header(current_user)
@@ -41,6 +41,8 @@ pages = [
 
 if is_usage_admin(current_user):
     pages.append(st.Page("pages/feedbacks.py", title="Avis"))
+
+if is_evaluator_admin(current_user):
     pages.append(st.Page("pages/dashboard.py", title="Évaluation"))
 
 navigation = st.navigation(pages)

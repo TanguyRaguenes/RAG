@@ -13,6 +13,7 @@ from app.services.auth_service import (
     require_authenticated_user,
 )
 from app.services.rag_api_client import (
+    ChatApiConfig,
     RagApiError,
     list_admin_interaction_feedbacks,
     load_chat_api_config,
@@ -37,7 +38,12 @@ def _render_period_selector() -> tuple[date, date]:
     return start_date, end_date
 
 
-def _load_feedbacks(config, access_token: str | None, start_date: date, end_date: date):
+def _load_feedbacks(
+    config: ChatApiConfig,
+    access_token: str | None,
+    start_date: date,
+    end_date: date,
+) -> list[dict[str, object]]:
     """Charge les feedbacks administrateur pour la période sélectionnée.
 
     Args:
@@ -62,7 +68,7 @@ def _load_feedbacks(config, access_token: str | None, start_date: date, end_date
             return []
 
 
-def _feedback_to_table_row(feedback: dict) -> dict:
+def _feedback_to_table_row(feedback: dict[str, object]) -> dict[str, object]:
     """Transforme un feedback brut en ligne de tableau Streamlit.
 
     Args:

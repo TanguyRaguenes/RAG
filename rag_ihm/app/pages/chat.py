@@ -14,6 +14,7 @@ from app.components.common import (
 )
 from app.services.auth_service import get_access_token, require_authenticated_user
 from app.services.rag_api_client import (
+    ChatApiConfig,
     RagApiError,
     ask_question,
     check_api_health,
@@ -35,7 +36,7 @@ PROVIDER_OPTIONS = {
 }
 
 
-def _render_api_status(config) -> None:
+def _render_api_status(config: ChatApiConfig) -> None:
     """Affiche l'état de disponibilité des APIs utilisées par la page de chat.
 
     Args:
@@ -71,7 +72,7 @@ def _raise_health_error(error: RagApiError) -> None:
     raise error
 
 
-def _render_sidebar(config) -> tuple[str, bool]:
+def _render_sidebar(config: ChatApiConfig) -> tuple[str, bool]:
     """Affiche la barre latérale contextuelle de la page Streamlit courante.
 
     Args:
@@ -94,7 +95,7 @@ def _render_sidebar(config) -> tuple[str, bool]:
             ["Masqués", "Affichés"],
             index=0,
             horizontal=True,
-            help="À réserver au diagnostic : données JSON, prompt et détails d'erreur.",
+            help="À réserver au diagnostic : sources JSON et prompt généré.",
         )
 
         if st.button("État API", width="stretch"):
@@ -108,7 +109,12 @@ def _render_sidebar(config) -> tuple[str, bool]:
     return PROVIDER_OPTIONS[provider_label], details_label == "Affichés"
 
 
-def _submit_feedback(config, interaction_id: int, note: int, comment: str) -> bool:
+def _submit_feedback(
+    config: ChatApiConfig,
+    interaction_id: int,
+    note: int,
+    comment: str,
+) -> bool:
     """Envoie le feedback utilisateur associé à une interaction depuis la page de chat.
 
     Args:
@@ -135,7 +141,10 @@ def _submit_feedback(config, interaction_id: int, note: int, comment: str) -> bo
     return True
 
 
-def _render_history(show_technical_details: bool, config) -> None:
+def _render_history(
+    show_technical_details: bool,
+    config: ChatApiConfig,
+) -> None:
     """Affiche l'historique de conversation dans la page de chat.
 
     Args:
@@ -156,7 +165,10 @@ def _render_history(show_technical_details: bool, config) -> None:
 
 
 def _process_prompt(
-    prompt: str, provider: str, show_technical_details: bool, config
+    prompt: str,
+    provider: str,
+    show_technical_details: bool,
+    config: ChatApiConfig,
 ) -> None:
     """Envoie le prompt utilisateur au RAG et ajoute la réponse à l'historique.
 
@@ -192,6 +204,16 @@ def _process_prompt(
     )
 
 
+def _select_example_question(question: str) -> None:
+    """Place une question d'exemple dans la file du prochain rendu.
+
+    Args:
+        question: Exemple sélectionné par l'utilisateur.
+    """
+    set_pending_prompt(question)
+    st.rerun()
+
+
 config = load_config_or_stop(load_chat_api_config)
 require_authenticated_user()
 
@@ -203,9 +225,7 @@ messages = get_chat_messages()
 examples_placeholder = st.empty()
 if not messages:
     with examples_placeholder.container():
-        render_empty_chat_state(
-            lambda question: (set_pending_prompt(question), st.rerun())
-        )
+        render_empty_chat_state(_select_example_question)
 
 _render_history(show_technical_details, config)
 

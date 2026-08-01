@@ -1,3 +1,7 @@
+from typing import Self
+
+import pytest
+
 from app.components import chat
 from app.components.chat import (
     ROLE_ASSISTANT,
@@ -9,36 +13,36 @@ from app.components.chat import (
 
 
 class _Context:
-    def __enter__(self):
+    def __enter__(self) -> Self:
         return self
 
-    def __exit__(self, *args):
+    def __exit__(self, *args: object) -> bool:
         return False
 
 
 class FakeStreamlit:
-    def __init__(self):
-        self.expanders = []
-        self.markdowns = []
-        self.json_values = []
+    def __init__(self) -> None:
+        self.expanders: list[str] = []
+        self.markdowns: list[str] = []
+        self.json_values: list[object] = []
 
-    def chat_message(self, role):
+    def chat_message(self, role: str) -> _Context:
         return _Context()
 
-    def expander(self, label):
+    def expander(self, label: str) -> _Context:
         self.expanders.append(label)
         return _Context()
 
-    def markdown(self, value):
+    def markdown(self, value: str) -> None:
         self.markdowns.append(value)
 
-    def json(self, value):
+    def json(self, value: object) -> None:
         self.json_values.append(value)
 
-    def caption(self, value):
+    def caption(self, value: str) -> None:
         pass
 
-    def divider(self):
+    def divider(self) -> None:
         pass
 
 
@@ -89,7 +93,7 @@ def test_sort_chunks_orders_reranker_scores_and_keeps_invalid_items_last() -> No
 
 
 def test_render_sources_displays_sorted_scores_and_separate_json(
-    monkeypatch,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     fake_streamlit = FakeStreamlit()
     monkeypatch.setattr(chat, "st", fake_streamlit)
@@ -120,7 +124,9 @@ def test_render_sources_displays_sorted_scores_and_separate_json(
     assert fake_streamlit.json_values == [[chunks[1], chunks[0]]]
 
 
-def test_render_message_separates_formatted_and_json_prompt(monkeypatch) -> None:
+def test_render_message_separates_formatted_and_json_prompt(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     fake_streamlit = FakeStreamlit()
     monkeypatch.setattr(chat, "st", fake_streamlit)
     prompt = [{"role": "system", "content": "Consigne"}]

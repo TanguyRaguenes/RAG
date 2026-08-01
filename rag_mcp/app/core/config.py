@@ -1,6 +1,10 @@
 import os
 from dataclasses import dataclass
 
+from app.core.errors import McpConfigError
+
+REQUIRED_MCP_SCOPE = "rag:mcp"
+
 
 @dataclass(frozen=True)
 class McpConfig:
@@ -9,39 +13,9 @@ class McpConfig:
     rag_orchestrator_url: str
     oidc_issuer: str
     oidc_jwks_uri: str
-    oidc_allowed_audiences: list[str]
-    required_scopes: list[str]
+    oidc_allowed_audiences: tuple[str, ...]
+    required_scopes: tuple[str, ...]
     resource_server_url: str
-
-
-class McpError(RuntimeError):
-    """Base exception pour les erreurs du serveur MCP."""
-
-    def __init__(self, message: str, details: dict[str, str] | None = None):
-        """Initialise une exception MCP.
-
-        Args:
-            message: Message lisible décrivant l'erreur.
-            details: Métadonnées non sensibles utiles au diagnostic.
-
-        Returns:
-            Aucune valeur.
-        """
-        self.message = message
-        self.details = details or {}
-        super().__init__(message)
-
-
-class McpConfigError(McpError):
-    """Configuration obligatoire manquante pour le serveur MCP."""
-
-
-class McpAuthError(McpError):
-    """Erreur lors de l'authentification entrante du client MCP."""
-
-
-class McpRagClientError(McpError):
-    """Erreur lors de l'appel au RAG depuis le serveur MCP."""
 
 
 def load_mcp_config() -> McpConfig:
@@ -58,7 +32,7 @@ def load_mcp_config() -> McpConfig:
         oidc_issuer=_required_env("RAG_MCP_OIDC_ISSUER"),
         oidc_jwks_uri=_required_env("RAG_MCP_OIDC_JWKS_URI"),
         oidc_allowed_audiences=_required_csv_env("RAG_MCP_OIDC_ALLOWED_AUDIENCES"),
-        required_scopes=_optional_csv_env("RAG_MCP_REQUIRED_SCOPES"),
+        required_scopes=_mcp_required_scopes(),
         resource_server_url=_required_env("RAG_MCP_RESOURCE_SERVER_URL"),
     )
 
@@ -77,19 +51,32 @@ def _required_env(name: str) -> str:
     """
     value = os.getenv(name)
     if not value:
-        raise McpConfigError(f"Variable d'environnement manquante : {name}")
+        raise McpConfigError(safe_details={"configuration": name})
     return value
 
 
-def _required_csv_env(name: str) -> list[str]:
+def _required_csv_env(name: str) -> tuple[str, ...]:
     """Lit une variable CSV obligatoire et retire les valeurs vides."""
     values = _optional_csv_env(name)
     if not values:
-        raise McpConfigError(f"Variable d'environnement manquante : {name}")
+        raise McpConfigError(safe_details={"configuration": name})
     return values
 
 
-def _optional_csv_env(name: str) -> list[str]:
-    """Lit une variable CSV optionnelle et retourne une liste normalisée."""
+def _optional_csv_env(name: str) -> tuple[str, ...]:
+    """Lit une variable CSV optionnelle et retourne un tuple normalisé."""
     value = os.getenv(name, "")
-    return [item.strip() for item in value.split(",") if item.strip()]
+    return tuple(item.strip() for item in value.split(",") if item.strip())
+
+
+def _mcp_required_scopes() -> tuple[str, ...]:
+    """Garantit le scope métier MCP en complément des scopes configurés.
+
+    Returns:
+        Scopes exigés, avec `rag:mcp` toujours présent une seule fois.
+    """
+    configured_scopes = _optional_csv_env("RAG_MCP_REQUIRED_SCOPES")
+    return (
+        REQUIRED_MCP_SCOPE,
+        *(scope for scope in configured_scopes if scope != REQUIRED_MCP_SCOPE),
+    )

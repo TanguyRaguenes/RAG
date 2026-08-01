@@ -1,3 +1,4 @@
+import math
 from dataclasses import dataclass
 
 import streamlit as st
@@ -5,8 +6,10 @@ import streamlit as st
 
 @dataclass(frozen=True)
 class ScoreMetric:
+    """Métrique optionnelle avec son échelle et son aide utilisateur."""
+
     label: str
-    value: float
+    value: float | None
     scale_max: float
     help_text: str
 
@@ -52,17 +55,18 @@ def render_summary_cards(result: dict) -> None:
     )
     answer_average = _average(
         [
-            _as_float(answer.get("accuracy")) / 5,
-            _as_float(answer.get("completeness")) / 5,
-            _as_float(answer.get("relevance")) / 5,
+            _scaled_score(answer.get(key), 5.0)
+            for key in ("accuracy", "completeness", "relevance")
         ]
     )
 
     col1, col2, col3, col4 = st.columns(4)
-    col1.metric("Questions", str(int(result.get("total_questions", 0))))
+    total_questions = result.get("total_questions")
+    question_label = str(int(total_questions)) if total_questions is not None else "N/A"
+    col1.metric("Questions", question_label)
     col2.metric("Durée", str(result.get("total_duration", "N/A")))
-    col3.metric("Retrieval", f"{retrieval_average:.0%}")
-    col4.metric("Réponse", f"{answer_average:.0%}")
+    col3.metric("Retrieval", _format_average(retrieval_average))
+    col4.metric("Réponse", _format_average(answer_average))
 
 
 def render_retrieval_scores(retrieval: dict) -> None:
@@ -134,34 +138,50 @@ def _render_score_grid(metrics: list[ScoreMetric]) -> None:
     columns = st.columns(2)
     for index, metric in enumerate(metrics):
         with columns[index % 2]:
-            normalized = _clamp(metric.value / metric.scale_max)
             value_label = _format_score(metric.value, metric.scale_max)
             st.markdown(f"**{metric.label}** · {value_label}")
-            st.progress(normalized)
+            if metric.value is not None:
+                st.progress(_clamp(metric.value / metric.scale_max))
+            else:
+                st.caption("Métrique non calculée.")
             st.caption(metric.help_text)
 
 
-def _format_score(value: float, scale_max: float) -> str:
+def _format_score(value: float | None, scale_max: float) -> str:
     """Formate un score en pourcentage ou sur son échelle absolue."""
+    if value is None:
+        return "N/A"
     if scale_max == 1.0:
         return f"{value:.0%}"
     return f"{value:.1f}/{int(scale_max)}"
 
 
-def _average(values: list[float]) -> float:
-    """Calcule la moyenne des valeurs positives disponibles."""
-    valid_values = [value for value in values if value >= 0]
+def _average(values: list[float | None]) -> float | None:
+    """Calcule la moyenne des valeurs disponibles sans inventer de zéro."""
+    valid_values = [value for value in values if value is not None and value >= 0]
     if not valid_values:
-        return 0.0
+        return None
     return sum(valid_values) / len(valid_values)
 
 
-def _as_float(value: object) -> float:
-    """Convertit une valeur en flottant et retourne zéro si elle est invalide."""
+def _as_float(value: object) -> float | None:
+    """Convertit une valeur en flottant ou indique qu'elle est absente."""
     try:
-        return float(value)
+        parsed_value = float(value)
     except (TypeError, ValueError):
-        return 0.0
+        return None
+    return parsed_value if math.isfinite(parsed_value) else None
+
+
+def _scaled_score(value: object, scale_max: float) -> float | None:
+    """Normalise une métrique optionnelle sur une échelle donnée."""
+    parsed_value = _as_float(value)
+    return parsed_value / scale_max if parsed_value is not None else None
+
+
+def _format_average(value: float | None) -> str:
+    """Affiche une moyenne disponible ou une absence explicite."""
+    return f"{value:.0%}" if value is not None else "N/A"
 
 
 def _clamp(value: float) -> float:

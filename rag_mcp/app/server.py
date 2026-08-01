@@ -1,24 +1,48 @@
 import logging
 
-import httpx
 from mcp.server.auth.middleware.auth_context import get_access_token
 from mcp.server.auth.settings import AuthSettings
 from mcp.server.mcpserver.server import MCPServer
 from mcp.server.transport_security import TransportSecuritySettings
+from mcp.types import CallToolResult, TextContent
 
-from app.core.config import McpAuthError, McpError, load_mcp_config
+from app.core.config import load_mcp_config
+from app.core.errors import McpAuthError, McpConfigError, McpError
 from app.core.logging import configure_json_logging
 from app.core.token_verifier import PocketIdTokenVerifier
-from app.dal.clients.rag_client import retrieve_documentation_chunks
+from app.dal.clients.rag_client import RagClient
+from app.services.documentation_service import DocumentationService
 
 configure_json_logging("rag_mcp")
 logger = logging.getLogger(__name__)
 
-config = load_mcp_config()
+try:
+    config = load_mcp_config()
+except McpConfigError as error:
+    logger.error(
+        "MCP configuration rejected",
+        extra={
+            "service": "rag_mcp",
+            "event": "bootstrap_configuration_error",
+            "error_code": error.code,
+            "details": error.safe_details,
+        },
+    )
+    raise
+
+logger.info(
+    "MCP configuration loaded",
+    extra={
+        "service": "rag_mcp",
+        "event": "bootstrap_configuration_loaded",
+        "audience_count": len(config.oidc_allowed_audiences),
+        "required_scope_count": len(config.required_scopes),
+    },
+)
 
 AUTH_SETTINGS = AuthSettings(
     issuer_url=config.oidc_issuer,
-    required_scopes=config.required_scopes,
+    required_scopes=list(config.required_scopes),
     resource_server_url=config.resource_server_url,
 )
 TRANSPORT_SECURITY = TransportSecuritySettings(
@@ -39,7 +63,7 @@ TRANSPORT_SECURITY = TransportSecuritySettings(
 )
 
 
-def _create_mcp_server():
+def _create_mcp_server() -> MCPServer:
     server = MCPServer(
         "RAG Entreprise",
         auth=AUTH_SETTINGS,
@@ -49,6 +73,7 @@ def _create_mcp_server():
 
 
 mcp = _create_mcp_server()
+documentation_service = DocumentationService(RagClient(config))
 TOOL_DESCRIPTION = """
 Recherche dans le RAG documentaire interne de l'entreprise.
 
@@ -64,7 +89,7 @@ documentation interne.
 
 
 @mcp.tool(description=TOOL_DESCRIPTION)
-async def interroger_documentation_interne(question: str) -> str:
+async def interroger_documentation_interne(question: str) -> CallToolResult:
     """Recherche des chunks dans la documentation interne via le RAG.
 
     L'outil transmet la question utilisateur à l'orchestrator RAG avec le bearer
@@ -77,49 +102,20 @@ async def interroger_documentation_interne(question: str) -> str:
             sensibles.
 
     Returns:
-        Chaîne JSON contenant une liste de chunks pertinents, ou un message
-        lisible si la recherche échoue ou ne trouve aucun résultat.
+        Résultat MCP contenant le même texte de succès qu'auparavant ou une erreur
+        structurée avec `isError=true`.
     """
     try:
         access_token = get_access_token()
         if access_token is None:
-            raise McpAuthError("Token utilisateur MCP manquant")
+            raise McpAuthError()
 
-        return await retrieve_documentation_chunks(
-            config=config,
-            question=question,
-            access_token=access_token.token,
-        )
+        answer = await documentation_service.answer(question, access_token.token)
+        return _success_tool_result(answer)
 
-    except McpError as exception:
-        logger.exception(
-            exception.message,
-            extra={
-                "service": "rag_mcp",
-                "event": "mcp_error",
-                "details": exception.details,
-            },
-        )
-        return f"Erreur MCP : {exception.message}"
-    except httpx.HTTPStatusError as exception:
-        logger.exception(
-            "Erreur HTTP non normalisée lors de l'appel MCP",
-            extra={"service": "rag_mcp", "event": "http_status_error"},
-        )
-        return (
-            f"Erreur HTTP lors de l'appel au RAG : "
-            f"{exception.response.status_code} - {exception.response.text}"
-        )
-    except httpx.HTTPError as exception:
-        logger.exception(
-            "Erreur HTTP non normalisée lors de l'appel MCP",
-            extra={
-                "service": "rag_mcp",
-                "event": "http_error",
-                "error_type": type(exception).__name__,
-            },
-        )
-        return "Erreur HTTP lors de l'appel au RAG."
+    except McpError as error:
+        _log_mcp_error(error)
+        return _error_tool_result(error)
     except Exception as exception:
         logger.exception(
             "Erreur inattendue MCP",
@@ -129,7 +125,66 @@ async def interroger_documentation_interne(question: str) -> str:
                 "error_type": type(exception).__name__,
             },
         )
-        return "Erreur inattendue lors de l'appel au RAG."
+        error = McpError()
+        return _error_tool_result(error)
+
+
+def _success_tool_result(answer: str) -> CallToolResult:
+    """Conserve le texte et le résultat structuré historique d'un succès.
+
+    Args:
+        answer: Texte JSON ou message d'absence de résultat produit par le service.
+
+    Returns:
+        Résultat MCP de succès compatible avec le SDK installé.
+    """
+    return CallToolResult(
+        content=[TextContent(text=answer)],
+        structuredContent={"result": answer},
+    )
+
+
+def _error_tool_result(error: McpError) -> CallToolResult:
+    """Construit un échec d'outil MCP assaini et réellement signalé au protocole.
+
+    Args:
+        error: Erreur applicative déjà dépourvue de contenu sensible.
+
+    Returns:
+        Résultat avec `isError=true` et contrat d'erreur structuré.
+    """
+    return CallToolResult(
+        content=[TextContent(text=error.public_message)],
+        structuredContent={
+            "result": error.public_message,
+            "error": error.to_public_dict(),
+        },
+        isError=True,
+    )
+
+
+def _log_mcp_error(error: McpError) -> None:
+    """Journalise une erreur attendue au niveau adapté, sans traceback sensible.
+
+    Args:
+        error: Erreur applicative classifiée par la frontière concernée.
+    """
+    level = (
+        logging.WARNING
+        if error.retryable or isinstance(error, McpAuthError)
+        else logging.ERROR
+    )
+    logger.log(
+        level,
+        "MCP tool call failed",
+        extra={
+            "service": "rag_mcp",
+            "event": "mcp_tool_error",
+            "error_code": error.code,
+            "retryable": error.retryable,
+            "details": error.safe_details,
+        },
+    )
 
 
 if __name__ == "__main__":

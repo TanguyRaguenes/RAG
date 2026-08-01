@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 class PocketIdTokenVerifier:
     """Valide les tokens utilisateur Pocket ID reçus par le transport MCP."""
 
-    def __init__(self, config: McpConfig):
+    def __init__(self, config: McpConfig) -> None:
         """Prépare le client JWKS utilisé pour valider les signatures JWT."""
         self.config = config
         self.jwks_client = PyJWKClient(config.oidc_jwks_uri)

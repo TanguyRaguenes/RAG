@@ -2,6 +2,7 @@ import json
 import logging
 import os
 import sys
+import traceback
 from datetime import UTC, datetime
 
 _RESERVED_LOG_RECORD_ATTRS = set(
@@ -36,7 +37,7 @@ class JsonLogFormatter(logging.Formatter):
         }
 
         if record.exc_info:
-            log_data["exception"] = self.formatException(record.exc_info)
+            log_data["exception"] = _format_safe_exception(record)
 
         if record.stack_info:
             log_data["stack"] = self.formatStack(record.stack_info)
@@ -78,3 +79,22 @@ def _resolve_log_level(log_level_name: str) -> int:
 
     log_level = getattr(logging, log_level_name, logging.INFO)
     return log_level if isinstance(log_level, int) else logging.INFO
+
+
+def _format_safe_exception(record: logging.LogRecord) -> dict[str, object]:
+    """Formate le type et la pile sans sérialiser le message de l'exception.
+
+    Args:
+        record: Enregistrement contenant l'exception inattendue.
+
+    Returns:
+        Type d'erreur et emplacements de pile bornés, sans corps ni token.
+    """
+    exception_type, _, traceback_value = record.exc_info or (None, None, None)
+    frames = traceback.extract_tb(traceback_value, limit=20) if traceback_value else []
+    return {
+        "type": exception_type.__name__ if exception_type else "Exception",
+        "stack": [
+            f"{frame.filename}:{frame.lineno} in {frame.name}" for frame in frames
+        ],
+    }

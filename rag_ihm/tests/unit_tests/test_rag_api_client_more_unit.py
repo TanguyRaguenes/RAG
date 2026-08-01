@@ -1,107 +1,227 @@
+from collections.abc import Iterator
+from datetime import date
+from typing import Any
+
 import pytest
 
-from app.services import rag_api_client as client
-from app.services.rag_api_client import ChatApiConfig, EvaluatorApiConfig, RagApiError
+from app.core.errors import RagApiError
+from app.services import rag_api_client as service
+from app.services.rag_api_client import ChatApiConfig, EvaluatorApiConfig
 
 
-class FakeResponse:
-    def __init__(self, status_code: int = 200, payload=None, text: str = ""):
-        self.status_code = status_code
-        self.payload = payload if payload is not None else {}
-        self.text = text
+class FakeRagClient:
+    def __init__(self, payloads: list[object] | None = None) -> None:
+        self._payloads: Iterator[object] = iter(payloads or [])
+        self.calls: list[dict[str, Any]] = []
+        self.health_urls: list[str] = []
 
-    def json(self):
-        if isinstance(self.payload, BaseException):
-            raise self.payload
-        return self.payload
+    def check_health(self, url: str) -> None:
+        self.health_urls.append(url)
+
+    def request_json(self, method: str, url: str, **kwargs: object) -> object:
+        self.calls.append({"method": method, "url": url, **kwargs})
+        return next(self._payloads)
+
+
+def _evaluation_response() -> dict[str, object]:
+    return {
+        "average_retrieval": {
+            "mrr": 1.0,
+            "ndcg": 0.9,
+            "recall": 0.8,
+            "precision": 0.7,
+            "source_hit_at_5": 1.0,
+        },
+        "average_answer_quality": {
+            "feedback": "ok",
+            "accuracy": 5.0,
+            "completeness": 4.0,
+            "relevance": 5.0,
+            "faithfulness": 4.0,
+            "safe_refusal": 3.0,
+        },
+        "total_duration": "00:01",
+        "total_questions": 1,
+    }
+
+
+def _quota_response() -> dict[str, object]:
+    return {
+        "utilisateur_id": "user-id",
+        "email": None,
+        "display_name": "User",
+        "preferred_username": None,
+        "max_tokens_par_mois": 100,
+        "consumed_tokens": 10,
+        "remaining_tokens": 90,
+        "usage_ratio": 0.1,
+        "actif": True,
+        "date_debut": "2026-08-01T00:00:00Z",
+        "date_fin": None,
+    }
+
+
+def _feedback_response() -> dict[str, object]:
+    return {"interaction_id": 1, "note": 1, "commentaire": "ok"}
 
 
 def test_load_api_configs_read_environment(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("RAG_ORCHESTRATOR_TEST_CONNEXION_URL", "http://rag")
+    monkeypatch.setenv("RAG_ORCHESTRATOR_TEST_CONNEXION_URL", "http://rag/health")
     monkeypatch.setenv("RAG_ORCHESTRATOR_ASK_QUESTION_URL", "http://rag/ask_question")
-    monkeypatch.setenv("RAG_EVALUATOR_TEST_CONNEXION_URL", "http://eval")
+    monkeypatch.setenv("RAG_EVALUATOR_TEST_CONNEXION_URL", "http://eval/health")
     monkeypatch.setenv("RAG_EVALUATOR_EVALUATE_RAG_URL", "http://eval/evaluate_rag")
 
-    assert client.load_chat_api_config().ask_question_url == "http://rag/ask_question"
-    assert client.load_evaluator_api_config().evaluate_url == "http://eval/evaluate_rag"
-
-
-def test_check_api_health_raises_displayable_error_for_non_200(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setattr(
-        client.requests,
-        "get",
-        lambda url, timeout: FakeResponse(503, {"detail": "down"}),
+    assert service.load_chat_api_config().ask_question_url == "http://rag/ask_question"
+    assert (
+        service.load_evaluator_api_config().evaluate_url == "http://eval/evaluate_rag"
     )
 
-    with pytest.raises(RagApiError, match="503"):
-        client.check_api_health("http://service")
+
+def test_check_api_health_uses_configured_url_unchanged() -> None:
+    client = FakeRagClient()
+
+    service.check_api_health("http://service/health", client=client)
+
+    assert client.health_urls == ["http://service/health"]
 
 
-def test_quota_and_feedback_endpoints_use_authenticated_requests(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    calls = []
-    payloads = iter(
+def test_quota_and_feedback_endpoints_use_injected_client() -> None:
+    client = FakeRagClient(
         [
-            {"quota": True},
-            [{"user": "u"}],
-            {"updated": True},
-            {"feedback": True},
+            _quota_response(),
+            [_quota_response()],
+            _quota_response(),
+            _feedback_response(),
         ]
     )
-
-    def fake_request(method, url, params, json, headers, timeout):
-        calls.append(
-            {
-                "method": method,
-                "url": url,
-                "params": params,
-                "json": json,
-                "headers": headers,
-                "timeout": timeout,
-            }
-        )
-        return FakeResponse(payload=next(payloads))
-
-    monkeypatch.setattr(client.requests, "request", fake_request)
     config = ChatApiConfig("http://health", "http://rag/ask_question")
 
-    assert client.get_my_quota_usage(config, "token") == {"quota": True}
-    assert client.list_admin_quota_usages(config, "token") == [{"user": "u"}]
-    assert client.update_admin_quota_usage(config, "token", "user", 100, True) == {
-        "updated": True
+    assert service.get_my_quota_usage(config, "token", client) == _quota_response()
+    assert service.list_admin_quota_usages(config, "token", client) == [
+        _quota_response()
+    ]
+    assert (
+        service.update_admin_quota_usage(config, "token", "user", 100, True, client)
+        == _quota_response()
+    )
+    assert service.submit_interaction_feedback(config, "token", 1, 1, "ok", client) == {
+        "interaction_id": 1,
+        "note": 1,
+        "commentaire": "ok",
     }
-    assert client.submit_interaction_feedback(config, "token", 1, 1, "ok") == {
-        "feedback": True
-    }
 
-    assert calls[2]["method"] == "PATCH"
-    assert calls[2]["json"] == {"max_tokens_par_mois": 100, "actif": True}
-    assert calls[-1]["json"] == {"note": 1, "commentaire": "ok"}
+    assert client.calls[2]["method"] == "PATCH"
+    assert client.calls[2]["payload"] == {"max_tokens_par_mois": 100, "actif": True}
+    assert client.calls[-1]["payload"] == {"note": 1, "commentaire": "ok"}
 
 
-def test_run_evaluation_posts_to_evaluator(monkeypatch: pytest.MonkeyPatch) -> None:
-    calls = []
+def test_run_evaluation_propagates_user_identity() -> None:
+    payload = _evaluation_response()
+    client = FakeRagClient([payload])
 
-    def fake_post(url, timeout):
-        calls.append({"url": url, "timeout": timeout})
-        return FakeResponse(payload={"total_questions": 1})
+    result = service.run_evaluation(
+        EvaluatorApiConfig("http://health", "http://eval/evaluate"),
+        "user-token",
+        client,
+    )
 
-    monkeypatch.setattr(client.requests, "post", fake_post)
+    assert result == payload
+    assert client.calls == [
+        {
+            "method": "POST",
+            "url": "http://eval/evaluate",
+            "timeout": 300,
+            "access_token": "user-token",
+            "params": None,
+            "payload": None,
+        }
+    ]
 
-    assert client.run_evaluation(
-        EvaluatorApiConfig("http://health", "http://eval/evaluate")
-    ) == {"total_questions": 1}
-    assert calls == [{"url": "http://eval/evaluate", "timeout": 300}]
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"total_questions": 1},
+        {**_evaluation_response(), "total_questions": True},
+        {**_evaluation_response(), "average_retrieval": {}},
+        {
+            **_evaluation_response(),
+            "average_answer_quality": {
+                **_evaluation_response()["average_answer_quality"],
+                "accuracy": "5",
+            },
+        },
+    ],
+)
+def test_run_evaluation_rejects_incomplete_or_invalid_contract(
+    payload: dict[str, object],
+) -> None:
+    with pytest.raises(RagApiError, match="réponse invalide"):
+        service.run_evaluation(
+            EvaluatorApiConfig("http://health", "http://eval/evaluate"),
+            "user-token",
+            FakeRagClient([payload]),
+        )
 
 
-def test_authenticated_request_wraps_timeout(monkeypatch: pytest.MonkeyPatch) -> None:
-    def failing_request(*args, **kwargs):
-        raise client.requests.exceptions.Timeout("slow")
+def test_authenticated_request_requires_token() -> None:
+    with pytest.raises(RagApiError, match="session a expiré"):
+        service._authenticated_request(
+            "GET", "http://rag", None, client=FakeRagClient()
+        )
 
-    monkeypatch.setattr(client.requests, "request", failing_request)
 
-    with pytest.raises(RagApiError, match="trop de temps"):
-        client._authenticated_request("GET", "http://rag", "token")
+@pytest.mark.parametrize(
+    ("operation", "payload"),
+    [
+        ("my_quota", {**_quota_response(), "usage_ratio": "0.1"}),
+        ("quota_list", [{**_quota_response(), "actif": 1}]),
+        ("quota_update", {**_quota_response(), "consumed_tokens": True}),
+        ("feedback", {**_feedback_response(), "note": 0}),
+        (
+            "admin_feedbacks",
+            [
+                {
+                    "interaction_id": 1,
+                    "cree_le": "2026-08-01T00:00:00Z",
+                    "question": "private question",
+                    "reponse": None,
+                    "note": 1,
+                    "commentaire": None,
+                    "chunks": [{"rang": "first"}],
+                }
+            ],
+        ),
+    ],
+)
+def test_quota_and_feedback_operations_reject_malformed_contracts(
+    operation: str,
+    payload: object,
+) -> None:
+    config = ChatApiConfig("http://health", "http://rag/ask_question")
+    client = FakeRagClient([payload])
+
+    with pytest.raises(RagApiError) as raised:
+        if operation == "my_quota":
+            service.get_my_quota_usage(config, "token", client)
+        elif operation == "quota_list":
+            service.list_admin_quota_usages(config, "token", client)
+        elif operation == "quota_update":
+            service.update_admin_quota_usage(
+                config, "token", "user-id", 100, True, client
+            )
+        elif operation == "feedback":
+            service.submit_interaction_feedback(
+                config, "token", 1, 1, "private comment", client
+            )
+        else:
+            service.list_admin_interaction_feedbacks(
+                config,
+                "token",
+                date(2026, 8, 1),
+                date(2026, 8, 2),
+                client,
+            )
+
+    assert raised.value.code == "response_contract_error"
+    assert "private comment" not in str(raised.value)

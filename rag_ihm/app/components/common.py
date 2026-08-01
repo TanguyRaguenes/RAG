@@ -1,10 +1,13 @@
+import logging
 from collections.abc import Callable
-from typing import Any
 
 import streamlit as st
 
-from app.services.auth_service import is_usage_admin
-from app.services.rag_api_client import RagApiError
+from app.core.errors import RagApiError
+from app.schemas.api import AuthenticatedUser
+from app.services.auth_service import is_evaluator_admin, is_usage_admin
+
+logger = logging.getLogger(__name__)
 
 
 def load_config_or_stop[Config](loader: Callable[[], Config]) -> Config:
@@ -16,7 +19,7 @@ def load_config_or_stop[Config](loader: Callable[[], Config]) -> Config:
         st.stop()
 
 
-def render_sidebar_header(current_user: dict[str, Any] | None) -> None:
+def render_sidebar_header(current_user: AuthenticatedUser | None) -> None:
     """Affiche l'application et l'utilisateur connecté dans la barre latérale."""
     st.title("IsiDore")
     st.caption("Assistant RAG sur la documentation interne ISILOG.")
@@ -28,7 +31,7 @@ def render_sidebar_header(current_user: dict[str, Any] | None) -> None:
     if user_label:
         st.caption(f"Connecté : {user_label}")
 
-    if is_usage_admin(current_user):
+    if is_usage_admin(current_user) or is_evaluator_admin(current_user):
         st.success("Profil administrateur")
 
 
@@ -40,11 +43,33 @@ def render_page_header(title: str, subtitle: str) -> None:
 
 
 def render_api_error(error: RagApiError, debug_enabled: bool = False) -> None:
-    """Affiche une erreur API lisible, avec détails masqués si demandé."""
+    """Journalise puis affiche une erreur API depuis un point Streamlit unique.
+
+    Args:
+        error: Erreur dont le corps backend a déjà été écarté.
+        debug_enabled: Paramètre conservé pour les callbacks Streamlit existants.
+    """
+    if error.status_code == 401:
+        st.session_state.clear()
+
+    level = (
+        logging.WARNING
+        if error.retryable
+        or (error.status_code is not None and error.status_code < 500)
+        else logging.ERROR
+    )
+    logger.log(
+        level,
+        "RAG API operation failed",
+        extra={
+            "service": "rag_ihm",
+            "event": "rag_api_error",
+            "error_code": error.code,
+            "retryable": error.retryable,
+            "details": error.safe_details,
+        },
+    )
     st.error(error.user_message)
-    if debug_enabled and error.details:
-        with st.expander("Détails techniques"):
-            st.json(error.details)
 
 
 def render_healthchecks_status(
@@ -78,6 +103,7 @@ def _run_healthcheck(
     try:
         healthcheck()
     except RagApiError as error:
+        _log_healthcheck_error(error)
         status_code = error.details.get("status_code")
         if status_code:
             return label, False, f"erreur HTTP {status_code}"
@@ -85,3 +111,23 @@ def _run_healthcheck(
         return label, False, error.user_message
 
     return label, True, None
+
+
+def _log_healthcheck_error(error: RagApiError) -> None:
+    """Journalise un healthcheck échoué sans créer un second message visuel.
+
+    Args:
+        error: Erreur API déjà assainie par le client HTTP.
+    """
+    level = logging.WARNING if error.retryable else logging.ERROR
+    logger.log(
+        level,
+        "RAG API healthcheck failed",
+        extra={
+            "service": "rag_ihm",
+            "event": "rag_api_healthcheck_error",
+            "error_code": error.code,
+            "retryable": error.retryable,
+            "details": error.safe_details,
+        },
+    )

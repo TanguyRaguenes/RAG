@@ -1,13 +1,13 @@
-from typing import Any
-
 import streamlit as st
+
+from app.schemas.api import ChatMessage, EvaluationResponse
 
 CHAT_MESSAGES_KEY = "chat_messages"
 CHAT_PENDING_PROMPT_KEY = "chat_pending_prompt"
 DASHBOARD_RESULT_KEY = "dashboard_result"
 
 
-def get_chat_messages() -> list[dict[str, Any]]:
+def get_chat_messages() -> list[ChatMessage]:
     """Retourne l'historique de messages stocké dans la session Streamlit.
 
     Returns:
@@ -16,7 +16,7 @@ def get_chat_messages() -> list[dict[str, Any]]:
     return st.session_state.setdefault(CHAT_MESSAGES_KEY, [])
 
 
-def append_chat_message(message: dict[str, Any]) -> None:
+def append_chat_message(message: ChatMessage) -> None:
     """Ajoute un message utilisateur ou assistant à l'historique Streamlit.
 
     Args:
@@ -48,7 +48,7 @@ def pop_pending_prompt() -> str | None:
     return st.session_state.pop(CHAT_PENDING_PROMPT_KEY, None)
 
 
-def save_dashboard_result(result: dict[str, Any]) -> None:
+def save_dashboard_result(result: EvaluationResponse) -> None:
     """Mémorise le dernier résultat d'évaluation affiché dans le dashboard.
 
     Args:
@@ -57,7 +57,7 @@ def save_dashboard_result(result: dict[str, Any]) -> None:
     st.session_state[DASHBOARD_RESULT_KEY] = result
 
 
-def get_dashboard_result() -> dict[str, Any] | None:
+def get_dashboard_result() -> EvaluationResponse | None:
     """Retourne le dernier résultat d'évaluation conservé en session.
 
     Returns:

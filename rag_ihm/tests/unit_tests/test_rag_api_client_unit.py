@@ -19,22 +19,24 @@ def test_usage_url_reuses_orchestrator_base_url() -> None:
     )
 
 
-def test_docs_url_appends_docs_once() -> None:
-    assert _docs_url("http://service") == "http://service/docs"
+def test_health_url_is_explicit_and_never_appends_docs() -> None:
+    assert _docs_url("http://service/health") == "http://service/health"
     assert _docs_url("http://service/docs") == "http://service/docs"
 
 
-def test_extract_error_message_prefers_nested_original_exception() -> None:
-    assert (
-        _extract_error_message(
-            {"original_exception": {"message": "Erreur métier"}, "detail": "fallback"}
-        )
-        == "Erreur métier"
+def test_orchestrator_base_url_ignores_query_and_trailing_slash() -> None:
+    config = ChatApiConfig(
+        health_url="http://orchestrator/health",
+        ask_question_url="http://orchestrator/api/ask_question/?debug=true",
     )
 
+    assert config.base_url == "http://orchestrator/api"
 
-def test_extract_error_message_falls_back_to_known_keys() -> None:
-    assert _extract_error_message({"detail": "Détail"}) == "Détail"
+
+def test_extract_error_message_never_exposes_backend_details() -> None:
+    assert _extract_error_message({"detail": "secret backend"}) == (
+        "Le service RAG a retourné une erreur."
+    )
     assert _extract_error_message({}) == "Le service RAG a retourné une erreur."
 
 

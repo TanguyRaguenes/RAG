@@ -1,7 +1,9 @@
 import math
-from typing import Any
+from collections.abc import Callable
 
 import streamlit as st
+
+from app.schemas.api import AskQuestionResponse, ChatMessage
 
 ROLE_ASSISTANT = "assistant"
 ROLE_USER = "user"
@@ -16,7 +18,11 @@ EXAMPLE_QUESTIONS = [
 ]
 
 
-def render_empty_chat_state(on_select_question) -> None:
+QuestionSelectionCallback = Callable[[str], None]
+FeedbackCallback = Callable[[int, int, str], bool]
+
+
+def render_empty_chat_state(on_select_question: QuestionSelectionCallback) -> None:
     """Affiche l'état vide du chat avec des exemples actionnables."""
     st.caption("Exemples pour commencer")
     columns = st.columns(len(EXAMPLE_QUESTIONS))
@@ -26,7 +32,7 @@ def render_empty_chat_state(on_select_question) -> None:
                 on_select_question(question)
 
 
-def build_assistant_message(response: dict[str, Any]) -> dict[str, Any]:
+def build_assistant_message(response: AskQuestionResponse) -> ChatMessage:
     """Construit le modèle de message affiché pour une réponse RAG.
 
     Args:
@@ -50,9 +56,9 @@ def build_assistant_message(response: dict[str, Any]) -> dict[str, Any]:
 
 
 def render_chat_message(
-    message: dict[str, Any],
+    message: ChatMessage,
     debug_enabled: bool = False,
-    on_submit_feedback=None,
+    on_submit_feedback: FeedbackCallback | None = None,
 ) -> None:
     """Affiche un message de chat et les informations assistant associées."""
     role = str(message.get("role", ROLE_ASSISTANT))
@@ -78,7 +84,7 @@ def render_chat_message(
             _render_feedback_form(message, on_submit_feedback)
 
 
-def _render_assistant_metadata(message: dict[str, Any]) -> None:
+def _render_assistant_metadata(message: ChatMessage) -> None:
     """Affiche les métadonnées techniques d'une réponse assistant dans Streamlit.
 
     Args:
@@ -98,7 +104,7 @@ def _render_assistant_metadata(message: dict[str, Any]) -> None:
         st.caption(" | ".join(metadata))
 
 
-def _render_generated_prompt(generated_prompt: Any) -> None:
+def _render_generated_prompt(generated_prompt: object) -> None:
     """Affiche le prompt généré dans une zone dépliable de diagnostic.
 
     Args:
@@ -120,7 +126,7 @@ def _render_generated_prompt(generated_prompt: Any) -> None:
         st.markdown(str(content))
 
 
-def _render_source_summary(documents: Any) -> None:
+def _render_source_summary(documents: object) -> None:
     """Affiche le résumé des documents sources utilisés par la réponse.
 
     Args:
@@ -134,7 +140,7 @@ def _render_source_summary(documents: Any) -> None:
             st.markdown(f"- **{title}** : {count} extrait(s)")
 
 
-def _render_sources(chunks: Any, debug_enabled: bool) -> None:
+def _render_sources(chunks: object, debug_enabled: bool) -> None:
     """Affiche le détail des chunks sources associés à une réponse.
 
     Args:
@@ -176,7 +182,10 @@ def _render_sources(chunks: Any, debug_enabled: bool) -> None:
             st.json(sorted_chunks)
 
 
-def _render_feedback_form(message: dict[str, Any], on_submit_feedback) -> None:
+def _render_feedback_form(
+    message: ChatMessage,
+    on_submit_feedback: FeedbackCallback,
+) -> None:
     """Affiche le formulaire de feedback lié à une interaction RAG.
 
     Args:
@@ -250,10 +259,10 @@ def _shorten_text(text: str, limit: int = 700) -> str:
     return f"{normalized[:limit].rstrip()}..."
 
 
-def _sort_chunks_by_rerank_score(chunks: list[Any]) -> list[Any]:
+def _sort_chunks_by_rerank_score(chunks: list[object]) -> list[object]:
     """Trie les extraits par score reranker décroissant, sans perdre les invalides."""
 
-    def score(chunk: Any) -> float:
+    def score(chunk: object) -> float:
         if not isinstance(chunk, dict):
             return float("-inf")
         try:

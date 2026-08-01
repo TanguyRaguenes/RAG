@@ -11,8 +11,14 @@ from app.components.dashboard import (
     render_retrieval_scores,
     render_summary_cards,
 )
-from app.services.auth_service import is_usage_admin, require_authenticated_user
+from app.schemas.api import EvaluationResponse
+from app.services.auth_service import (
+    get_access_token,
+    is_evaluator_admin,
+    require_authenticated_user,
+)
 from app.services.rag_api_client import (
+    EvaluatorApiConfig,
     RagApiError,
     load_evaluator_api_config,
     run_evaluation,
@@ -34,7 +40,7 @@ def _render_sidebar() -> None:
             st.rerun()
 
 
-def _run_evaluation(config) -> None:
+def _run_evaluation(config: EvaluatorApiConfig) -> None:
     """Lance une évaluation RAG depuis le dashboard administrateur.
 
     Args:
@@ -42,16 +48,16 @@ def _run_evaluation(config) -> None:
     """
     with st.spinner("Évaluation du RAG en cours..."):
         try:
-            result = run_evaluation(config)
+            result = run_evaluation(config, get_access_token())
             save_dashboard_result(result)
         except RagApiError as error:
-            render_api_error(error, debug_enabled=True)
+            render_api_error(error)
             return
 
     st.toast("Évaluation terminée.")
 
 
-def _render_results(result: dict) -> None:
+def _render_results(result: EvaluationResponse) -> None:
     """Affiche les résultats d'évaluation disponibles dans le dashboard.
 
     Args:
@@ -79,7 +85,7 @@ def _render_results(result: dict) -> None:
 
 current_user = require_authenticated_user()
 
-if not is_usage_admin(current_user):
+if not is_evaluator_admin(current_user):
     st.error("Cette page est réservée aux administrateurs.")
     st.stop()
 
