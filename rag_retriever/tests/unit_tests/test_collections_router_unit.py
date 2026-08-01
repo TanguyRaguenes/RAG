@@ -1,7 +1,10 @@
 import pytest
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
 
+from app.api.dependencies import get_config, get_vector_store_repository
 from app.api.routers import collections_router
-from app.domain.models.retrieve_chunks_request_model import (
+from app.schemas.retrieve_chunks_request_schema import (
     RetrieveChunksRequestBase,
     RetrieveDocumentChunksRequestBase,
 )
@@ -10,145 +13,153 @@ from app.schemas.save_items_response_schema import SaveItemsResponseBase
 from app.schemas.vector_db_items_schema import VectorStoreItemsBase
 
 
-def test_save_items_route_delegates_to_service(monkeypatch) -> None:
-    calls = []
+def _metadata() -> dict[str, str | int | bool]:
+    return {
+        "path": "doc.md",
+        "title": "Doc",
+        "chunk_index": 0,
+        "related_links": "",
+        "has_links": False,
+    }
 
-    def fake_save_items(items, repository):
-        calls.append((items, repository))
+
+def _items() -> VectorStoreItemsBase:
+    return VectorStoreItemsBase(
+        ids=["id"],
+        documents=["doc"],
+        embeddings=[[0.1]],
+        metadatas=[_metadata()],
+    )
+
+
+def test_save_items_route_delegates_to_service(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls: list[tuple[object, ...]] = []
+
+    def fake_save_items(
+        items: VectorStoreItemsBase, config: dict, repository: object
+    ) -> SaveItemsResponseBase:
+        calls.append((items, config, repository))
         return SaveItemsResponseBase(
             collection_count_before=0,
             collection_count_after=1,
-            saved_items=[{"id": "id", "chunk": "doc", "metadatas": {}}],
+            saved_items=[{"id": "id", "chunk": "doc", "metadatas": _metadata()}],
         )
 
     monkeypatch.setattr(collections_router, "save_items", fake_save_items)
-    items = VectorStoreItemsBase(
-        ids=["id"], documents=["doc"], embeddings=[[0.1]], metadatas=[{}]
-    )
     repository = object()
+    config = {"collection": {"name": "wiki"}}
 
-    response = collections_router.save_items_route(items, repository)
+    response = collections_router.save_items_route(_items(), config, repository)
 
     assert response.collection_count_after == 1
-    assert calls == [(items, repository)]
+    assert calls == [(_items(), config, repository)]
 
 
-def test_retrieve_chunk_route_delegates_to_service(monkeypatch) -> None:
-    calls = []
+def test_retrieve_routes_delegate_without_chroma_collection(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[tuple[object, ...]] = []
 
-    def fake_retrieve_chunks(config, collection, embeded_question, repository):
-        calls.append((config, collection, embeded_question, repository))
+    def fake_retrieve_chunks(
+        config: dict, embedding: list[float], repository: object
+    ) -> RetrievedChunksModelBase:
+        calls.append(("query", config, embedding, repository))
+        return RetrievedChunksModelBase(chunks=[])
+
+    def fake_retrieve_document_chunks(
+        config: dict, paths: list[str], repository: object
+    ) -> RetrievedChunksModelBase:
+        calls.append(("documents", config, paths, repository))
         return RetrievedChunksModelBase(chunks=[])
 
     monkeypatch.setattr(collections_router, "retrieve_chunks", fake_retrieve_chunks)
-    config = {"retriever": {}}
-    collection = object()
+    monkeypatch.setattr(
+        collections_router,
+        "retrieve_document_chunks",
+        fake_retrieve_document_chunks,
+    )
+    config = {"collection": {"name": "wiki"}}
     repository = object()
 
-    response = collections_router.retrieve_chunk_route(
+    collections_router.retrieve_chunk_route(
         RetrieveChunksRequestBase(embeded_question=[0.1]),
-        collection,
+        config,
+        repository,
+    )
+    collections_router.retrieve_document_chunks_route(
+        RetrieveDocumentChunksRequestBase(paths=[]),
         config,
         repository,
     )
 
-    assert response.chunks == []
-    assert calls == [(config, collection, [0.1], repository)]
+    assert calls == [
+        ("query", config, [0.1], repository),
+        ("documents", config, [], repository),
+    ]
 
 
-def test_retrieve_document_chunks_route_delegates_to_service(monkeypatch) -> None:
-    calls = []
+def test_save_items_http_rejects_misaligned_vector_payload() -> None:
+    app = FastAPI()
+    app.include_router(collections_router.router)
+    app.dependency_overrides[get_config] = lambda: {"collection": {"name": "wiki"}}
+    app.dependency_overrides[get_vector_store_repository] = object
 
-    def fake_retrieve_document_chunks(collection, paths, repository):
-        calls.append((collection, paths, repository))
-        return RetrievedChunksModelBase(chunks=[])
-
-    monkeypatch.setattr(
-        collections_router, "retrieve_document_chunks", fake_retrieve_document_chunks
+    response = TestClient(app).post(
+        "/save_items",
+        json={
+            "ids": ["id-1", "id-2"],
+            "documents": ["only one"],
+            "embeddings": [[0.1], [0.2]],
+            "metadatas": [_metadata(), _metadata()],
+        },
     )
-    collection = object()
-    repository = object()
 
-    response = collections_router.retrieve_document_chunks_route(
-        RetrieveDocumentChunksRequestBase(paths=["wiki/a.md"]),
-        collection,
-        repository,
+    assert response.status_code == 422
+
+
+def test_save_items_http_rejects_empty_delete_obsolete_snapshot() -> None:
+    app = FastAPI()
+    app.include_router(collections_router.router)
+    app.dependency_overrides[get_config] = lambda: {"collection": {"name": "wiki"}}
+    app.dependency_overrides[get_vector_store_repository] = object
+
+    response = TestClient(app).post(
+        "/save_items",
+        json={
+            "ids": [],
+            "documents": [],
+            "embeddings": [],
+            "metadatas": [],
+            "delete_obsolete": True,
+        },
     )
 
-    assert response.chunks == []
-    assert calls == [(collection, ["wiki/a.md"], repository)]
+    assert response.status_code == 422
+    assert "delete_obsolete requires at least one id" in response.text
 
 
-def test_delete_collection_route_returns_contract_message(monkeypatch) -> None:
-    calls = []
-
-    def fake_delete_collection(config, repository):
-        calls.append((config, repository))
-
-    monkeypatch.setattr(collections_router, "delete_collection", fake_delete_collection)
-    config = {"collection": {"name": "wiki"}}
-    repository = object()
-
-    assert (
-        collections_router.delete_collection_route(repository, config)
-        == "Collection : bien supprimée."
-    )
-    assert calls == [(config, repository)]
-
-
-def test_save_items_route_records_and_reraises_service_error(monkeypatch) -> None:
-    def fake_save_items(items, repository):
-        raise RuntimeError("save failed")
+def test_save_items_http_preserves_response_contract(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fake_save_items(
+        items: VectorStoreItemsBase, config: dict, repository: object
+    ) -> SaveItemsResponseBase:
+        return SaveItemsResponseBase(
+            collection_count_before=1,
+            collection_count_after=1,
+            saved_items=[{"id": "id", "chunk": "doc", "metadatas": _metadata()}],
+        )
 
     monkeypatch.setattr(collections_router, "save_items", fake_save_items)
-    items = VectorStoreItemsBase(
-        ids=["id"], documents=["doc"], embeddings=[[0.1]], metadatas=[{}]
+    app = FastAPI()
+    app.include_router(collections_router.router)
+    app.dependency_overrides[get_config] = lambda: {"collection": {"name": "wiki"}}
+    app.dependency_overrides[get_vector_store_repository] = object
+
+    response = TestClient(app).post(
+        "/save_items",
+        json=_items().model_dump(),
     )
 
-    with pytest.raises(RuntimeError, match="save failed"):
-        collections_router.save_items_route(items, object())
-
-
-def test_retrieve_chunk_route_records_and_reraises_service_error(monkeypatch) -> None:
-    def fake_retrieve_chunks(config, collection, embeded_question, repository):
-        raise RuntimeError("retrieve failed")
-
-    monkeypatch.setattr(collections_router, "retrieve_chunks", fake_retrieve_chunks)
-
-    with pytest.raises(RuntimeError, match="retrieve failed"):
-        collections_router.retrieve_chunk_route(
-            RetrieveChunksRequestBase(embeded_question=[0.1]),
-            object(),
-            {"retriever": {}},
-            object(),
-        )
-
-
-def test_retrieve_document_chunks_route_records_and_reraises_service_error(
-    monkeypatch,
-) -> None:
-    def fake_retrieve_document_chunks(collection, paths, repository):
-        raise RuntimeError("document retrieve failed")
-
-    monkeypatch.setattr(
-        collections_router, "retrieve_document_chunks", fake_retrieve_document_chunks
-    )
-
-    with pytest.raises(RuntimeError, match="document retrieve failed"):
-        collections_router.retrieve_document_chunks_route(
-            RetrieveDocumentChunksRequestBase(paths=["wiki/a.md"]),
-            object(),
-            object(),
-        )
-
-
-def test_delete_collection_route_records_and_reraises_service_error(
-    monkeypatch,
-) -> None:
-    def fake_delete_collection(config, repository):
-        raise RuntimeError("delete failed")
-
-    monkeypatch.setattr(collections_router, "delete_collection", fake_delete_collection)
-
-    with pytest.raises(RuntimeError, match="delete failed"):
-        collections_router.delete_collection_route(object(), {"collection": {}})
+    assert response.status_code == 200
+    assert response.json()["saved_items"][0]["metadatas"]["path"] == "doc.md"

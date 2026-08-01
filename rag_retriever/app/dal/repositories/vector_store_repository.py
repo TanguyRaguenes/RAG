@@ -1,544 +1,453 @@
 import time
-from typing import Any
+from collections.abc import Callable
+from numbers import Real
+from typing import Any, TypeVar
 
 import chromadb
-from chromadb.api.models.Collection import Collection, QueryResult
+import httpx
+from chromadb.api.models.Collection import Collection
+from chromadb.errors import ChromaError
 
-from app.core.exceptions import VectorStoreException
+from app.core.exceptions import RetrievalFormatException, VectorStoreException
 from app.core.metrics import retriever_chroma_duration_seconds
-from app.schemas.save_items_response_schema import SavedItemBase
-from app.schemas.vector_db_items_schema import VectorStoreItemsBase
+from app.domain.models.vector_store_model import (
+    RetrievedChunk,
+    StoredVectorItem,
+    VectorMetadata,
+    VectorStoreBatch,
+)
 
-RetrievedChunk = dict[str, Any]
+T = TypeVar("T")
 
 
 class VectorStoreRepository:
-    def __init__(self, config: dict, host: str = "chroma", port: int = 8000):
+    """Encapsule tous les détails ChromaDB derrière un contrat métier stable."""
+
+    def __init__(self, host: str = "chroma", port: int = 8000) -> None:
         """Initialise le client HTTP ChromaDB.
 
         Args:
-            config: Configuration applicative du retriever.
-            host: Nom DNS ou hôte ChromaDB.
-            port: Port HTTP ChromaDB.
+            host: Nom DNS ou hôte du serveur ChromaDB.
+            port: Port HTTP du serveur ChromaDB.
+        """
+        try:
+            self._client = chromadb.HttpClient(host=host, port=port)
+        except (ChromaError, httpx.HTTPError) as exception:
+            raise VectorStoreException(
+                internal_details={
+                    "operation": "create_client",
+                    "error_type": type(exception).__name__,
+                },
+            ) from exception
+
+    def count_items(self, collection_name: str) -> int:
+        """Compte les items d'une collection.
+
+        Args:
+            collection_name: Nom de la collection à compter.
 
         Returns:
-            Aucune valeur.
-
-        Raises:
-            ValueError: Si ChromaDB refuse les paramètres de connexion.
+            Nombre d'items actuellement persistés.
         """
-        self.client = chromadb.HttpClient(host=host, port=port)
-        self.config = config
+        count = self._execute(
+            "count",
+            lambda: self._get_collection(collection_name).count(),
+            {"operation": "count"},
+        )
+        if isinstance(count, bool) or not isinstance(count, int) or count < 0:
+            raise RetrievalFormatException(
+                internal_details={"operation": "count", "reason": "invalid_count"}
+            )
+        return count
 
-    def get_or_create_collection(self, collection_name: str) -> Collection:
-        """Récupère ou crée une collection ChromaDB en distance cosinus.
+    def list_item_ids(self, collection_name: str) -> list[str]:
+        """Liste les identifiants d'une collection.
+
+        Args:
+            collection_name: Nom de la collection à parcourir.
+
+        Returns:
+            Identifiants persistés, sans exposer la réponse ChromaDB.
+        """
+        data = self._execute(
+            "list_ids",
+            lambda: self._get_collection(collection_name).get(include=[]),
+            {"operation": "list_ids"},
+        )
+        try:
+            ids = _require_list(data, "ids")
+            if not all(isinstance(item_id, str) for item_id in ids):
+                raise TypeError("ids must contain strings")
+            return ids
+        except (KeyError, TypeError, ValueError) as exception:
+            raise RetrievalFormatException(
+                internal_details={"operation": "list_ids"}
+            ) from exception
+
+    def upsert_items(self, collection_name: str, items: VectorStoreBatch) -> None:
+        """Insère ou met à jour un lot vectoriel dans une collection.
+
+        Args:
+            collection_name: Nom de la collection d'écriture.
+            items: Lot métier déjà validé par la couche HTTP.
+        """
+        if not items.ids:
+            return
+        self._execute(
+            "upsert",
+            lambda: self._get_collection(collection_name).upsert(
+                ids=items.ids,
+                documents=items.documents,
+                embeddings=items.embeddings,
+                metadatas=[metadata.to_storage_dict() for metadata in items.metadatas],
+            ),
+            {"item_count": len(items.ids)},
+        )
+
+    def get_items(self, collection_name: str, ids: list[str]) -> list[StoredVectorItem]:
+        """Relit des items persistés à partir de leurs identifiants.
+
+        Args:
+            collection_name: Nom de la collection source.
+            ids: Identifiants à relire.
+
+        Returns:
+            Items métier reconstruits depuis la réponse ChromaDB.
+        """
+        if not ids:
+            return []
+        data = self._execute(
+            "get_items",
+            lambda: self._get_collection(collection_name).get(
+                ids=ids, include=["documents", "metadatas"]
+            ),
+            {"item_count": len(ids)},
+        )
+        try:
+            ids = _require_list(data, "ids")
+            documents = _require_list(data, "documents")
+            metadatas = _require_list(data, "metadatas")
+            return [
+                StoredVectorItem(
+                    id=_require_string(item_id, "id"),
+                    document=_require_string(document, "document"),
+                    metadata=_metadata_from_storage(metadata),
+                )
+                for item_id, document, metadata in zip(
+                    ids,
+                    documents,
+                    metadatas,
+                    strict=True,
+                )
+            ]
+        except (KeyError, TypeError, ValueError) as exception:
+            raise RetrievalFormatException(
+                internal_details={"operation": "get_items"},
+            ) from exception
+
+    def delete_items(self, collection_name: str, ids: list[str]) -> None:
+        """Supprime une liste d'items d'une collection.
+
+        Args:
+            collection_name: Nom de la collection cible.
+            ids: Identifiants à supprimer ; une liste vide est ignorée.
+        """
+        if not ids:
+            return
+        self._execute(
+            "delete_items",
+            lambda: self._get_collection(collection_name).delete(ids=ids),
+            {"item_count": len(ids)},
+        )
+
+    def query_chunks(
+        self, collection_name: str, query_embedding: list[float], top_k: int
+    ) -> list[RetrievedChunk]:
+        """Interroge ChromaDB sans appliquer de règle de classement métier.
+
+        Args:
+            collection_name: Nom de la collection à interroger.
+            query_embedding: Vecteur représentant la question utilisateur.
+            top_k: Nombre maximal de résultats demandé au moteur vectoriel.
+
+        Returns:
+            Résultats métier contenant document, métadonnées et distance.
+        """
+        data = self._execute(
+            "query",
+            lambda: self._get_collection(collection_name).query(
+                query_embeddings=[query_embedding],
+                n_results=top_k,
+                include=["documents", "metadatas", "distances"],
+            ),
+            {"top_k": top_k},
+        )
+        try:
+            documents = _require_single_batch(data, "documents")
+            metadatas = _require_single_batch(data, "metadatas")
+            distances = _require_single_batch(data, "distances")
+            return _build_retrieved_chunks(documents, metadatas, distances)
+        except (KeyError, IndexError, TypeError, ValueError) as exception:
+            raise RetrievalFormatException(
+                internal_details={"operation": "query"},
+            ) from exception
+
+    def get_chunks_by_paths(
+        self, collection_name: str, paths: list[str]
+    ) -> list[RetrievedChunk]:
+        """Relit les chunks associés à plusieurs chemins en une requête.
+
+        Args:
+            collection_name: Nom de la collection source.
+            paths: Chemins documentaires dédupliqués par le service métier.
+
+        Returns:
+            Chunks correspondants dans l'ordre fourni par ChromaDB.
+        """
+        if not paths:
+            return []
+        where: dict[str, Any]
+        if len(paths) == 1:
+            where = {"path": paths[0]}
+        else:
+            where = {"path": {"$in": paths}}
+        data = self._execute(
+            "get_document_chunks",
+            lambda: self._get_collection(collection_name).get(
+                where=where,
+                include=["documents", "metadatas"],
+            ),
+            {"path_count": len(paths)},
+        )
+        try:
+            documents = _require_list(data, "documents")
+            metadatas = _require_list(data, "metadatas")
+            return _build_retrieved_chunks(
+                documents,
+                metadatas,
+                [0.0] * len(documents),
+            )
+        except (KeyError, TypeError, ValueError) as exception:
+            raise RetrievalFormatException(
+                internal_details={"operation": "get_document_chunks"},
+            ) from exception
+
+    def reset_collection(self, collection_name: str) -> None:
+        """Supprime puis recrée une collection avec la distance cosinus.
+
+        Args:
+            collection_name: Nom de la collection à réinitialiser.
+        """
+        self._execute(
+            "delete_collection",
+            lambda: self._client.delete_collection(name=collection_name),
+            {"operation": "delete_collection"},
+        )
+        self._get_collection(collection_name)
+
+    def _get_collection(self, collection_name: str) -> Collection:
+        """Récupère la collection technique sans la faire sortir du DAL.
 
         Args:
             collection_name: Nom de la collection à récupérer ou créer.
 
         Returns:
-            Collection ChromaDB prête à être utilisée.
-
-        Raises:
-            VectorStoreException: Si ChromaDB échoue pendant la création ou récupération.
+            Collection ChromaDB réservée à l'implémentation du repository.
         """
-        start = time.perf_counter()
-        try:
-            collection = self.client.get_or_create_collection(
+        return self._execute(
+            "get_or_create_collection",
+            lambda: self._client.get_or_create_collection(
                 name=collection_name,
                 configuration={"hnsw": {"space": "cosine"}},
-            )
-        except Exception as exception:
-            _record_chroma_error("get_or_create_collection", start)
-            raise VectorStoreException(
-                message="Impossible de récupérer ou créer la collection ChromaDB",
-                details={"collection": collection_name},
-            ) from exception
-        _record_chroma_success("get_or_create_collection", start)
-        return collection
-
-    def insert_or_update_items_in_collection(
-        self, collection: Collection, items: VectorStoreItemsBase
-    ) -> None:
-        """Insère ou met à jour des items vectoriels dans une collection.
-
-        Args:
-            collection: Collection ChromaDB cible.
-            items: Items vectoriels à persister.
-
-        Returns:
-            Aucune valeur.
-
-        Raises:
-            VectorStoreException: Si ChromaDB échoue pendant l'upsert.
-        """
-        start = time.perf_counter()
-        try:
-            collection.upsert(
-                ids=items.ids,
-                documents=items.documents,
-                embeddings=items.embeddings,
-                metadatas=items.metadatas,
-            )
-        except Exception as exception:
-            _record_chroma_error("upsert", start)
-            raise VectorStoreException(
-                message="Impossible d'insérer ou mettre à jour les items ChromaDB",
-                details={"item_count": len(items.ids)},
-            ) from exception
-        _record_chroma_success("upsert", start)
-
-    def get_collection_items(
-        self, collection: Collection, ids: list[str], columns: list[str]
-    ) -> list[SavedItemBase]:
-        """Relit des items d'une collection ChromaDB.
-
-        Args:
-            collection: Collection ChromaDB source.
-            ids: Identifiants des items à relire.
-            columns: Colonnes ChromaDB à inclure dans la réponse.
-
-        Returns:
-            Items sauvegardés au format de réponse API.
-
-        Raises:
-            VectorStoreException: Si ChromaDB échoue ou retourne des listes incohérentes.
-        """
-        start = time.perf_counter()
-        try:
-            data = collection.get(ids=ids, include=columns)
-        except Exception as exception:
-            _record_chroma_error("get_collection_items", start)
-            raise VectorStoreException(
-                message="Impossible de relire les items ChromaDB",
-                details={"item_count": len(ids)},
-            ) from exception
-        _record_chroma_success("get_collection_items", start)
-
-        items: list[SavedItemBase] = []
-
-        for id, document, metadata in zip(
-            data["ids"], data["documents"], data["metadatas"]
-        ):
-            item = SavedItemBase(
-                id=id,
-                chunk=document,
-                metadatas=metadata,
-            )
-            items.append(item)
-
-        return items
-
-    def delete_collection_by_name(self, collection_name: str):
-        """Supprime une collection ChromaDB par son nom.
-
-        Args:
-            collection_name: Nom de la collection à supprimer.
-
-        Returns:
-            Aucune valeur.
-
-        Raises:
-            VectorStoreException: Si ChromaDB échoue pendant la suppression.
-        """
-        start = time.perf_counter()
-        try:
-            self.client.delete_collection(name=collection_name)
-        except Exception as exception:
-            _record_chroma_error("delete_collection", start)
-            raise VectorStoreException(
-                message="Impossible de supprimer la collection ChromaDB",
-                details={"collection": collection_name},
-            ) from exception
-        _record_chroma_success("delete_collection", start)
-
-    def delete_items_by_ids(self, collection: Collection, ids: list[str]):
-        """Supprime des items ChromaDB par identifiants.
-
-        Args:
-            collection: Collection ChromaDB cible.
-            ids: Identifiants à supprimer.
-
-        Returns:
-            Aucune valeur.
-
-        Raises:
-            VectorStoreException: Si ChromaDB échoue pendant la suppression.
-        """
-        if not ids:
-            return
-
-        start = time.perf_counter()
-        try:
-            collection.delete(ids=ids)
-        except Exception as exception:
-            _record_chroma_error("delete_items", start)
-            raise VectorStoreException(
-                message="Impossible de supprimer les items ChromaDB",
-                details={"item_count": len(ids)},
-            ) from exception
-        _record_chroma_success("delete_items", start)
-
-    def delete_all_items(self, collection: Collection):
-        """Supprime tous les items d'une collection ChromaDB.
-
-        Args:
-            collection: Collection ChromaDB cible.
-
-        Returns:
-            Aucune valeur.
-
-        Raises:
-            VectorStoreException: Si ChromaDB échoue pendant la lecture ou suppression.
-        """
-        all_data = collection.get()
-        if all_data["ids"]:
-            collection.delete(ids=all_data["ids"])
-
-    def retrieve_chunks(
-        self, collection: Collection, query_embedding: list[float], top_k: int
-    ) -> list[dict[str, Any]]:
-        """Interroge ChromaDB sans filtrage applicatif.
-
-        Args:
-            collection: Collection ChromaDB à interroger.
-            query_embedding: Embedding de recherche.
-            top_k: Nombre maximal de résultats demandés.
-
-        Returns:
-            Résultat brut ChromaDB.
-
-        Raises:
-            VectorStoreException: Si ChromaDB échoue pendant la recherche.
-        """
-        start = time.perf_counter()
-        try:
-            response: QueryResult = collection.query(
-                query_embeddings=[query_embedding],
-                n_results=top_k,
-                include=["documents", "metadatas"],
-            )
-        except Exception as exception:
-            _record_chroma_error("query", start)
-            raise VectorStoreException(
-                message="Erreur ChromaDB lors de la recherche vectorielle",
-                details={"top_k": top_k},
-            ) from exception
-        _record_chroma_success("query", start)
-
-        return response
-
-    # Récupère les top_k chunks depuis Chroma, calcule la similarité cosinus,
-    # filtre selon un seuil minimum et garantit un nombre minimum de résultats.
-
-    def retrieve_chunks_filtered(
-        self,
-        collection: Collection,
-        query_embedding: list[float],
-        top_k: int,
-        minimum_similarity: float,
-        minimum_number_of_chunks: int,
-    ) -> list[RetrievedChunk]:
-        """Récupère, enrichit et filtre les chunks selon la similarité.
-
-        Args:
-            collection: Collection ChromaDB à interroger.
-            query_embedding: Embedding de recherche.
-            top_k: Nombre maximal de résultats demandés à ChromaDB.
-            minimum_similarity: Similarité minimale conservée.
-            minimum_number_of_chunks: Nombre minimal de chunks à retourner.
-
-        Returns:
-            Chunks enrichis, filtrés et triés par similarité décroissante.
-
-        Raises:
-            VectorStoreException: Si ChromaDB échoue pendant la recherche.
-        """
-        start = time.perf_counter()
-        try:
-            retrieved_chunks: QueryResult = collection.query(
-                query_embeddings=[query_embedding],
-                n_results=top_k,
-                include=["documents", "metadatas", "distances"],
-            )
-        except Exception as exception:
-            _record_chroma_error("query_filtered", start)
-            raise VectorStoreException(
-                message="Erreur ChromaDB lors de la recherche vectorielle filtrée",
-                details={"top_k": top_k, "minimum_similarity": minimum_similarity},
-            ) from exception
-        _record_chroma_success("query_filtered", start)
-
-        # 2° Extraction des résultats (une seule requête → index 0)
-        documents = retrieved_chunks.get("documents", [[]])[0] or []
-        metadatas = retrieved_chunks.get("metadatas", [[]])[0] or []
-        distances = retrieved_chunks.get("distances", [[]])[0] or []
-
-        # 3° Enrichissement des chunks avec distance et similarité
-        enriched_chunks = build_enriched_chunks(documents, metadatas, distances)
-
-        # 4° Filtre les chunks par similarité
-        kept_chunks = self.filter_by_similarity(enriched_chunks, minimum_similarity)
-
-        # 5° Sécurité : garantir un nombre minimum de chunks retournés
-        if len(kept_chunks) < minimum_number_of_chunks:
-            enriched_chunks.sort(key=lambda x: x["similarity"], reverse=True)
-            kept_chunks = enriched_chunks[:minimum_number_of_chunks]
-
-        kept_chunks.sort(key=lambda x: x["similarity"], reverse=True)
-
-        return kept_chunks
-
-    def retrieve_document_chunks_by_paths(
-        self,
-        collection: Collection,
-        paths: list[str],
-    ) -> list[RetrievedChunk]:
-        """Récupère tous les chunks associés à des chemins de documents.
-
-        Args:
-            collection: Collection ChromaDB à interroger.
-            paths: Chemins documentaires recherchés.
-
-        Returns:
-            Chunks documentaires enrichis et triés par index.
-
-        Raises:
-            VectorStoreException: Si ChromaDB échoue pendant une récupération.
-        """
-        document_chunks: list[RetrievedChunk] = []
-        seen_paths: set[str] = set()
-
-        for path in paths:
-            if path in seen_paths:
-                continue
-            seen_paths.add(path)
-
-            start = time.perf_counter()
-            try:
-                path_chunks = collection.get(
-                    where={"path": path},
-                    include=["documents", "metadatas"],
-                )
-            except Exception as exception:
-                _record_chroma_error("get_document_chunks", start)
-                raise VectorStoreException(
-                    message="Erreur ChromaDB lors de la récupération des chunks documentaires",
-                    details={"path": path},
-                ) from exception
-            _record_chroma_success("get_document_chunks", start)
-
-            chunks = build_enriched_chunks(
-                path_chunks.get("documents", []) or [],
-                path_chunks.get("metadatas", []) or [],
-                [0.0 for _ in path_chunks.get("documents", []) or []],
-            )
-            document_chunks.extend(sort_chunks_by_index(chunks))
-
-        return document_chunks
-
-    def filter_by_similarity(
-        self, chunks: list[RetrievedChunk], minimum_similarity: float
-    ) -> list[RetrievedChunk]:
-        """Filtre des chunks par similarité minimale.
-
-        Args:
-            chunks: Chunks enrichis à filtrer.
-            minimum_similarity: Similarité minimale conservée.
-
-        Returns:
-            Chunks dont la similarité est suffisante.
-        """
-        return filter_by_similarity(chunks, minimum_similarity)
-
-    def retrieve_related_chunks(
-        self,
-        chunks: list[RetrievedChunk],
-        collection: Collection,
-        max_related_links: int,
-    ) -> list[RetrievedChunk]:
-        """Ajoute des chunks liés à partir des liens internes des métadonnées.
-
-        Args:
-            chunks: Chunks sources contenant les liens internes.
-            collection: Collection ChromaDB à interroger.
-            max_related_links: Nombre maximal de liens documentaires à suivre.
-
-        Returns:
-            Chunks d'origine complétés par les chunks liés non dupliqués.
-
-        Raises:
-            KeyError: Si les métadonnées de liens attendues sont absentes.
-        """
-
-        # 1° Extraction des liens et calcul du score
-        # Dictionnaire : chemin -> score max hérité
-        paths_with_scores = extract_related_links(chunks)
-
-        # 2° Récupération Chroma
-        target_paths = sorted(
-            paths_with_scores.keys(), key=lambda k: paths_with_scores[k], reverse=True
-        )[:max_related_links]
-
-        if target_paths:
-            related_chunks = collection.get(
-                where={"path": {"$in": target_paths}},
-                include=["documents", "metadatas"],
-            )
-
-            # 3° Ajout aux résultats
-            if related_chunks and related_chunks["documents"]:
-                for document, metadata in zip(
-                    related_chunks["documents"], related_chunks["metadatas"]
-                ):
-                    inherited_score = paths_with_scores[metadata["path"]]
-
-                    related_chunk = {
-                        "document": f"CONTEXTE : DOCUMENT LIÉ (Détail)\n{document}",
-                        "metadata": metadata,
-                        "distance": 0.0,
-                        "similarity": inherited_score,
-                    }
-
-                    # 4° Anti-doublon
-                    is_duplicate = any(
-                        chunk["document"] == related_chunk["document"]
-                        for chunk in chunks
-                    )
-
-                    if not is_duplicate:
-                        chunks.append(related_chunk)
-
-        return chunks
-
-
-def build_enriched_chunks(
-    documents: list[str], metadatas: list[dict[str, Any]], distances: list[float]
-) -> list[RetrievedChunk]:
-    """Fusionne documents, métadonnées et distances en chunks enrichis.
-
-    Args:
-        documents: Documents texte retournés par ChromaDB.
-        metadatas: Métadonnées associées aux documents.
-        distances: Distances vectorielles associées aux documents.
-
-    Returns:
-        Chunks enrichis avec distance et similarité.
-    """
-    enriched_chunks: list[RetrievedChunk] = []
-
-    for document, metadata, distance in zip(documents, metadatas, distances):
-        distance_value = float(distance)
-        enriched_chunks.append(
-            {
-                "document": document,
-                "metadata": metadata,
-                "distance": distance_value,
-                "similarity": 1.0 - distance_value,
-            }
+            ),
+            {"operation": "get_or_create_collection"},
         )
 
-    return enriched_chunks
+    def _execute(
+        self,
+        operation: str,
+        action: Callable[[], T],
+        details: dict[str, Any],
+    ) -> T:
+        """Exécute et mesure une opération ChromaDB de façon uniforme.
+
+        Args:
+            operation: Nom stable utilisé par les métriques.
+            action: Appel ChromaDB à exécuter.
+            details: Contexte non sensible joint à l'exception applicative.
+
+        Returns:
+            Valeur brute immédiatement consommée dans le DAL.
+
+        Raises:
+            VectorStoreException: Si l'appel ChromaDB échoue.
+        """
+        start = time.perf_counter()
+        try:
+            result = action()
+        except (ChromaError, httpx.HTTPError) as exception:
+            _record_chroma_duration(operation, "error", start)
+            raise VectorStoreException(
+                internal_details={
+                    **details,
+                    "error_type": type(exception).__name__,
+                }
+            ) from exception
+        _record_chroma_duration(operation, "success", start)
+        return result
 
 
-def filter_by_similarity(
-    chunks: list[RetrievedChunk], minimum_similarity: float
+def _metadata_from_storage(metadata: object) -> VectorMetadata:
+    """Valide les métadonnées provenant de ChromaDB.
+
+    Args:
+        metadata: Valeur technique retournée par ChromaDB.
+
+    Returns:
+        Métadonnées métier strictement typées.
+    """
+    if not isinstance(metadata, dict):
+        raise TypeError("metadata must be a dictionary")
+    path = _require_string(metadata["path"], "path")
+    title = _require_string(metadata["title"], "title")
+    chunk_index = metadata["chunk_index"]
+    if isinstance(chunk_index, bool) or not isinstance(chunk_index, int):
+        raise TypeError("chunk_index must be an integer")
+    related_links = metadata.get("related_links", "")
+    has_links = metadata.get("has_links", False)
+    if not isinstance(related_links, str) or not isinstance(has_links, bool):
+        raise TypeError("optional metadata fields have invalid types")
+    return VectorMetadata(
+        path=path,
+        title=title,
+        chunk_index=chunk_index,
+        related_links=related_links,
+        has_links=has_links,
+    )
+
+
+def _build_retrieved_chunks(
+    documents: list[Any],
+    metadatas: list[Any],
+    distances: list[Any],
 ) -> list[RetrievedChunk]:
-    """Filtre et trie des chunks par similarité minimale.
+    """Transforme des listes ChromaDB parallèles en résultats métier.
 
     Args:
-        chunks: Chunks enrichis à filtrer.
-        minimum_similarity: Similarité minimale conservée.
+        documents: Textes retournés par le stockage.
+        metadatas: Métadonnées associées aux textes.
+        distances: Distances cosinus associées aux textes.
 
     Returns:
-        Chunks filtrés triés par similarité décroissante.
-    """
-    return sorted(
-        (chunk for chunk in chunks if chunk["similarity"] >= minimum_similarity),
-        key=lambda chunk: chunk["similarity"],
-        reverse=True,
-    )
-
-
-def sort_chunks_by_index(chunks: list[RetrievedChunk]) -> list[RetrievedChunk]:
-    """Trie des chunks selon leur index documentaire.
-
-    Args:
-        chunks: Chunks à trier.
-
-    Returns:
-        Chunks triés par `metadata.chunk_index` croissant.
-    """
-    return sorted(
-        chunks,
-        key=lambda chunk: chunk["metadata"].get("chunk_index", 0),
-    )
-
-
-def extract_related_links(chunks: list[RetrievedChunk]) -> dict[str, float]:
-    """Extrait les liens internes et leur meilleur score hérité.
-
-    Args:
-        chunks: Chunks contenant les métadonnées `has_links` et `related_links`.
-
-    Returns:
-        Dictionnaire `path -> score` pour les documents liés.
+        Résultats indépendants de la structure de réponse ChromaDB.
 
     Raises:
-        KeyError: Si les métadonnées de liens attendues sont absentes.
+        ValueError: Si les listes ne sont pas alignées.
     """
-    paths_with_scores: dict[str, float] = {}
-
-    for chunk in chunks:
-        metadata = chunk["metadata"]
-        parent_score = chunk["similarity"]
-
-        if not metadata["has_links"]:
-            continue
-
-        links_str = metadata["related_links"]
-        if not links_str:
-            continue
-
-        for link in links_str.split(","):
-            clean_link = link.strip()
-            if not clean_link:
-                continue
-
-            # garde le meilleur score si le lien existe déjà
-            current = paths_with_scores.get(clean_link)
-            paths_with_scores[clean_link] = (
-                parent_score if current is None else max(current, parent_score)
-            )
-
-    return paths_with_scores
+    return [
+        _build_retrieved_chunk(document, metadata, distance)
+        for document, metadata, distance in zip(
+            documents, metadatas, distances, strict=True
+        )
+    ]
 
 
-def _record_chroma_success(operation: str, start: float) -> None:
-    """Enregistre la durée d'une opération ChromaDB réussie.
+def _build_retrieved_chunk(
+    document: object, metadata: object, distance: object
+) -> RetrievedChunk:
+    """Valide les primitives d'un résultat ChromaDB.
+
+    Args:
+        document: Contenu textuel brut du résultat.
+        metadata: Métadonnées brutes associées au document.
+        distance: Distance cosinus brute retournée par ChromaDB.
+
+    Returns:
+        Chunk métier strictement typé.
+
+    Raises:
+        TypeError: Si un champ ne respecte pas le contrat Chroma attendu.
+    """
+    if isinstance(distance, bool) or not isinstance(distance, Real):
+        raise TypeError("distance must be a real number")
+    return RetrievedChunk(
+        document=_require_string(document, "document"),
+        metadata=_metadata_from_storage(metadata),
+        distance=float(distance),
+    )
+
+
+def _require_list(data: object, key: str) -> list[Any]:
+    """Extrait une liste obligatoire d'une réponse ChromaDB.
+
+    Args:
+        data: Réponse brute supposée être un dictionnaire.
+        key: Champ obligatoire à extraire.
+
+    Returns:
+        Liste portée par le champ demandé.
+
+    Raises:
+        TypeError: Si la réponse ou le champ n'est pas une liste.
+        KeyError: Si le champ demandé est absent.
+    """
+    if not isinstance(data, dict):
+        raise TypeError("Chroma response must be a dictionary")
+    value = data[key]
+    if not isinstance(value, list):
+        raise TypeError(f"{key} must be a list")
+    return value
+
+
+def _require_single_batch(data: object, key: str) -> list[Any]:
+    """Extrait l'unique lot d'une réponse de requête ChromaDB.
+
+    Args:
+        data: Réponse brute de `Collection.query`.
+        key: Champ parallèle à valider.
+
+    Returns:
+        Premier et unique lot de résultats.
+
+    Raises:
+        ValueError: Si Chroma retourne zéro ou plusieurs lots.
+        TypeError: Si le lot n'est pas une liste.
+    """
+    batches = _require_list(data, key)
+    if len(batches) != 1:
+        raise ValueError(f"{key} must contain exactly one batch")
+    batch = batches[0]
+    if not isinstance(batch, list):
+        raise TypeError(f"{key} batch must be a list")
+    return batch
+
+
+def _require_string(value: object, field: str) -> str:
+    """Valide une chaîne obligatoire issue de ChromaDB.
+
+    Args:
+        value: Valeur brute à contrôler.
+        field: Nom du champ utilisé dans l'erreur interne.
+
+    Returns:
+        Chaîne validée.
+
+    Raises:
+        TypeError: Si la valeur n'est pas une chaîne.
+    """
+    if not isinstance(value, str):
+        raise TypeError(f"{field} must be a string")
+    return value
+
+
+def _record_chroma_duration(operation: str, status: str, start: float) -> None:
+    """Enregistre la durée d'une opération ChromaDB.
 
     Args:
         operation: Nom stable de l'opération ChromaDB.
-        start: Instant de départ capturé avec `perf_counter` pour calculer une durée fiable.
-
-    Returns:
-        Aucune valeur.
+        status: Résultat `success` ou `error`.
+        start: Instant initial issu de `perf_counter`.
     """
     retriever_chroma_duration_seconds.labels(
-        operation=operation, status="success"
-    ).observe(time.perf_counter() - start)
-
-
-def _record_chroma_error(operation: str, start: float) -> None:
-    """Enregistre la durée d'une opération ChromaDB échouée.
-
-    Args:
-        operation: Nom stable de l'opération ChromaDB.
-        start: Instant de départ capturé avec `perf_counter` pour calculer une durée fiable.
-
-    Returns:
-        Aucune valeur.
-    """
-    retriever_chroma_duration_seconds.labels(
-        operation=operation, status="error"
+        operation=operation, status=status
     ).observe(time.perf_counter() - start)

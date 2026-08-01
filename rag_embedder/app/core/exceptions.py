@@ -2,31 +2,32 @@ from enum import Enum
 
 
 class ErrorSlug(str, Enum):
-    """Centralise tous les codes d'erreur métier du conteneur embedder"""
+    """Centralise les codes d'erreur publics du conteneur embedder."""
 
+    INTERNAL = "ERR_INTERNAL"
     EMBEDDING_ERROR = "ERR_EMBEDDING_SERVICE"
     RETRIEVAL_ERROR = "ERR_RETRIEVAL_SERVICE"
     MARKDOWN_PROCESSING = "ERR_MARKDOWN_PROCESSING"
 
 
-class EmbedderContainerCustomException(Exception):
-    """Base exception pour le conteneur embedder"""
+class ApplicationError(Exception):
+    """Sépare le contrat d'erreur public du diagnostic interne."""
 
     STATUS_CODE = 500
-    SLUG = "ERR_INTERNAL"
+    SLUG = ErrorSlug.INTERNAL
+    PUBLIC_MESSAGE = "Une erreur interne est survenue."
 
-    def __init__(self, message: str, details: dict | None = None):
-        """Construit une exception standardisée retournable par l'API embedder.
+    def __init__(self, internal_details: dict[str, object] | None = None) -> None:
+        """Construit une erreur applicative sans exposer son contexte technique.
 
         Args:
-            message: Message d'erreur fonctionnel safe à exposer au client API.
-            details: Informations non sensibles ajoutées à la réponse d'erreur pour faciliter le diagnostic.
+            internal_details: Contexte réservé à la journalisation côté serveur.
         """
-        self.message = message
-        self.details = details or {}
-        super().__init__(message)
+        self.message = self.PUBLIC_MESSAGE
+        self.internal_details = internal_details or {}
+        super().__init__(self.PUBLIC_MESSAGE)
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, object]:
         """Convertit l'exception applicative en payload JSON standardisé.
 
         Returns:
@@ -34,27 +35,30 @@ class EmbedderContainerCustomException(Exception):
         """
         return {
             "slug": self.SLUG.value,
-            "message": self.message,
-            "details": self.details,
+            "message": self.PUBLIC_MESSAGE,
+            "details": {},
         }
 
 
-class EmbeddingServiceException(EmbedderContainerCustomException):
-    """Erreur lors de l'interaction avec le service 'embedder'"""
+class EmbeddingServiceException(ApplicationError):
+    """Signale une indisponibilité ou une réponse invalide du fournisseur."""
 
     STATUS_CODE = 503
     SLUG = ErrorSlug.EMBEDDING_ERROR
+    PUBLIC_MESSAGE = "Le service d'embeddings est temporairement indisponible."
 
 
-class RetrievalServiceException(EmbedderContainerCustomException):
-    """Erreur lors de l'interaction avec le service 'retriever'"""
+class RetrievalServiceException(ApplicationError):
+    """Signale un échec de communication avec le stockage vectoriel."""
 
     STATUS_CODE = 503
     SLUG = ErrorSlug.RETRIEVAL_ERROR
+    PUBLIC_MESSAGE = "Le service de stockage est temporairement indisponible."
 
 
-class MarkdownProcessingException(EmbedderContainerCustomException):
-    """Erreur lors du traitement des fichiers Markdown"""
+class MarkdownProcessingException(ApplicationError):
+    """Signale qu'un document Markdown ne peut pas être traité sûrement."""
 
     STATUS_CODE = 422
     SLUG = ErrorSlug.MARKDOWN_PROCESSING
+    PUBLIC_MESSAGE = "Les documents Markdown n'ont pas pu être traités."

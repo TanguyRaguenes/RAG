@@ -25,20 +25,21 @@ async def read_markdown_documents() -> DocumentsBase:
     for path in root.rglob("*.md"):
         if ".git" in path.parts:
             continue
+        relative_path = path.relative_to(root).as_posix()
         try:
             async with aiofiles.open(path, mode="r", encoding="utf-8") as f:
                 content = await f.read()
 
-            document: DocumentBase = DocumentBase(
-                path=path.relative_to(root).as_posix(), content=content
-            )
+            document = DocumentBase(path=relative_path, content=content)
 
             found_documents.append(document)
 
-        except Exception as e:
+        except (OSError, UnicodeError) as exception:
             raise MarkdownProcessingException(
-                message="Failed to read markdown document",
-                details={"file": str(path)},
-            ) from e
+                internal_details={
+                    "operation": "read_markdown_document",
+                    "relative_path": relative_path,
+                },
+            ) from exception
 
     return DocumentsBase(documents=found_documents)

@@ -1,3 +1,7 @@
+from pathlib import Path
+from types import TracebackType
+from typing import Self
+
 import pytest
 
 from app.core.exceptions import MarkdownProcessingException
@@ -6,7 +10,7 @@ from app.dal.files.markdown_reader import read_markdown_documents
 
 @pytest.mark.asyncio
 async def test_read_markdown_documents_returns_relative_paths_and_ignores_git(
-    tmp_path,
+    tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     wiki_root = tmp_path / "data" / "wikis"
@@ -30,7 +34,7 @@ async def test_read_markdown_documents_returns_relative_paths_and_ignores_git(
 
 @pytest.mark.asyncio
 async def test_read_markdown_documents_uses_env_wikis_dir(
-    tmp_path,
+    tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     wiki_root = tmp_path / "custom_wikis"
@@ -49,7 +53,7 @@ async def test_read_markdown_documents_uses_env_wikis_dir(
 
 @pytest.mark.asyncio
 async def test_read_markdown_documents_wraps_read_errors(
-    tmp_path,
+    tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     wiki_root = tmp_path / "data" / "wikis"
@@ -59,13 +63,18 @@ async def test_read_markdown_documents_wraps_read_errors(
     monkeypatch.chdir(tmp_path)
 
     class FailingOpen:
-        async def __aenter__(self):
+        async def __aenter__(self) -> Self:
             raise OSError("cannot read")
 
-        async def __aexit__(self, exc_type, exc, traceback):
+        async def __aexit__(
+            self,
+            exc_type: type[BaseException] | None,
+            exc: BaseException | None,
+            traceback: TracebackType | None,
+        ) -> bool:
             return False
 
-    def failing_open(*args, **kwargs):
+    def failing_open(*args: object, **kwargs: object) -> FailingOpen:
         return FailingOpen()
 
     monkeypatch.setattr("app.dal.files.markdown_reader.aiofiles.open", failing_open)
@@ -73,4 +82,9 @@ async def test_read_markdown_documents_wraps_read_errors(
     with pytest.raises(MarkdownProcessingException) as exc_info:
         await read_markdown_documents()
 
-    assert exc_info.value.details["file"].endswith("broken.md")
+    assert exc_info.value.internal_details == {
+        "operation": "read_markdown_document",
+        "relative_path": "broken.md",
+    }
+    assert str(tmp_path) not in str(exc_info.value.internal_details)
+    assert exc_info.value.to_dict()["details"] == {}

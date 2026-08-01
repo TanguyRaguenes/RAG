@@ -1,13 +1,13 @@
-from typing import Any
-
 from pydantic import BaseModel
+
+from app.schemas.vector_store_items_schema import VectorMetadataBase
 
 
 class ChunkToIngest(BaseModel):
     id: str
     chunk: str
     embeded_text: list[float]
-    metadatas: dict[str, Any]
+    metadatas: VectorMetadataBase
 
 
 class DocumentToIngest(BaseModel):

@@ -7,7 +7,7 @@ from prometheus_client import make_asgi_app
 
 from app.api.lifespan import lifespan
 from app.api.routers.embed_router import router as embed_router
-from app.core.exceptions import EmbedderContainerCustomException
+from app.core.exceptions import ApplicationError, ErrorSlug
 from app.core.logging import configure_json_logging
 from app.core.telemetry import configure_telemetry
 
@@ -31,7 +31,7 @@ app.include_router(embed_router)
 
 
 @app.get("/")
-def read_root():
+def read_root() -> dict[str, str]:
     """Retourne l'état de santé minimal du microservice.
 
     Returns:
@@ -40,20 +40,28 @@ def read_root():
     return {"status": "ok", "message": "API connection successful"}
 
 
-@app.exception_handler(EmbedderContainerCustomException)
+@app.exception_handler(ApplicationError)
 async def embedder_exception_handler(
-    request: Request, exception: EmbedderContainerCustomException
-):
-    """Handler centralisé pour les exceptions métier"""
-    # Ici on génère les logs qui seront affichés dans la console.
-    logger.exception(
-        exception.message,
+    request: Request, exception: ApplicationError
+) -> JSONResponse:
+    """Journalise une fois puis expose le contrat public de l'erreur.
+
+    Args:
+        request: Requête ayant déclenché l'erreur applicative.
+        exception: Erreur typée contenant un diagnostic réservé au serveur.
+
+    Returns:
+        Réponse stable ne contenant aucun détail interne.
+    """
+    log_method = logger.warning if exception.STATUS_CODE < 500 else logger.exception
+    log_method(
+        "Application request failed",
         extra={
             "group": "embedding",
-            "event": "business_exception",
-            "slug": exception.SLUG,
+            "event": "application_error",
+            "slug": exception.SLUG.value,
             "path": request.url.path,
-            "details": exception.details,
+            "internal_details": exception.internal_details,
             "status_code": exception.STATUS_CODE,
         },
     )
@@ -61,4 +69,37 @@ async def embedder_exception_handler(
     return JSONResponse(
         status_code=exception.STATUS_CODE,
         content=exception.to_dict(),
+    )
+
+
+@app.exception_handler(Exception)
+async def unexpected_exception_handler(
+    request: Request, exception: Exception
+) -> JSONResponse:
+    """Masque et journalise une erreur inattendue.
+
+    Args:
+        request: Requête ayant déclenché l'erreur inattendue.
+        exception: Erreur brute conservée uniquement dans la trace serveur.
+
+    Returns:
+        Réponse HTTP 500 neutre au même format que les erreurs applicatives.
+    """
+    logger.exception(
+        "Unexpected application error",
+        extra={
+            "group": "embedding",
+            "event": "unexpected_error",
+            "path": request.url.path,
+            "error_type": type(exception).__name__,
+            "status_code": 500,
+        },
+    )
+    return JSONResponse(
+        status_code=500,
+        content={
+            "slug": ErrorSlug.INTERNAL.value,
+            "message": ApplicationError.PUBLIC_MESSAGE,
+            "details": {},
+        },
     )

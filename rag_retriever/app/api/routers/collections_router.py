@@ -1,219 +1,110 @@
-import time
+from typing import Annotated
 
 from fastapi import APIRouter, Depends
-from opentelemetry import trace
 
-from app.api.dependencies import (
-    get_config,
-    get_vector_store_repository,
-    get_wikis_collection,
-)
-from app.core.metrics import (
-    SERVICE_NAME,
-    rag_errors_total,
-    rag_request_duration_seconds,
-    rag_requests_total,
-    retriever_duration_seconds,
-    retriever_errors_total,
-    retriever_requests_total,
-)
-from app.domain.models.retrieve_chunks_request_model import (
+from app.api.dependencies import get_config, get_vector_store_repository
+from app.core.config import RetrieverConfig
+from app.core.operation_observer import observe_retriever_operation
+from app.dal.repositories.vector_store_repository import VectorStoreRepository
+from app.schemas.retrieve_chunks_request_schema import (
     RetrieveChunksRequestBase,
     RetrieveDocumentChunksRequestBase,
 )
-from app.domain.models.vector_store_item_model import VectorStoreItemsBase
 from app.schemas.retrieve_chunks_response_schema import RetrievedChunksModelBase
 from app.schemas.save_items_response_schema import SaveItemsResponseBase
+from app.schemas.vector_db_items_schema import VectorStoreItemsBase
 from app.services.manage_collection_service import delete_collection
 from app.services.retrieval_service import retrieve_chunks, retrieve_document_chunks
 from app.services.saving_service import save_items
 
 router = APIRouter()
-tracer = trace.get_tracer(__name__)
-config_dependency = Depends(get_config)
-vector_store_repository_dependency = Depends(get_vector_store_repository)
-wikis_collection_dependency = Depends(get_wikis_collection)
+
+ConfigDep = Annotated[RetrieverConfig, Depends(get_config)]
+RepositoryDep = Annotated[VectorStoreRepository, Depends(get_vector_store_repository)]
 
 
 @router.post("/save_items", response_model=SaveItemsResponseBase)
 def save_items_route(
     items: VectorStoreItemsBase,
-    vector_store_repository=vector_store_repository_dependency,
+    config: ConfigDep,
+    vector_store_repository: RepositoryDep,
 ) -> SaveItemsResponseBase:
-    """Sauvegarde ou met à jour des items vectoriels dans ChromaDB.
+    """Délègue la persistance d'un lot vectoriel au service métier.
 
     Args:
-        items: Documents, embeddings, ids et métadonnées à persister.
-        vector_store_repository: Repository ChromaDB injecté par FastAPI.
+        items: Lot vectoriel validé par Pydantic.
+        config: Configuration applicative injectée par FastAPI.
+        vector_store_repository: Repository injecté sans exposer ChromaDB.
 
     Returns:
-        Résumé des items sauvegardés et de la taille de collection.
-
-    Raises:
-        RetrieverContainerCustomException: Si ChromaDB échoue ou retourne un format inattendu.
+        Résumé public de la sauvegarde.
     """
-    start = time.perf_counter()
-    operation = "save_items"
-    with tracer.start_as_current_span("retriever.save_items"):
-        try:
-            response: SaveItemsResponseBase = save_items(items, vector_store_repository)
-        except Exception as exception:
-            _record_route_error(operation, type(exception).__name__, start)
-            raise
-
-    _record_route_success(operation, start)
-    return response
+    with observe_retriever_operation("save_items"):
+        return save_items(items, config, vector_store_repository)
 
 
 @router.post("/retrieve_chunks", response_model=RetrievedChunksModelBase)
 def retrieve_chunk_route(
     request_data: RetrieveChunksRequestBase,
-    wikis_collection=wikis_collection_dependency,
-    config=config_dependency,
-    vector_store_repository=vector_store_repository_dependency,
+    config: ConfigDep,
+    vector_store_repository: RepositoryDep,
 ) -> RetrievedChunksModelBase:
-    """Recherche les chunks les plus proches d'un embedding de question.
+    """Délègue la recherche vectorielle au service de retrieval.
 
     Args:
-        request_data: Requête contenant l'embedding de la question.
-        wikis_collection: Collection ChromaDB injectée par FastAPI.
-        config: Configuration du retriever.
-        vector_store_repository: Repository ChromaDB injecté par FastAPI.
+        request_data: Embedding de question validé par Pydantic.
+        config: Configuration des règles de sélection et de collection.
+        vector_store_repository: Repository injecté sans collection technique.
 
     Returns:
-        Chunks filtrés, formatés et triés par similarité décroissante.
-
-    Raises:
-        RetrieverContainerCustomException: Si ChromaDB échoue ou retourne un format inattendu.
+        Chunks pertinents au format HTTP historique.
     """
-    start = time.perf_counter()
-    operation = "retrieve_chunks"
-    with tracer.start_as_current_span("retriever.retrieve_chunks"):
-        try:
-            response: RetrievedChunksModelBase = retrieve_chunks(
-                config,
-                wikis_collection,
-                request_data.embeded_question,
-                vector_store_repository,
-            )
-        except Exception as exception:
-            _record_route_error(operation, type(exception).__name__, start)
-            raise
-
-    _record_route_success(operation, start)
-    return response
+    with observe_retriever_operation("retrieve_chunks"):
+        return retrieve_chunks(
+            config,
+            request_data.embeded_question,
+            vector_store_repository,
+        )
 
 
 @router.post("/retrieve_document_chunks", response_model=RetrievedChunksModelBase)
 def retrieve_document_chunks_route(
     request_data: RetrieveDocumentChunksRequestBase,
-    wikis_collection=wikis_collection_dependency,
-    vector_store_repository=vector_store_repository_dependency,
+    config: ConfigDep,
+    vector_store_repository: RepositoryDep,
 ) -> RetrievedChunksModelBase:
-    """Récupère les chunks complets des documents demandés.
+    """Délègue la lecture complète de documents au service de retrieval.
 
     Args:
-        request_data: Requête contenant les chemins de documents.
-        wikis_collection: Collection ChromaDB injectée par FastAPI.
-        vector_store_repository: Repository ChromaDB injecté par FastAPI.
+        request_data: Chemins documentaires validés par Pydantic.
+        config: Configuration contenant la collection de lecture.
+        vector_store_repository: Repository injecté sans collection technique.
 
     Returns:
-        Chunks correspondant aux chemins demandés, triés par index.
-
-    Raises:
-        RetrieverContainerCustomException: Si ChromaDB échoue ou retourne un format inattendu.
+        Chunks documentaires au format HTTP historique.
     """
-    start = time.perf_counter()
-    operation = "retrieve_document_chunks"
-    with tracer.start_as_current_span("retriever.retrieve_document_chunks"):
-        try:
-            response: RetrievedChunksModelBase = retrieve_document_chunks(
-                wikis_collection, request_data.paths, vector_store_repository
-            )
-        except Exception as exception:
-            _record_route_error(operation, type(exception).__name__, start)
-            raise
-
-    _record_route_success(operation, start)
-    return response
+    with observe_retriever_operation("retrieve_document_chunks"):
+        return retrieve_document_chunks(
+            config,
+            request_data.paths,
+            vector_store_repository,
+        )
 
 
 @router.post("/delete_collection")
 def delete_collection_route(
-    vector_store_repository=vector_store_repository_dependency,
-    config=config_dependency,
+    config: ConfigDep,
+    vector_store_repository: RepositoryDep,
 ) -> str:
-    """Supprime puis recrée la collection configurée.
+    """Délègue la réinitialisation de la collection configurée.
 
     Args:
-        vector_store_repository: Repository ChromaDB injecté par FastAPI.
-        config: Configuration contenant le nom de collection.
+        config: Configuration contenant la collection à réinitialiser.
+        vector_store_repository: Repository injecté pour l'opération de gestion.
 
     Returns:
-        Message de confirmation compatible avec le comportement existant.
-
-    Raises:
-        RetrieverContainerCustomException: Si ChromaDB échoue pendant la suppression ou recréation.
+        Message de confirmation conservé pour compatibilité HTTP.
     """
-    start = time.perf_counter()
-    operation = "delete_collection"
-    with tracer.start_as_current_span("retriever.delete_collection"):
-        try:
-            delete_collection(config, vector_store_repository)
-        except Exception as exception:
-            _record_route_error(operation, type(exception).__name__, start)
-            raise
-
-    _record_route_success(operation, start)
+    with observe_retriever_operation("delete_collection"):
+        delete_collection(config, vector_store_repository)
     return "Collection : bien supprimée."
-
-
-def _record_route_success(operation: str, start: float) -> None:
-    """Enregistre les métriques d'une route retriever réussie.
-
-    Args:
-        operation: Nom stable de l'opération métier.
-        start: Instant de départ capturé avec `perf_counter` pour calculer une durée fiable.
-
-    Returns:
-        Aucune valeur.
-    """
-    duration_seconds = time.perf_counter() - start
-    retriever_requests_total.labels(operation=operation, status="success").inc()
-    retriever_duration_seconds.labels(operation=operation, status="success").observe(
-        duration_seconds
-    )
-    rag_requests_total.labels(
-        service=SERVICE_NAME, operation=operation, status="success"
-    ).inc()
-    rag_request_duration_seconds.labels(
-        service=SERVICE_NAME, operation=operation, status="success"
-    ).observe(duration_seconds)
-
-
-def _record_route_error(operation: str, error_type: str, start: float) -> None:
-    """Enregistre les métriques d'une route retriever échouée.
-
-    Args:
-        operation: Nom stable de l'opération métier.
-        error_type: Type d'erreur à faible cardinalité.
-        start: Instant de départ capturé avec `perf_counter` pour calculer une durée fiable.
-
-    Returns:
-        Aucune valeur.
-    """
-    duration_seconds = time.perf_counter() - start
-    retriever_requests_total.labels(operation=operation, status="error").inc()
-    retriever_errors_total.labels(operation=operation, error_type=error_type).inc()
-    retriever_duration_seconds.labels(operation=operation, status="error").observe(
-        duration_seconds
-    )
-    rag_requests_total.labels(
-        service=SERVICE_NAME, operation=operation, status="error"
-    ).inc()
-    rag_errors_total.labels(
-        service=SERVICE_NAME, operation=operation, error_type=error_type
-    ).inc()
-    rag_request_duration_seconds.labels(
-        service=SERVICE_NAME, operation=operation, status="error"
-    ).observe(duration_seconds)

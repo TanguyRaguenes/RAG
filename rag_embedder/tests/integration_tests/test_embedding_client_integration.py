@@ -6,7 +6,7 @@ from app.dal.clients.embedding_client import embed
 
 
 @pytest.mark.asyncio
-async def test_embed_returns_non_empty_float_vector():
+async def test_embed_returns_non_empty_float_vector() -> None:
     config = load_config()
     config["embedding"]["url"] = "http://localhost:11434/api/embed"
     try:

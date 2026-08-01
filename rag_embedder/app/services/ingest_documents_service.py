@@ -1,21 +1,32 @@
+import posixpath
 import re
-from typing import Any
-from urllib.parse import unquote
+import time
+from datetime import UTC, datetime
+from urllib.parse import unquote, urlsplit
 
+from app.core.config import EmbedderConfig
+from app.core.exceptions import MarkdownProcessingException
 from app.dal.clients.embedding_client import embed as client_embed
 from app.dal.clients.retriever_client import save_items as client_save_items
 from app.domain.models.document_model import DocumentBase, DocumentsBase
-from app.domain.models.vector_store_item_model import VectorStoreItemsBase
 from app.schemas.document_to_ingest_schema import (
     ChunkToIngest,
     DocumentsToIngest,
     DocumentToIngest,
 )
+from app.schemas.ingest_bulk_response_schema import IngestBulkResponseBase
 from app.schemas.save_items_response_schema import SaveItemsResponseBase
+from app.schemas.vector_store_items_schema import (
+    VectorMetadataBase,
+    VectorStoreItemsBase,
+)
 from app.services.chunk_service import chunk_text
+from app.services.load_documents_service import load_documents
 
 
-async def ingest_documents(documents: DocumentsBase, config: dict) -> dict:
+async def ingest_documents(
+    documents: DocumentsBase, config: EmbedderConfig
+) -> SaveItemsResponseBase:
     """Charge, découpe, vectorise et sauvegarde les documents dans le retriever.
 
     Args:
@@ -24,8 +35,20 @@ async def ingest_documents(documents: DocumentsBase, config: dict) -> dict:
 
     Returns:
         Réponse de sauvegarde retournée par le retriever après ingestion.
+
+    Raises:
+        MarkdownProcessingException: Si aucun document ou aucun chunk exploitable
+            n'est disponible pour produire un snapshot sûr.
     """
-    documents_to_ingest: DocumentToIngest = DocumentsToIngest(documents=[])
+    if not documents.documents:
+        raise MarkdownProcessingException(
+            internal_details={
+                "operation": "ingest_documents",
+                "reason": "no_document",
+            },
+        )
+
+    documents_to_ingest = DocumentsToIngest(documents=[])
 
     # On itère sur tous les fichiers qui se trouves dans le dossier wikis
     for document in documents.documents:
@@ -38,13 +61,44 @@ async def ingest_documents(documents: DocumentsBase, config: dict) -> dict:
     vector_store_items: VectorStoreItemsBase = convert_to_chroma_format(
         documents_to_ingest
     )
+    if not vector_store_items.ids:
+        raise MarkdownProcessingException(
+            internal_details={
+                "operation": "ingest_documents",
+                "reason": "no_chunk",
+                "document_count": len(documents.documents),
+            },
+        )
 
     # On va contacter le container avec ChromaDB pour demander la sauvegarde des documents
-    save_items_response: SaveItemsResponseBase = await client_save_items(
-        vector_store_items
-    )
+    vector_store_items.delete_obsolete = True
+    save_items_response = await client_save_items(vector_store_items)
 
     return save_items_response
+
+
+async def ingest_all_documents(config: EmbedderConfig) -> IngestBulkResponseBase:
+    """Orchestre une ingestion complète depuis les fichiers jusqu'au retriever.
+
+    Args:
+        config: Configuration de chunking et d'embedding du service.
+
+    Returns:
+        Compteurs et horodatages conservant le contrat HTTP existant.
+    """
+    start = time.perf_counter()
+    started_at = datetime.now(UTC).isoformat(timespec="seconds")
+    documents = await load_documents()
+    result = await ingest_documents(documents, config)
+    elapsed = time.perf_counter() - start
+    minutes, seconds = divmod(int(elapsed), 60)
+    return IngestBulkResponseBase(
+        started_at=started_at,
+        finished_at=datetime.now(UTC).isoformat(timespec="seconds"),
+        duration=f"{minutes:02d}:{seconds:02d}",
+        collection_count_before=result.collection_count_before,
+        collection_count_after=result.collection_count_after,
+    )
 
 
 def convert_to_chroma_format(
@@ -58,10 +112,10 @@ def convert_to_chroma_format(
     Returns:
         Items vectoriels prêts à être envoyés au retriever.
     """
-    all_ids = []
-    all_texts = []
-    all_embeddings = []
-    all_metadatas = []
+    all_ids: list[str] = []
+    all_texts: list[str] = []
+    all_embeddings: list[list[float]] = []
+    all_metadatas: list[VectorMetadataBase] = []
 
     # 1. On parcourt chaque document
     for doc in documents_to_ingest.documents:
@@ -97,7 +151,7 @@ def clean_title(title: str) -> str:
 
 
 async def prepare_document_to_ingest(
-    document: DocumentBase, config: dict
+    document: DocumentBase, config: EmbedderConfig
 ) -> DocumentToIngest:
     """Prépare les chunks et métadonnées d'un document avant ingestion vectorielle.
 
@@ -114,21 +168,18 @@ async def prepare_document_to_ingest(
     chunks: list[str] = chunk_text(document.content, config)
     document_context: str = clean_title(document.path.split("/")[-1])
     texts_to_embed: list[str] = []
-    chunks_metadata: list[dict[str, Any]] = []
+    chunks_metadata: list[VectorMetadataBase] = []
 
     for i, chunk in enumerate(chunks):
         # 1. EXTRACTION DES LIENS
         # La regex capture ce qui est entre parenthèses (...) juste après des crochets [...]
-        raw_links = re.findall(r"\[.*?\]\((.*?)\)", chunk)
-
-        clean_links = []
-        for link in raw_links:
-            # A. On décode les caractères URL (ex: "%2D" devient "-")
-            # decoded_link = unquote(link)
-
-            # B. On retire les espaces autour au cas où
-            clean_link = link.strip()
-            clean_links.append(f"{clean_link[1:]}.md")
+        raw_links = re.findall(r"(?<!!)\[[^\]]*\]\(([^)]+)\)", chunk)
+        clean_links = [
+            normalized_link
+            for link in raw_links
+            if (normalized_link := normalize_markdown_link(link, document.path))
+            is not None
+        ]
 
         # On transforme la liste en string pour le stockage simple dans ChromaDB
         links_metadata = ",".join(clean_links)
@@ -139,13 +190,13 @@ async def prepare_document_to_ingest(
         text_to_embed = f"TITLE={document_context} | PATH={document.path}\n{chunk}"
         texts_to_embed.append(text_to_embed)
         chunks_metadata.append(
-            {
-                "path": document.path,
-                "title": document_context,
-                "chunk_index": i,
-                "related_links": links_metadata,
-                "has_links": len(raw_links) > 0,
-            }
+            VectorMetadataBase(
+                path=document.path,
+                title=document_context,
+                chunk_index=i,
+                related_links=links_metadata,
+                has_links=bool(clean_links),
+            )
         )
 
     if not texts_to_embed:
@@ -166,3 +217,38 @@ async def prepare_document_to_ingest(
         document_to_ingest.chunks.append(chunk_to_ingest)
 
     return document_to_ingest
+
+
+def normalize_markdown_link(link: str, source_path: str) -> str | None:
+    """Normalise un lien Markdown interne vers un chemin wiki relatif.
+
+    Args:
+        link: Cible brute extraite des parenthèses Markdown.
+        source_path: Chemin relatif du document contenant le lien.
+
+    Returns:
+        Chemin Markdown relatif normalisé, ou `None` pour un lien externe,
+        une ancre ou une ressource non Markdown.
+    """
+    target = link.strip().split(maxsplit=1)[0]
+    parsed = urlsplit(target)
+    if parsed.scheme or parsed.netloc or not parsed.path:
+        return None
+
+    decoded_path = unquote(parsed.path).replace("\\", "/")
+    if decoded_path.startswith("/"):
+        candidate = decoded_path.lstrip("/")
+    else:
+        source_directory = posixpath.dirname(source_path)
+        candidate = posixpath.join(source_directory, decoded_path)
+
+    normalized = posixpath.normpath(candidate)
+    if normalized in {"", "."} or normalized.startswith("../"):
+        return None
+
+    extension = posixpath.splitext(normalized)[1].lower()
+    if extension and extension != ".md":
+        return None
+    if not extension:
+        normalized = f"{normalized}.md"
+    return normalized

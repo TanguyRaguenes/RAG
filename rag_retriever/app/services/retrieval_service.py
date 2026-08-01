@@ -1,145 +1,145 @@
-from typing import Any
-
-from app.core.exceptions import RetrievalFormatException, VectorStoreException
+from app.core.config import RetrieverConfig
+from app.core.exceptions import RetrievalFormatException
 from app.core.metrics import retriever_chunks_total
+from app.domain.models.vector_store_model import RetrievedChunk
+from app.domain.vector_store_repository import VectorStoreRepositoryProtocol
 from app.schemas.retrieve_chunks_response_schema import (
     ChunkModelBase,
     RetrievedChunksModelBase,
 )
+from app.schemas.vector_db_items_schema import VectorMetadataBase
 
 
 def retrieve_chunks(
-    config: dict[str, Any],
-    collection,
+    config: RetrieverConfig,
     embeded_question: list[float],
-    vector_store_repository,
+    vector_store_repository: VectorStoreRepositoryProtocol,
 ) -> RetrievedChunksModelBase:
-    """Recherche et formate les chunks pertinents pour une question vectorisée.
+    """Recherche, filtre et classe les chunks pertinents pour une question.
 
     Args:
-        config: Configuration contenant `top_k`, `minimum_similarity` et `minimum_number_of_chunks`.
-        collection: Collection ChromaDB à interroger.
+        config: Configuration de collection et règles de sélection du retriever.
         embeded_question: Embedding de la question utilisateur.
-        vector_store_repository: Repository vectoriel chargé de l'appel ChromaDB.
+        vector_store_repository: Port chargé uniquement des accès au stockage.
 
     Returns:
-        Chunks filtrés et formatés pour l'orchestrator.
+        Chunks respectant le seuil, le minimum et le tri métier.
 
     Raises:
-        VectorStoreException: Si ChromaDB échoue pendant la recherche.
-        RetrievalFormatException: Si un chunk retourné est incomplet ou mal formé.
-        KeyError: Si la configuration ne contient pas les clés attendues.
+        RetrievalFormatException: Si un résultat métier ne peut pas être exposé.
     """
-    top_k: int = config["retriever"]["top_k"]
-    minimum_similarity: float = config["retriever"]["minimum_similarity"]
-    minimum_number_of_chunks: int = config["retriever"]["minimum_number_of_chunks"]
+    collection_name: str = config["collection"]["name"]
+    retrieval_config = config["retriever"]
+    top_k: int = retrieval_config["top_k"]
+    minimum_similarity: float = retrieval_config["minimum_similarity"]
+    minimum_number_of_chunks: int = retrieval_config["minimum_number_of_chunks"]
 
-    try:
-        retrieved_chunks: list[dict[str, Any]] = (
-            vector_store_repository.retrieve_chunks_filtered(
-                collection,
-                embeded_question,
-                top_k,
-                minimum_similarity,
-                minimum_number_of_chunks,
-            )
-        )
-    except Exception as exception:
-        if isinstance(exception, VectorStoreException):
-            raise
-        raise VectorStoreException(
-            message="Erreur lors de la recherche de chunks",
-            details={"operation": "retrieve_chunks"},
-        ) from exception
-
-    retriever_chunks_total.labels(operation="retrieve_chunks").inc(
-        len(retrieved_chunks)
+    retrieved_chunks = vector_store_repository.query_chunks(
+        collection_name,
+        embeded_question,
+        top_k,
     )
 
+    selected_chunks = select_relevant_chunks(
+        retrieved_chunks,
+        minimum_similarity,
+        minimum_number_of_chunks,
+    )
+    retriever_chunks_total.labels(operation="retrieve_chunks").inc(len(selected_chunks))
     return RetrievedChunksModelBase(
-        chunks=[format_retrieved_chunk(chunk) for chunk in retrieved_chunks]
+        chunks=[format_retrieved_chunk(chunk) for chunk in selected_chunks]
     )
 
 
 def retrieve_document_chunks(
-    collection,
+    config: RetrieverConfig,
     paths: list[str],
-    vector_store_repository,
+    vector_store_repository: VectorStoreRepositoryProtocol,
 ) -> RetrievedChunksModelBase:
-    """Récupère tous les chunks associés à une liste de chemins documentaires.
+    """Récupère les chunks complets de documents dans un ordre déterministe.
 
     Args:
-        collection: Collection ChromaDB à interroger.
-        paths: Chemins documentaires à récupérer.
-        vector_store_repository: Repository vectoriel chargé de l'appel ChromaDB.
+        config: Configuration contenant le nom de la collection source.
+        paths: Chemins demandés, potentiellement dupliqués.
+        vector_store_repository: Port chargé uniquement des accès au stockage.
 
     Returns:
-        Chunks documentaires formatés pour l'orchestrator.
+        Chunks regroupés selon l'ordre des chemins puis leur index.
 
     Raises:
-        VectorStoreException: Si ChromaDB échoue pendant la récupération.
-        RetrievalFormatException: Si un chunk retourné est incomplet ou mal formé.
+        RetrievalFormatException: Si un résultat métier ne peut pas être exposé.
     """
-    try:
-        document_chunks = vector_store_repository.retrieve_document_chunks_by_paths(
-            collection,
-            paths,
-        )
-    except Exception as exception:
-        if isinstance(exception, VectorStoreException):
-            raise
-        raise VectorStoreException(
-            message="Erreur lors de la récupération des chunks documentaires",
-            details={"operation": "retrieve_document_chunks"},
-        ) from exception
+    collection_name: str = config["collection"]["name"]
+    unique_paths = list(dict.fromkeys(paths))
+    document_chunks = vector_store_repository.get_chunks_by_paths(
+        collection_name,
+        unique_paths,
+    )
 
+    path_order = {path: index for index, path in enumerate(unique_paths)}
+    ordered_chunks = sorted(
+        document_chunks,
+        key=lambda chunk: (
+            path_order.get(chunk.metadata.path, len(path_order)),
+            chunk.metadata.chunk_index,
+        ),
+    )
     retriever_chunks_total.labels(operation="retrieve_document_chunks").inc(
-        len(document_chunks)
+        len(ordered_chunks)
     )
-
     return RetrievedChunksModelBase(
-        chunks=[format_retrieved_chunk(chunk) for chunk in document_chunks]
+        chunks=[format_retrieved_chunk(chunk) for chunk in ordered_chunks]
     )
 
 
-def format_retrieved_chunk(chunk: dict[str, Any]) -> ChunkModelBase:
-    """Convertit un chunk brut en schéma de réponse.
+def select_relevant_chunks(
+    chunks: list[RetrievedChunk],
+    minimum_similarity: float,
+    minimum_number_of_chunks: int,
+) -> list[RetrievedChunk]:
+    """Applique le seuil, le minimum de résultats et le tri de pertinence.
 
     Args:
-        chunk: Chunk brut contenant document, métadonnées et similarité.
+        chunks: Résultats bruts retournés par le repository.
+        minimum_similarity: Similarité minimale normalement requise.
+        minimum_number_of_chunks: Nombre minimal à conserver si disponible.
 
     Returns:
-        Chunk Pydantic prêt à être renvoyé par l'API.
+        Résultats triés par similarité décroissante.
+    """
+    sorted_chunks = sorted(chunks, key=lambda chunk: chunk.similarity, reverse=True)
+    selected = [
+        chunk for chunk in sorted_chunks if chunk.similarity >= minimum_similarity
+    ]
+    if len(selected) < minimum_number_of_chunks:
+        return sorted_chunks[:minimum_number_of_chunks]
+    return selected
+
+
+def format_retrieved_chunk(chunk: RetrievedChunk) -> ChunkModelBase:
+    """Convertit un résultat métier en schéma de réponse public.
+
+    Args:
+        chunk: Chunk indépendant du format de réponse ChromaDB.
+
+    Returns:
+        DTO exposé à l'orchestrator.
 
     Raises:
-        RetrievalFormatException: Si le chunk ne contient pas les champs requis.
+        RetrievalFormatException: Si les valeurs du chunk sont invalides.
     """
     try:
-        metadata = chunk["metadata"]
-
+        metadata = VectorMetadataBase(**chunk.metadata.to_storage_dict())
         return ChunkModelBase(
-            id=_build_chunk_id(metadata),
-            document=chunk["document"],
+            id=(
+                f"{chunk.metadata.title} | {chunk.metadata.path} | "
+                f"{chunk.metadata.chunk_index}"
+            ),
+            document=chunk.document,
             metadata=metadata,
-            similarity=round(chunk["similarity"], 3),
+            similarity=round(chunk.similarity, 3),
         )
-    except TypeError as exception:
+    except (TypeError, ValueError) as exception:
         raise RetrievalFormatException(
-            message="Chunk récupéré mal formé",
-            details={"missing_or_invalid_field": str(exception)},
+            internal_details={"operation": "format_retrieved_chunk"},
         ) from exception
-
-
-def _build_chunk_id(metadata: dict[str, Any]) -> str:
-    """Construit l'identifiant lisible d'un chunk.
-
-    Args:
-        metadata: Métadonnées contenant `title`, `path` et `chunk_index`.
-
-    Returns:
-        Identifiant lisible du chunk.
-
-    Raises:
-        KeyError: Si une métadonnée obligatoire manque.
-    """
-    return f"{metadata['title']} | {metadata['path']} | {metadata['chunk_index']}"

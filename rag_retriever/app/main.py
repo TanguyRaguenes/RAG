@@ -7,7 +7,7 @@ from prometheus_client import make_asgi_app
 
 from app.api.lifespan import lifespan
 from app.api.routers.collections_router import router as collections_router
-from app.core.exceptions import RetrieverContainerCustomException
+from app.core.exceptions import ApplicationError, ErrorSlug
 from app.core.logging import configure_json_logging
 from app.core.telemetry import configure_telemetry
 
@@ -24,7 +24,7 @@ app.include_router(collections_router)
 
 
 @app.get("/")
-def read_root():
+def read_root() -> dict[str, str]:
     """Retourne l'état de santé minimal de l'API.
 
     Returns:
@@ -33,9 +33,9 @@ def read_root():
     return {"status": "ok", "message": "API connection successful"}
 
 
-@app.exception_handler(RetrieverContainerCustomException)
+@app.exception_handler(ApplicationError)
 async def retriever_exception_handler(
-    request: Request, exception: RetrieverContainerCustomException
+    request: Request, exception: ApplicationError
 ) -> JSONResponse:
     """Transforme une exception métier retriever en réponse HTTP standardisée.
 
@@ -46,15 +46,16 @@ async def retriever_exception_handler(
     Returns:
         Réponse JSON contenant le slug, le message et les détails d'erreur.
     """
-    logger.exception(
-        exception.message,
+    log_method = logger.warning if exception.STATUS_CODE < 500 else logger.exception
+    log_method(
+        "Application request failed",
         extra={
             "service": "rag_retriever",
             "group": "retrieval",
-            "event": "business_exception",
-            "slug": exception.SLUG,
+            "event": "application_error",
+            "slug": exception.SLUG.value,
             "path": request.url.path,
-            "details": exception.details,
+            "internal_details": exception.internal_details,
             "status_code": exception.STATUS_CODE,
         },
     )
@@ -62,4 +63,38 @@ async def retriever_exception_handler(
     return JSONResponse(
         status_code=exception.STATUS_CODE,
         content=exception.to_dict(),
+    )
+
+
+@app.exception_handler(Exception)
+async def unexpected_exception_handler(
+    request: Request, exception: Exception
+) -> JSONResponse:
+    """Masque une erreur inattendue derrière un payload HTTP neutre.
+
+    Args:
+        request: Requête ayant déclenché l'erreur inattendue.
+        exception: Erreur brute réservée à la trace serveur.
+
+    Returns:
+        Réponse HTTP 500 conforme au contrat d'erreur commun.
+    """
+    logger.exception(
+        "Unexpected application error",
+        extra={
+            "service": "rag_retriever",
+            "group": "retrieval",
+            "event": "unexpected_error",
+            "path": request.url.path,
+            "error_type": type(exception).__name__,
+            "status_code": 500,
+        },
+    )
+    return JSONResponse(
+        status_code=500,
+        content={
+            "slug": ErrorSlug.INTERNAL.value,
+            "message": ApplicationError.PUBLIC_MESSAGE,
+            "details": {},
+        },
     )

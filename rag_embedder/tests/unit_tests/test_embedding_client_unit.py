@@ -1,4 +1,5 @@
-from typing import ClassVar
+from types import TracebackType
+from typing import ClassVar, Self
 
 import pytest
 
@@ -8,23 +9,30 @@ from app.dal.clients.embedding_client import embed
 
 
 class FakeResponse:
+    payload: ClassVar[dict] = {"embeddings": [[0.1, 0.2], [0.3, 0.4]]}
+
     def raise_for_status(self) -> None:
         return None
 
     def json(self) -> dict:
-        return {"embeddings": [[0.1, 0.2], [0.3, 0.4]]}
+        return self.payload
 
 
 class FakeAsyncClient:
     calls: ClassVar[list[dict]] = []
 
-    def __init__(self, timeout: int):
+    def __init__(self, timeout: int) -> None:
         self.timeout = timeout
 
-    async def __aenter__(self):
+    async def __aenter__(self) -> Self:
         return self
 
-    async def __aexit__(self, exc_type, exc, traceback):
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        traceback: TracebackType | None,
+    ) -> bool:
         return False
 
     async def post(self, url: str, json: dict) -> FakeResponse:
@@ -33,7 +41,7 @@ class FakeAsyncClient:
 
 
 @pytest.mark.asyncio
-async def test_embed_raises_exception_when_service_is_unreachable():
+async def test_embed_raises_exception_when_service_is_unreachable() -> None:
 
     config = {
         "embedding": {
@@ -49,8 +57,12 @@ async def test_embed_raises_exception_when_service_is_unreachable():
     e = exc.value
     assert e.STATUS_CODE == 503
     assert e.SLUG.value == "ERR_EMBEDDING_SERVICE"
-    assert "Impossible de se connecter" in e.message
-    assert e.details["url"] == config["embedding"]["url"]
+    assert e.message == "Le service d'embeddings est temporairement indisponible."
+    assert e.internal_details == {
+        "operation": "embed",
+        "error_type": "connect_error",
+    }
+    assert e.to_dict()["details"] == {}
     assert e.__cause__ is not None
 
 
@@ -79,3 +91,58 @@ async def test_embed_posts_prefixed_texts_and_returns_embeddings(
             "timeout": 120,
         }
     ]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "invalid_coordinate",
+    [True, "0.1", float("nan"), float("inf"), float("-inf")],
+    ids=["bool", "str", "nan", "positive-infinity", "negative-infinity"],
+)
+async def test_embed_rejects_invalid_coordinates_before_success_metric(
+    monkeypatch: pytest.MonkeyPatch,
+    invalid_coordinate: object,
+) -> None:
+    config = {
+        "embedding": {
+            "url": "http://embedder/embeddings",
+            "model": "test-model",
+            "prefixes": {"query": "Q: ", "document": "D: "},
+        }
+    }
+    successful_requests: list[tuple[str, float]] = []
+    monkeypatch.setattr(embedding_client.httpx, "AsyncClient", FakeAsyncClient)
+    monkeypatch.setattr(
+        FakeResponse,
+        "payload",
+        {"embeddings": [[invalid_coordinate]]},
+    )
+    monkeypatch.setattr(
+        embedding_client,
+        "_record_request_success",
+        lambda operation, duration: successful_requests.append((operation, duration)),
+    )
+
+    with pytest.raises(EmbeddingServiceException):
+        await embed(["hello"], config=config, is_query=True)
+
+    assert successful_requests == []
+
+
+@pytest.mark.asyncio
+async def test_embed_accepts_integer_coordinates_as_real_numbers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config = {
+        "embedding": {
+            "url": "http://embedder/embeddings",
+            "model": "test-model",
+            "prefixes": {"query": "Q: ", "document": "D: "},
+        }
+    }
+    monkeypatch.setattr(embedding_client.httpx, "AsyncClient", FakeAsyncClient)
+    monkeypatch.setattr(FakeResponse, "payload", {"embeddings": [[1, 2]]})
+
+    result = await embed(["hello"], config=config, is_query=False)
+
+    assert result == [[1.0, 2.0]]

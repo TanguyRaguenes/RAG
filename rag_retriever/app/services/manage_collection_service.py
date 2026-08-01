@@ -1,8 +1,13 @@
-from app.core.exceptions import CollectionException
+from app.core.config import RetrieverConfig
+from app.core.exceptions import CollectionException, VectorStoreException
 from app.core.metrics import retriever_collection_size
+from app.domain.vector_store_repository import VectorStoreRepositoryProtocol
 
 
-def delete_collection(config: dict, vector_store_repository) -> None:
+def delete_collection(
+    config: RetrieverConfig,
+    vector_store_repository: VectorStoreRepositoryProtocol,
+) -> None:
     """Supprime puis recrée la collection configurée.
 
     Args:
@@ -18,12 +23,10 @@ def delete_collection(config: dict, vector_store_repository) -> None:
     """
     collection_name: str = config["collection"]["name"]
     try:
-        vector_store_repository.delete_collection_by_name(collection_name)
-        vector_store_repository.get_or_create_collection(collection_name)
-    except Exception as exception:
+        vector_store_repository.reset_collection(collection_name)
+    except VectorStoreException as exception:
         raise CollectionException(
-            message="Erreur lors de la réinitialisation de la collection",
-            details={"collection": collection_name},
+            internal_details={"operation": "reset_collection"},
         ) from exception
 
     retriever_collection_size.labels(collection=collection_name).set(0)

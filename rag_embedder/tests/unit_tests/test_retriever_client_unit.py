@@ -1,15 +1,16 @@
-from typing import ClassVar
+from types import TracebackType
+from typing import ClassVar, Self
 
 import httpx
 import pytest
 
 from app.core.exceptions import RetrievalServiceException
 from app.dal.clients import retriever_client
-from app.domain.models.vector_store_item_model import VectorStoreItemsBase
+from app.schemas.vector_store_items_schema import VectorStoreItemsBase
 
 
 class FakeResponse:
-    def __init__(self, payload: dict, status_code: int = 200, text: str = ""):
+    def __init__(self, payload: dict, status_code: int = 200, text: str = "") -> None:
         self.payload = payload
         self.status_code = status_code
         self.text = text
@@ -25,15 +26,38 @@ class FakeResponse:
 
 class FakeAsyncClient:
     calls: ClassVar[list[dict]] = []
-    response = FakeResponse({"saved": True})
+    response = FakeResponse(
+        {
+            "collection_count_before": 0,
+            "collection_count_after": 1,
+            "saved_items": [
+                {
+                    "id": "id-1",
+                    "chunk": "doc",
+                    "metadatas": {
+                        "path": "doc.md",
+                        "title": "Doc",
+                        "chunk_index": 0,
+                        "related_links": "",
+                        "has_links": False,
+                    },
+                }
+            ],
+        }
+    )
 
-    def __init__(self, timeout: int):
+    def __init__(self, timeout: int) -> None:
         self.timeout = timeout
 
-    async def __aenter__(self):
+    async def __aenter__(self) -> Self:
         return self
 
-    async def __aexit__(self, exc_type, exc, traceback):
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        traceback: TracebackType | None,
+    ) -> bool:
         return False
 
     async def post(self, url: str, json: dict) -> FakeResponse:
@@ -46,7 +70,7 @@ def _items() -> VectorStoreItemsBase:
         ids=["id-1"],
         documents=["doc"],
         embeddings=[[0.1]],
-        metadatas=[{"path": "doc.md"}],
+        metadatas=[{"path": "doc.md", "title": "Doc", "chunk_index": 0}],
     )
 
 
@@ -59,7 +83,10 @@ async def test_save_items_requires_retriever_url(
     with pytest.raises(RetrievalServiceException) as exc_info:
         await retriever_client.save_items(_items())
 
-    assert "retriever" in exc_info.value.message
+    assert exc_info.value.message == (
+        "Le service de stockage est temporairement indisponible."
+    )
+    assert exc_info.value.internal_details["error_type"] == "missing_url"
 
 
 @pytest.mark.asyncio
@@ -67,7 +94,23 @@ async def test_save_items_posts_vector_store_payload(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     FakeAsyncClient.calls = []
-    FakeAsyncClient.response = FakeResponse({"saved": True})
+    FakeAsyncClient.response = FakeResponse(
+        {
+            "collection_count_before": 0,
+            "collection_count_after": 1,
+            "saved_items": [
+                {
+                    "id": "id-1",
+                    "chunk": "doc",
+                    "metadatas": {
+                        "path": "doc.md",
+                        "title": "Doc",
+                        "chunk_index": 0,
+                    },
+                }
+            ],
+        }
+    )
     monkeypatch.setenv(
         "RAG_RETRIEVER_INGEST_DOCUMENTS_URL", "http://retriever/save_items"
     )
@@ -75,7 +118,7 @@ async def test_save_items_posts_vector_store_payload(
 
     result = await retriever_client.save_items(_items())
 
-    assert result == {"saved": True}
+    assert result.collection_count_after == 1
     assert FakeAsyncClient.calls == [
         {
             "url": "http://retriever/save_items",
@@ -98,5 +141,8 @@ async def test_save_items_wraps_http_status_errors(
     with pytest.raises(RetrievalServiceException) as exc_info:
         await retriever_client.save_items(_items())
 
-    assert exc_info.value.message == "Erreur HTTP 503"
+    assert exc_info.value.message == (
+        "Le service de stockage est temporairement indisponible."
+    )
+    assert exc_info.value.internal_details["status_code"] == 503
     assert isinstance(exc_info.value.__cause__, httpx.HTTPStatusError)

@@ -1,58 +1,64 @@
 import pytest
 
 from app.api.routers import embed_router
-from app.domain.models.document_model import DocumentBase, DocumentsBase
-from app.domain.models.embed_request_model import EmbedRequestBase
+from app.schemas.embed_request_schema import EmbedRequestBase
+from app.schemas.embed_text_response_schema import EmbedTextResponseBase
+from app.schemas.ingest_bulk_response_schema import IngestBulkResponseBase
 
 
 @pytest.mark.asyncio
-async def test_embed_route_returns_embeddings_and_duration(
+async def test_embed_route_delegates_to_embedding_service(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    async def fake_service_embed(texts: list[str], config: dict) -> list[list[float]]:
-        assert texts == ["question", "autre question"]
-        assert config == {"config": True}
-        return [[0.1, 0.2], [0.3, 0.4]]
+    expected = EmbedTextResponseBase(
+        duration_ms=12.0,
+        duration_human="00:00",
+        embeded_texts=[[0.1, 0.2]],
+    )
 
-    monkeypatch.setattr(embed_router, "service_embed", fake_service_embed)
-    monkeypatch.setattr(embed_router.time, "perf_counter", iter([1.0, 2.2]).__next__)
+    async def fake_create_embeddings_response(
+        texts: list[str], config: dict
+    ) -> EmbedTextResponseBase:
+        assert texts == ["question"]
+        assert config == {"config": True}
+        return expected
+
+    monkeypatch.setattr(
+        embed_router,
+        "create_embeddings_response",
+        fake_create_embeddings_response,
+    )
 
     response = await embed_router.embed_route(
-        EmbedRequestBase(texts=["question", "autre question"]),
+        EmbedRequestBase(texts=["question"]),
         {"config": True},
     )
 
-    assert response.embeded_texts == [[0.1, 0.2], [0.3, 0.4]]
-    assert response.duration_ms == 1200.0
-    assert response.duration_human == "00:01"
+    assert response is expected
 
 
 @pytest.mark.asyncio
-async def test_ingest_bulk_route_loads_documents_and_returns_saved_items(
+async def test_ingest_bulk_route_delegates_to_ingestion_service(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    documents = DocumentsBase(
-        documents=[DocumentBase(path="doc.md", content="content")]
+    expected = IngestBulkResponseBase(
+        started_at="2026-01-01T00:00:00+00:00",
+        finished_at="2026-01-01T00:00:01+00:00",
+        duration="00:01",
+        collection_count_before=2,
+        collection_count_after=1,
     )
 
-    async def fake_load_documents() -> DocumentsBase:
-        return documents
-
-    async def fake_ingest_documents(received_documents: DocumentsBase, config: dict):
-        assert received_documents is documents
+    async def fake_ingest_all_documents(config: dict) -> IngestBulkResponseBase:
         assert config == {"config": True}
-        return {
-            "collection_count_before": 0,
-            "collection_count_after": 1,
-            "saved_items": [{"id": "id", "chunk": "content", "metadatas": {}}],
-        }
+        return expected
 
-    monkeypatch.setattr(embed_router, "load_documents", fake_load_documents)
-    monkeypatch.setattr(embed_router, "ingest_documents", fake_ingest_documents)
-    monkeypatch.setattr(embed_router.time, "perf_counter", iter([1.0, 2.0]).__next__)
+    monkeypatch.setattr(
+        embed_router,
+        "ingest_all_documents",
+        fake_ingest_all_documents,
+    )
 
     response = await embed_router.ingest_bulk_route({"config": True})
 
-    assert response.duration == "00:01"
-    assert response.collection_count_before == 0
-    assert response.collection_count_after == 1
+    assert response is expected

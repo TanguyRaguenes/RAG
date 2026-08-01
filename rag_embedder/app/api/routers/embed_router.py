@@ -1,22 +1,18 @@
-import time
-from datetime import UTC, datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends
 
 from app.api.dependencies import get_config
-from app.domain.models.document_model import DocumentsBase
-from app.domain.models.embed_request_model import EmbedRequestBase
+from app.core.config import EmbedderConfig
+from app.schemas.embed_request_schema import EmbedRequestBase
 from app.schemas.embed_text_response_schema import EmbedTextResponseBase
 from app.schemas.ingest_bulk_response_schema import IngestBulkResponseBase
-from app.schemas.save_items_response_schema import SaveItemsResponseBase
-from app.services.embed_service import embed as service_embed
-from app.services.ingest_documents_service import ingest_documents
-from app.services.load_documents_service import load_documents
+from app.services.embed_service import create_embeddings_response
+from app.services.ingest_documents_service import ingest_all_documents
 
 router = APIRouter()
 
-ConfigDep = Annotated[dict, Depends(get_config)]
+ConfigDep = Annotated[EmbedderConfig, Depends(get_config)]
 
 
 @router.post("/embed")
@@ -33,24 +29,7 @@ async def embed_route(
     Returns:
         Réponse HTTP contenant les embeddings et la durée de génération.
     """
-    start: float = time.perf_counter()
-
-    embeded_texts: list[list[float]] = await service_embed(payload.texts, config)
-
-    elapsed: float = time.perf_counter() - start
-
-    duration_ms = round(elapsed * 1000, 2)
-
-    minutes, seconds = divmod(int(elapsed), 60)
-    duration_human: str = f"{minutes:02d}:{seconds:02d}"
-
-    response: EmbedTextResponseBase = EmbedTextResponseBase(
-        duration_ms=duration_ms,
-        duration_human=duration_human,
-        embeded_texts=embeded_texts,
-    )
-
-    return response
+    return await create_embeddings_response(payload.texts, config)
 
 
 @router.post("/ingest/bulk")
@@ -63,24 +42,4 @@ async def ingest_bulk_route(config: ConfigDep) -> IngestBulkResponseBase:
     Returns:
         Réponse HTTP contenant la durée et le résultat de sauvegarde.
     """
-    start: float = time.perf_counter()
-    started_at: str = datetime.now(UTC).isoformat(timespec="seconds")
-
-    documents: DocumentsBase = await load_documents()
-
-    ingested_documents: SaveItemsResponseBase = await ingest_documents(
-        documents, config
-    )
-
-    elapsed: float = time.perf_counter() - start
-    minutes, seconds = divmod(int(elapsed), 60)
-    duration: str = f"{minutes:02d}:{seconds:02d}"
-    finished_at: str = datetime.now(UTC).isoformat(timespec="seconds")
-
-    return IngestBulkResponseBase(
-        started_at=started_at,
-        finished_at=finished_at,
-        duration=duration,
-        collection_count_before=ingested_documents["collection_count_before"],
-        collection_count_after=ingested_documents["collection_count_after"],
-    )
+    return await ingest_all_documents(config)

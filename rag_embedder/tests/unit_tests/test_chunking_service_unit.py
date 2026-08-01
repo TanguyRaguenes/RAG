@@ -10,7 +10,7 @@ def get_test_config() -> dict:
     }
 
 
-def test_chunk_text_returns_chunks_with_markdown_context():
+def test_chunk_text_returns_chunks_with_markdown_context() -> None:
     text = """
             # Guide RAG
 
@@ -28,7 +28,7 @@ def test_chunk_text_returns_chunks_with_markdown_context():
     assert "Voici comment installer le projet." in chunks[0]
 
 
-def test_chunk_text_repeats_markdown_context_on_each_split_chunk():
+def test_chunk_text_repeats_markdown_context_on_each_split_chunk() -> None:
     text = "# Guide RAG\n\n## Installation\n\n" + "Phrase longue. " * 80
     config = {"chunking": {"size_chars": 120, "overlap_chars": 20}}
 
@@ -40,7 +40,7 @@ def test_chunk_text_repeats_markdown_context_on_each_split_chunk():
     )
 
 
-def test_chunk_text_removes_toc_and_images():
+def test_chunk_text_removes_toc_and_images() -> None:
     text = """
         [[_TOC_]]
 
@@ -59,7 +59,7 @@ def test_chunk_text_removes_toc_and_images():
     assert "Contenu utile." in result
 
 
-def test_chunk_text_returns_empty_list_when_text_is_empty():
+def test_chunk_text_returns_empty_list_when_text_is_empty() -> None:
     chunks = chunk_text("", get_test_config())
 
     assert chunks == []

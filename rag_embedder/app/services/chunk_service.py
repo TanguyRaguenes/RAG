@@ -5,10 +5,12 @@ from langchain_text_splitters import (
     RecursiveCharacterTextSplitter,
 )
 
+from app.core.config import EmbedderConfig
+
 # Découpe le texte en segments (chunks) intelligents en préservant la structure sémantique.
 
 
-def chunk_text(text: str, config: dict) -> list[str]:
+def chunk_text(text: str, config: EmbedderConfig) -> list[str]:
     """Découpe un document Markdown en chunks adaptés à l'embedding.
 
     Args:

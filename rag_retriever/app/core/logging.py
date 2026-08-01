@@ -2,6 +2,7 @@ import json
 import logging
 import os
 import sys
+from collections.abc import Mapping, Sequence
 from datetime import UTC, datetime
 
 _RESERVED_LOG_RECORD_ATTRS = set(
@@ -15,6 +16,23 @@ _RESERVED_LOG_RECORD_ATTRS = set(
         exc_info=None,
     ).__dict__
 ) | {"message", "asctime"}
+
+_SENSITIVE_KEY_PARTS = (
+    "authorization",
+    "cookie",
+    "password",
+    "secret",
+    "token",
+    "api_key",
+    "apikey",
+    "prompt",
+    "document",
+    "embedding",
+)
+_MAX_STRING_LENGTH = 2048
+_MAX_COLLECTION_ITEMS = 50
+_REDACTED = "[REDACTED]"
+_TRUNCATED = "...[TRUNCATED]"
 
 
 class JsonLogFormatter(logging.Formatter):
@@ -46,7 +64,20 @@ class JsonLogFormatter(logging.Formatter):
                 continue
             log_data[key] = value
 
-        return json.dumps(log_data, default=str, ensure_ascii=False)
+        return json.dumps(_sanitize_value(log_data), ensure_ascii=False)
+
+
+class DynamicStdoutHandler(logging.StreamHandler):
+    """Écrit vers le stdout courant, y compris sous capture de tests."""
+
+    def emit(self, record: logging.LogRecord) -> None:
+        """Résout stdout au moment exact de l'émission.
+
+        Args:
+            record: Enregistrement Python à formater et écrire.
+        """
+        self.stream = sys.stdout
+        super().emit(record)
 
 
 def configure_json_logging(default_service_name: str) -> None:
@@ -62,13 +93,24 @@ def configure_json_logging(default_service_name: str) -> None:
     log_level = _resolve_log_level(log_level_name)
     service_name = os.getenv("SERVICE_NAME", default_service_name)
 
-    handler = logging.StreamHandler(sys.stdout)
+    handler = DynamicStdoutHandler()
+    handler.name = "rag_json"
     handler.setFormatter(JsonLogFormatter(service_name))
 
     root_logger = logging.getLogger()
-    root_logger.handlers.clear()
+    root_logger.handlers = [
+        current_handler
+        for current_handler in root_logger.handlers
+        if current_handler.name != "rag_json"
+    ]
     root_logger.addHandler(handler)
     root_logger.setLevel(log_level)
+
+    for logger_name in ("uvicorn", "uvicorn.error", "uvicorn.access"):
+        uvicorn_logger = logging.getLogger(logger_name)
+        uvicorn_logger.handlers = [handler]
+        uvicorn_logger.setLevel(log_level)
+        uvicorn_logger.propagate = False
 
 
 def _resolve_log_level(log_level_name: str) -> int:
@@ -78,3 +120,37 @@ def _resolve_log_level(log_level_name: str) -> int:
 
     log_level = getattr(logging, log_level_name, logging.INFO)
     return log_level if isinstance(log_level, int) else logging.INFO
+
+
+def _sanitize_value(value: object, key: str = "") -> object:
+    """Nettoie récursivement une valeur avant sa sérialisation JSON.
+
+    Args:
+        value: Valeur structurée provenant du message ou des champs `extra`.
+        key: Clé parente utilisée pour détecter les données sensibles.
+
+    Returns:
+        Valeur sérialisable, expurgée et bornée en taille.
+    """
+    normalized_key = key.lower().replace("-", "_")
+    if any(part in normalized_key for part in _SENSITIVE_KEY_PARTS):
+        return _REDACTED
+    if isinstance(value, str):
+        if len(value) <= _MAX_STRING_LENGTH:
+            return value
+        return f"{value[:_MAX_STRING_LENGTH]}{_TRUNCATED}"
+    if isinstance(value, Mapping):
+        return {
+            str(child_key): _sanitize_value(child_value, str(child_key))
+            for child_key, child_value in list(value.items())[:_MAX_COLLECTION_ITEMS]
+        }
+    if isinstance(value, Sequence) and not isinstance(value, (str, bytes, bytearray)):
+        sanitized = [
+            _sanitize_value(item, key) for item in value[:_MAX_COLLECTION_ITEMS]
+        ]
+        if len(value) > _MAX_COLLECTION_ITEMS:
+            sanitized.append(_TRUNCATED)
+        return sanitized
+    if value is None or isinstance(value, (bool, int, float)):
+        return value
+    return _sanitize_value(str(value), key)

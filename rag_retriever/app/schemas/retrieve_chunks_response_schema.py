@@ -1,12 +1,12 @@
-from typing import Any
-
 from pydantic import BaseModel
+
+from app.schemas.vector_db_items_schema import VectorMetadataBase
 
 
 class ChunkModelBase(BaseModel):
     id: str
     document: str
-    metadata: dict[str, Any]
+    metadata: VectorMetadataBase
     similarity: float
 
 

@@ -1,9 +1,12 @@
 import logging
+import math
 import time
+from numbers import Real
 
 import httpx
 from opentelemetry import trace
 
+from app.core.config import EmbedderConfig
 from app.core.exceptions import EmbeddingServiceException
 from app.core.metrics import (
     SERVICE_NAME,
@@ -19,7 +22,9 @@ logger = logging.getLogger(__name__)
 tracer = trace.get_tracer(__name__)
 
 
-async def embed(texts: list[str], config: dict, is_query: bool) -> list[list[float]]:
+async def embed(
+    texts: list[str], config: EmbedderConfig, is_query: bool
+) -> list[list[float]]:
     """Génère des embeddings pour une liste de textes via le client configuré.
 
     Args:
@@ -77,74 +82,56 @@ async def embed(texts: list[str], config: dict, is_query: bool) -> list[list[flo
     except httpx.HTTPStatusError as e:
         embedding_errors_total.inc()
         _record_request_error(operation, "http_status", start_time)
-        logger.exception(
-            "Embedding request failed",
-            extra={
-                "group": "embedding",
-                "event": "request_failed",
+        raise EmbeddingServiceException(
+            internal_details={
+                "operation": "embed",
                 "error_type": "http_status",
                 "status_code": e.response.status_code,
-                "url": str(e.request.url),
             },
-        )
-        raise EmbeddingServiceException(
-            message=f"Erreur HTTP {e.response.status_code}",
-            details={"url": str(e.request.url), "response": e.response.text},
         ) from e
 
     except httpx.ConnectError as e:
         embedding_errors_total.inc()
         _record_request_error(operation, "connect_error", start_time)
-        logger.exception(
-            "Embedding request failed",
-            extra={
-                "group": "embedding",
-                "event": "request_failed",
-                "error_type": "connect_error",
-                "url": url,
-                "error": str(e),
-            },
-        )
         raise EmbeddingServiceException(
-            message="Impossible de se connecter au service 'embedder'",
-            details={"url": url, "error": str(e)},
+            internal_details={"operation": "embed", "error_type": "connect_error"},
         ) from e
 
     except httpx.TimeoutException as e:
         embedding_errors_total.inc()
         _record_request_error(operation, "timeout", start_time)
-        logger.exception(
-            "Embedding request failed",
-            extra={
-                "group": "embedding",
-                "event": "request_failed",
-                "error_type": "timeout",
-                "url": url,
-                "error": str(e),
-            },
-        )
         raise EmbeddingServiceException(
-            message="Timeout lors de l'appel au service 'embedder'",
-            details={"url": url, "error": str(e)},
+            internal_details={"operation": "embed", "error_type": "timeout"},
         ) from e
 
     except httpx.RequestError as e:
         embedding_errors_total.inc()
         _record_request_error(operation, "request_error", start_time)
-        logger.exception(
-            "Embedding request failed",
-            extra={
-                "group": "embedding",
-                "event": "request_failed",
-                "error_type": "request_error",
-                "url": url,
-                "error": str(e),
-            },
-        )
         raise EmbeddingServiceException(
-            message="Erreur réseau lors de l'appel au service 'embedder'",
-            details={"url": url, "error": str(e)},
+            internal_details={"operation": "embed", "error_type": "request_error"},
         ) from e
+
+    except (TypeError, ValueError) as exception:
+        embedding_errors_total.inc()
+        _record_request_error(operation, "invalid_response", start_time)
+        raise EmbeddingServiceException(
+            internal_details={
+                "operation": "embed",
+                "error_type": "invalid_response",
+            },
+        ) from exception
+
+    try:
+        embeddings = _validate_embeddings(data["embeddings"], len(texts))
+    except (KeyError, TypeError, ValueError) as exception:
+        embedding_errors_total.inc()
+        _record_request_error(operation, "invalid_response", start_time)
+        raise EmbeddingServiceException(
+            internal_details={
+                "operation": "embed",
+                "error_type": "invalid_response",
+            },
+        ) from exception
 
     duration_seconds = time.perf_counter() - start_time
     duration_ms = round(duration_seconds * 1000, 2)
@@ -159,12 +146,58 @@ async def embed(texts: list[str], config: dict, is_query: bool) -> list[list[flo
             "event": "request_completed",
             "duration_ms": duration_ms,
             "model": model,
-            "embedding_count": len(data["embeddings"]),
-            "embedding_size": len(data["embeddings"][0]),
+            "embedding_count": len(embeddings),
+            "embedding_size": len(embeddings[0]),
         },
     )
 
-    return data["embeddings"]
+    return embeddings
+
+
+def _validate_embeddings(
+    raw_embeddings: object, expected_count: int
+) -> list[list[float]]:
+    """Valide et normalise les embeddings retournés par le provider.
+
+    Args:
+        raw_embeddings: Valeur JSON brute du champ `embeddings`.
+        expected_count: Nombre de vecteurs attendu pour les textes envoyés.
+
+    Returns:
+        Vecteurs composés exclusivement de nombres réels finis convertis en float.
+
+    Raises:
+        ValueError: Si le lot est désaligné, mal dimensionné ou contient une
+            coordonnée NaN ou infinie.
+        TypeError: Si une coordonnée n'est pas un nombre réel ou est booléenne.
+    """
+    if not isinstance(raw_embeddings, list) or len(raw_embeddings) != expected_count:
+        raise ValueError("embedding response is not aligned with input texts")
+
+    validated_embeddings: list[list[float]] = []
+    for vector in raw_embeddings:
+        if not isinstance(vector, list) or not vector:
+            raise ValueError("embedding vectors must be non-empty lists")
+
+        validated_vector: list[float] = []
+        for coordinate in vector:
+            if isinstance(coordinate, bool) or not isinstance(coordinate, Real):
+                raise TypeError("embedding coordinates must be real numbers")
+            try:
+                normalized_coordinate = float(coordinate)
+            except (OverflowError, ValueError) as exception:
+                raise ValueError(
+                    "embedding coordinates must be finite real numbers"
+                ) from exception
+            if not math.isfinite(normalized_coordinate):
+                raise ValueError("embedding coordinates must be finite real numbers")
+            validated_vector.append(normalized_coordinate)
+        validated_embeddings.append(validated_vector)
+
+    dimensions = {len(vector) for vector in validated_embeddings}
+    if len(dimensions) != 1:
+        raise ValueError("embedding dimensions are inconsistent")
+    return validated_embeddings
 
 
 def _record_request_success(operation: str, duration_seconds: float) -> None:

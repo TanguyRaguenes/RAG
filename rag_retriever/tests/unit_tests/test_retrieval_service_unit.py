@@ -1,147 +1,101 @@
-from typing import Any
-
+from app.domain.models.vector_store_model import RetrievedChunk, VectorMetadata
 from app.services.retrieval_service import (
-    format_retrieved_chunk,
     retrieve_chunks,
     retrieve_document_chunks,
+    select_relevant_chunks,
 )
 
 
+def _chunk(path: str, index: int, distance: float) -> RetrievedChunk:
+    return RetrievedChunk(
+        document=f"{path}-{index}",
+        metadata=VectorMetadata(
+            path=path,
+            title=path.removesuffix(".md"),
+            chunk_index=index,
+        ),
+        distance=distance,
+    )
+
+
 class FakeVectorStoreRepository:
-    def __init__(self, chunks: list[dict[str, Any]]):
+    def __init__(self, chunks: list[RetrievedChunk]) -> None:
         self.chunks = chunks
-        self.call_args = None
+        self.call_args: tuple[object, ...] | None = None
 
-    def retrieve_chunks_filtered(
-        self,
-        collection: object,
-        query_embedding: list[float],
-        top_k: int,
-        minimum_similarity: float,
-        minimum_number_of_chunks: int,
-    ) -> list[dict[str, Any]]:
-        self.call_args = (
-            collection,
-            query_embedding,
-            top_k,
-            minimum_similarity,
-            minimum_number_of_chunks,
-        )
+    def query_chunks(
+        self, collection_name: str, query_embedding: list[float], top_k: int
+    ) -> list[RetrievedChunk]:
+        self.call_args = (collection_name, query_embedding, top_k)
         return self.chunks
 
-    def retrieve_document_chunks_by_paths(
-        self,
-        collection: object,
-        paths: list[str],
-    ) -> list[dict[str, Any]]:
-        self.call_args = (collection, paths)
+    def get_chunks_by_paths(
+        self, collection_name: str, paths: list[str]
+    ) -> list[RetrievedChunk]:
+        self.call_args = (collection_name, paths)
         return self.chunks
 
 
-def test_format_retrieved_chunk_builds_public_chunk_model() -> None:
-    chunk = {
-        "document": "contenu",
-        "metadata": {
-            "title": "Titre",
-            "path": "wiki/page.md",
-            "chunk_index": 3,
+def _config() -> dict:
+    return {
+        "collection": {"name": "configured-wiki"},
+        "retriever": {
+            "top_k": 10,
+            "minimum_similarity": 0.7,
+            "minimum_number_of_chunks": 2,
         },
-        "similarity": 0.87654,
     }
 
-    result = format_retrieved_chunk(chunk)
 
-    assert result.id == "Titre | wiki/page.md | 3"
-    assert result.document == "contenu"
-    assert result.similarity == 0.877
+def test_select_relevant_chunks_applies_threshold_sort_and_minimum() -> None:
+    chunks = [
+        _chunk("low.md", 0, 0.8),
+        _chunk("best.md", 0, 0.1),
+        _chunk("middle.md", 0, 0.5),
+    ]
+
+    result = select_relevant_chunks(chunks, 0.7, 2)
+
+    assert [chunk.metadata.path for chunk in result] == ["best.md", "middle.md"]
 
 
-def test_retrieve_chunks_uses_config_and_formats_repository_results() -> None:
-    collection = object()
+def test_retrieve_chunks_uses_configured_collection_and_formats_results() -> None:
+    repository = FakeVectorStoreRepository([_chunk("guide.md", 1, 0.2)])
+
+    response = retrieve_chunks(_config(), [0.1, 0.2], repository)
+
+    assert repository.call_args == ("configured-wiki", [0.1, 0.2], 10)
+    assert response.chunks[0].id == "guide | guide.md | 1"
+    assert response.chunks[0].similarity == 0.8
+
+
+def test_retrieve_document_chunks_deduplicates_paths_and_orders_chunks() -> None:
     repository = FakeVectorStoreRepository(
         [
-            {
-                "document": "contenu",
-                "metadata": {
-                    "title": "Titre",
-                    "path": "wiki/page.md",
-                    "chunk_index": 1,
-                },
-                "similarity": 0.75,
-            }
+            _chunk("b.md", 1, 0.0),
+            _chunk("a.md", 2, 0.0),
+            _chunk("a.md", 0, 0.0),
         ]
     )
-    config = {
-        "retriever": {
-            "top_k": 10,
-            "minimum_similarity": 0.5,
-            "minimum_number_of_chunks": 2,
-            "max_related_links": 3,
-        }
-    }
 
-    response = retrieve_chunks(config, collection, [0.1, 0.2], repository)
+    response = retrieve_document_chunks(
+        _config(),
+        ["a.md", "b.md", "a.md"],
+        repository,
+    )
 
-    assert repository.call_args == (collection, [0.1, 0.2], 10, 0.5, 2)
-    assert len(response.chunks) == 1
-    assert response.chunks[0].id == "Titre | wiki/page.md | 1"
+    assert repository.call_args == ("configured-wiki", ["a.md", "b.md"])
+    assert [chunk.document for chunk in response.chunks] == [
+        "a.md-0",
+        "a.md-2",
+        "b.md-1",
+    ]
 
 
-def test_retrieve_chunks_returns_empty_response_when_repository_returns_no_chunks() -> (
-    None
-):
+def test_retrieve_document_chunks_preserves_empty_paths_contract() -> None:
     repository = FakeVectorStoreRepository([])
-    config = {
-        "retriever": {
-            "top_k": 10,
-            "minimum_similarity": 0.5,
-            "minimum_number_of_chunks": 2,
-            "max_related_links": 3,
-        }
-    }
 
-    response = retrieve_chunks(config, object(), [0.1], repository)
+    response = retrieve_document_chunks(_config(), [], repository)
 
+    assert repository.call_args == ("configured-wiki", [])
     assert response.chunks == []
-
-
-def test_retrieve_document_chunks_formats_repository_results() -> None:
-    collection = object()
-    paths = ["wiki/page.md"]
-    repository = FakeVectorStoreRepository(
-        [
-            {
-                "document": "document chunk",
-                "metadata": {
-                    "title": "Titre",
-                    "path": "wiki/page.md",
-                    "chunk_index": 1,
-                },
-                "similarity": 0.75,
-            }
-        ]
-    )
-
-    response = retrieve_document_chunks(collection, paths, repository)
-
-    assert repository.call_args == (collection, paths)
-    assert response.chunks[0].document == "document chunk"
-
-
-def test_format_retrieved_chunk_raises_key_error_when_required_metadata_is_missing() -> (
-    None
-):
-    chunk = {
-        "document": "contenu",
-        "metadata": {"title": "Titre", "path": "wiki/page.md"},
-        "similarity": 0.8,
-    }
-
-    try:
-        format_retrieved_chunk(chunk)
-    except KeyError as exc:
-        assert exc.args == ("chunk_index",)
-    else:
-        raise AssertionError(
-            "format_retrieved_chunk should require chunk_index metadata"
-        )

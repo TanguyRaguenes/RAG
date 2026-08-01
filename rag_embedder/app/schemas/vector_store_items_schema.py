@@ -1,10 +1,8 @@
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from app.domain.models.vector_store_model import VectorMetadata, VectorStoreBatch
-
 
 class VectorMetadataBase(BaseModel):
-    """Décrit les métadonnées HTTP strictes d'un chunk Markdown."""
+    """Décrit les métadonnées stables associées à un chunk Markdown."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -14,17 +12,9 @@ class VectorMetadataBase(BaseModel):
     related_links: str = ""
     has_links: bool = False
 
-    def to_domain(self) -> VectorMetadata:
-        """Convertit le DTO en modèle métier indépendant de Pydantic.
-
-        Returns:
-            Métadonnées utilisables par les services et repositories.
-        """
-        return VectorMetadata(**self.model_dump())
-
 
 class VectorStoreItemsBase(BaseModel):
-    """Valide un lot vectoriel reçu par l'API de sauvegarde."""
+    """Valide un lot vectoriel envoyé au service retriever."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -57,8 +47,6 @@ class VectorStoreItemsBase(BaseModel):
             )
         if len(set(self.ids)) != item_count:
             raise ValueError("ids must be unique")
-        if self.delete_obsolete and not self.ids:
-            raise ValueError("delete_obsolete requires at least one id")
         if self.embeddings:
             dimensions = {len(embedding) for embedding in self.embeddings}
             if 0 in dimensions or len(dimensions) != 1:
@@ -66,16 +54,3 @@ class VectorStoreItemsBase(BaseModel):
                     "embeddings must be non-empty and have equal dimensions"
                 )
         return self
-
-    def to_domain(self) -> VectorStoreBatch:
-        """Convertit le DTO validé en lot métier.
-
-        Returns:
-            Lot vectoriel ne dépendant pas de la couche HTTP.
-        """
-        return VectorStoreBatch(
-            ids=self.ids,
-            documents=self.documents,
-            embeddings=self.embeddings,
-            metadatas=[metadata.to_domain() for metadata in self.metadatas],
-        )

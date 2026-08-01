@@ -1,7 +1,9 @@
 from fastapi import Request
 
+from app.core.config import EmbedderConfig
 
-def get_config(request: Request) -> dict:
+
+def get_config(request: Request) -> EmbedderConfig:
     """Retourne la configuration chargée au démarrage de l'application FastAPI.
 
     Args:
