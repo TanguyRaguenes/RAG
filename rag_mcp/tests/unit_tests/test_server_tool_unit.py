@@ -1,10 +1,9 @@
 import logging
 
 import pytest
-from mcp.server.auth.provider import AccessToken
-
 from app import server
 from app.core.errors import McpResponseContractError, McpTimeoutError
+from mcp.server.auth.provider import AccessToken
 
 
 def _access_token(token: str = "user-token") -> AccessToken:

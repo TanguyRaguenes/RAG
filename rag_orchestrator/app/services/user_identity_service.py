@@ -28,12 +28,10 @@ def build_user_id_from_oidc_subject(issuer: str, subject: str, secret: str) -> s
     Returns:
         Identifiant utilisateur pseudonymisé dérivé du couple `issuer + sub`.
     """
-    normalized_issuer = _normalize_identifier(issuer)
-    normalized_subject = _normalize_identifier(subject)
+    normalized_issuer = _clean_identifier(issuer)
+    normalized_subject = _clean_identifier(subject)
 
-    return build_user_id_from_identifier(
-        f"{normalized_issuer}|{normalized_subject}", secret
-    )
+    return _hash_identifier(f"{normalized_issuer}|{normalized_subject}", secret)
 
 
 def build_user_id_from_identifier(identifier: str, secret: str) -> str:
@@ -51,14 +49,7 @@ def build_user_id_from_identifier(identifier: str, secret: str) -> str:
     """
     normalized_identifier = _normalize_identifier(identifier)
 
-    if not secret.strip():
-        raise ValueError("USER_HASH_SECRET must not be empty")
-
-    return hmac.new(
-        secret.encode("utf-8"),
-        normalized_identifier.encode("utf-8"),
-        hashlib.sha256,
-    ).hexdigest()
+    return _hash_identifier(normalized_identifier, secret)
 
 
 def _normalize_identifier(identifier: str) -> str:
@@ -79,3 +70,43 @@ def _normalize_identifier(identifier: str) -> str:
         raise ValueError("Authenticated user identifier is required")
 
     return normalized_identifier
+
+
+def _clean_identifier(identifier: str) -> str:
+    """Retire les espaces sans altérer la casse significative d'un claim OIDC.
+
+    Args:
+        identifier: Claim `iss` ou `sub` validé par le client OIDC.
+
+    Returns:
+        Identifiant nettoyé en conservant exactement sa casse.
+
+    Raises:
+        ValueError: Si le claim est vide après nettoyage.
+    """
+    cleaned_identifier = identifier.strip()
+    if not cleaned_identifier:
+        raise ValueError("Authenticated user identifier is required")
+    return cleaned_identifier
+
+
+def _hash_identifier(identifier: str, secret: str) -> str:
+    """Hache un identifiant déjà normalisé avec le secret applicatif.
+
+    Args:
+        identifier: Identifiant nettoyé selon les règles de son type.
+        secret: Secret HMAC servant à pseudonymiser l'identité.
+
+    Returns:
+        Empreinte SHA-256 stable de l'identifiant.
+
+    Raises:
+        ValueError: Si le secret applicatif est vide.
+    """
+    if not secret.strip():
+        raise ValueError("USER_HASH_SECRET must not be empty")
+    return hmac.new(
+        secret.encode("utf-8"),
+        identifier.encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()

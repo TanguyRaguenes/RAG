@@ -1,165 +1,243 @@
-import json
-import logging
-import os
 from typing import Any
 
 from opentelemetry import trace
 
-from app.core.exceptions import DatasetException
+from app.core.config import EvaluatorConfig, load_admin_groups
+from app.core.exceptions import EvaluatorAuthorizationError
 from app.core.metrics import evaluator_questions_total, evaluator_score
-from app.dal.client.rag_orchestrator_client import ask_question
-from app.domain.models.ask_question_response_model import AskQuestionResponseBase
-from app.domain.models.chunk_model import ChunkBase
+from app.dal.clients.dataset_repository import (
+    DatasetRepository,
+    JsonDatasetRepository,
+)
+from app.dal.clients.judge_client import ConfiguredJudgeClient, JudgeClient
+from app.dal.clients.rag_orchestrator_client import (
+    HttpRagOrchestratorClient,
+    RagOrchestratorClient,
+)
 from app.schemas.answer_evaluation_schema import AnswerEvaluationBase
+from app.schemas.dataset_schema import EvaluationCase
 from app.schemas.evaluator_response_schema import EvaluatorResponseBase
+from app.schemas.orchestrator_schema import AskQuestionResponse, AuthenticatedUser
 from app.schemas.retrieval_evaluation_schema import RetrievalEvaluationBase
 from app.services.evaluating_answer_service import evaluate_answer
 from app.services.evaluating_retrieval_service import evaluate_retrieval
 
 RetrievalAccumulator = dict[str, float]
 QualityAccumulator = dict[str, float]
-logger = logging.getLogger(__name__)
 tracer = trace.get_tracer(__name__)
 
 
-def load_dataset() -> list[dict[str, Any]]:
-    """Charge le dataset d'évaluation depuis le chemin configuré.
+def load_dataset() -> list[EvaluationCase]:
+    """Charge le dataset via le repository de la couche DAL.
 
     Returns:
-        Liste de cas de test d'évaluation.
+        Liste intégralement validée des cas d'évaluation.
 
     Raises:
-        DatasetException: Si `DATASET_PATH` manque, si le JSON est invalide ou si le format racine n'est pas une liste.
-        OSError: Si le fichier dataset ne peut pas être lu.
+        DatasetException: Si la configuration, la lecture ou la validation échoue.
     """
-    dataset_path = os.getenv("DATASET_PATH")
-    if not dataset_path:
-        raise DatasetException(
-            message="DATASET_PATH doit être configuré",
-            details={"env_var": "DATASET_PATH"},
-        )
-
-    try:
-        with open(dataset_path, "r", encoding="utf-8") as f:
-            data = json.load(f)
-    except json.JSONDecodeError as exception:
-        raise DatasetException(
-            message="Dataset JSON invalide",
-            details={"path": dataset_path},
-        ) from exception
-
-    if not isinstance(data, list):
-        raise DatasetException(
-            message="dataset.json doit contenir une liste d'objets",
-            details={"path": dataset_path, "actual_type": type(data).__name__},
-        )
-
-    return data
+    return JsonDatasetRepository.from_environment().load()
 
 
-async def evaluate_rag(config: dict) -> EvaluatorResponseBase:
+class EvaluationService:
+    """Orchestre l'évaluation sans dépendre des transports concrets."""
+
+    def __init__(
+        self,
+        config: EvaluatorConfig,
+        dataset_repository: DatasetRepository,
+        orchestrator_client: RagOrchestratorClient,
+        judge_client: JudgeClient,
+        admin_groups: frozenset[str],
+    ) -> None:
+        """Injecte la configuration et les frontières externes.
+
+        Args:
+            config: Configuration applicative validée.
+            dataset_repository: Source des cas d'évaluation.
+            orchestrator_client: Client du RAG à mesurer.
+            judge_client: Client du modèle chargé de juger les réponses.
+            admin_groups: Groupes autorisés, normalisés en minuscules.
+        """
+        self._config = config
+        self._dataset_repository = dataset_repository
+        self._orchestrator_client = orchestrator_client
+        self._judge_client = judge_client
+        self._admin_groups = admin_groups
+
+    async def evaluate(self, access_token: str) -> EvaluatorResponseBase:
+        """Évalue chaque cas après validation complète du dataset.
+
+        Args:
+            access_token: Bearer vérifié puis propagé à chaque appel orchestrator.
+
+        Returns:
+            Moyennes calculées uniquement à partir d'appels tous réussis.
+
+        Raises:
+            DatasetException: Si le dataset complet n'est pas valide.
+            EvaluatorClientError: Si l'orchestrator ou le juge est indisponible.
+            JudgeEvaluationException: Si le jugement LLM est absent ou invalide.
+        """
+        with tracer.start_as_current_span("evaluator.evaluate_dataset") as span:
+            await self._authorize(access_token)
+            tests = self._dataset_repository.load()
+            total_questions = len(tests)
+            span.set_attribute("evaluation.question_count", total_questions)
+
+            if total_questions == 0:
+                return build_empty_evaluation_response()
+
+            retrieval_scores = build_retrieval_accumulator()
+            quality_scores = build_quality_accumulator()
+
+            for test in tests:
+                rag_response = await self._ask_question(test.question, access_token)
+                retrieved_chunks = [
+                    chunk.model_dump() for chunk in rag_response.retrieved_chunks
+                ]
+                retrieval_evaluation = evaluate_retrieval(
+                    keywords=test.keywords,
+                    retrieved_chunks=retrieved_chunks,
+                    k=5,
+                    expected_sources=test.expected_sources,
+                )
+                add_retrieval_score(retrieval_scores, retrieval_evaluation)
+
+                answer_evaluation = await self._evaluate_answer(
+                    test=test,
+                    generated_answer=rag_response.llm_response,
+                    retrieved_chunks=retrieved_chunks,
+                )
+                add_quality_score(quality_scores, answer_evaluation)
+
+            response = EvaluatorResponseBase(
+                average_retrieval=calculate_average_retrieval(
+                    retrieval_scores, total_questions
+                ),
+                average_answer_quality=calculate_average_quality(
+                    quality_scores, total_questions
+                ),
+                total_duration="00:00",
+                total_questions=total_questions,
+            )
+            _record_scores(response)
+            return response
+
+    async def _authorize(self, access_token: str) -> AuthenticatedUser:
+        """Vérifie l'identité puis exige un groupe administrateur.
+
+        Args:
+            access_token: Bearer opaque transmis à `/auth/me`.
+
+        Returns:
+            Identité authentifiée autorisée à lancer l'évaluation.
+
+        Raises:
+            EvaluatorAuthenticationError: Si le bearer n'est pas accepté.
+            EvaluatorAuthorizationError: Si aucun groupe admin ne correspond.
+            EvaluatorClientError: Si l'orchestrator ne peut pas vérifier l'identité.
+        """
+        user = await self._orchestrator_client.get_current_user(access_token)
+        user_groups = {
+            group.strip().casefold() for group in user.groups if group.strip()
+        }
+        if not user_groups.intersection(self._admin_groups):
+            raise EvaluatorAuthorizationError(
+                message="Un groupe administrateur evaluator est requis"
+            )
+        return user
+
+    async def _ask_question(
+        self, question: str, access_token: str
+    ) -> AskQuestionResponse:
+        """Appelle le RAG en enregistrant le statut de la question.
+
+        Args:
+            question: Question validée issue du dataset.
+            access_token: Bearer autorisé à propager vers l'orchestrator.
+
+        Returns:
+            Réponse structurée de l'orchestrator.
+
+        Raises:
+            EvaluatorClientError: Si l'appel externe échoue.
+        """
+        try:
+            response = await self._orchestrator_client.ask_question(
+                question, access_token
+            )
+        except Exception:
+            evaluator_questions_total.labels(status="rag_error").inc()
+            raise
+        evaluator_questions_total.labels(status="rag_success").inc()
+        return response
+
+    async def _evaluate_answer(
+        self,
+        test: EvaluationCase,
+        generated_answer: str,
+        retrieved_chunks: list[dict[str, Any]],
+    ) -> AnswerEvaluationBase:
+        """Juge une réponse en enregistrant le statut de l'opération.
+
+        Args:
+            test: Cas validé contenant les attentes métier.
+            generated_answer: Réponse produite par le RAG.
+            retrieved_chunks: Contexte documentaire retourné par l'orchestrator.
+
+        Returns:
+            Scores validés du juge.
+
+        Raises:
+            EvaluatorClientError: Si le fournisseur de jugement échoue.
+            JudgeEvaluationException: Si sa réponse est inexploitable.
+        """
+        try:
+            response = await evaluate_answer(
+                config=self._config,
+                question=test.question,
+                reference_answer=test.reference_answer,
+                generated_answer=generated_answer,
+                retrieved_chunks=retrieved_chunks,
+                expected_answer_points=test.expected_answer_points,
+                expected_behavior=test.expected_behavior,
+                judge_client=self._judge_client,
+            )
+        except Exception:
+            evaluator_questions_total.labels(status="judge_error").inc()
+            raise
+        evaluator_questions_total.labels(status="judge_success").inc()
+        return response
+
+
+async def evaluate_rag(
+    config: EvaluatorConfig | dict[str, Any],
+    access_token: str,
+) -> EvaluatorResponseBase:
     """Évalue le RAG sur toutes les questions du dataset.
 
     Args:
-        config: Configuration applicative contenant le juge LLM et la stratégie d'évaluation.
+        config: Configuration applicative contenant le juge et la stratégie d'évaluation.
+        access_token: Bearer de la requête HTTP à vérifier et propager.
 
     Returns:
         Scores moyens de retrieval et de qualité de réponse.
 
     Raises:
-        DatasetException: Si le dataset ne peut pas être chargé.
+        EvaluatorContainerCustomException: Si une frontière externe échoue.
     """
-    with tracer.start_as_current_span("evaluator.evaluate_dataset") as span:
-        tests = load_dataset()
-        nb_questions = len(tests)
-        span.set_attribute("evaluation.question_count", nb_questions)
-
-        if nb_questions == 0:
-            return build_empty_evaluation_response()
-
-        acc_retrieval = build_retrieval_accumulator()
-        acc_quality = build_quality_accumulator()
-        valid_judgements = 0
-
-        for test in tests:
-            question = test["question"]
-            keywords = test.get("keywords")
-            ref_answer = test["reference_answer"]
-            expected_sources = test.get("expected_sources")
-            expected_answer_points = test.get("expected_answer_points")
-            expected_behavior = test.get("expected_behavior", "answer")
-
-            rag_answer: str = ""
-            retrieved_chunks: list[dict[str, Any]] = []
-
-            try:
-                raw_data: dict = await ask_question(question)
-                data = AskQuestionResponseBase(**raw_data)
-
-                rag_answer = data.llm_response
-                retrieved_chunks: list[ChunkBase] = data.retrieved_chunks
-                evaluator_questions_total.labels(status="rag_success").inc()
-
-            except Exception as exception:
-                logger.exception(
-                    "evaluation rag call failed",
-                    extra={
-                        "service": "rag_evaluator",
-                        "event": "rag_call_failed",
-                        "error_type": type(exception).__name__,
-                    },
-                )
-                evaluator_questions_total.labels(status="rag_error").inc()
-                rag_answer = ""
-                retrieved_chunks = []
-
-            retrieval_evaluation_response = evaluate_retrieval(
-                keywords=keywords,
-                retrieved_chunks=retrieved_chunks,
-                k=5,
-                expected_sources=expected_sources,
-            )
-            add_retrieval_score(acc_retrieval, retrieval_evaluation_response)
-
-            try:
-                answer_evaluation_response: AnswerEvaluationBase = (
-                    await evaluate_answer(
-                        config=config,
-                        question=question,
-                        reference_answer=ref_answer,
-                        generated_answer=rag_answer,
-                        retrieved_chunks=retrieved_chunks,
-                        expected_answer_points=expected_answer_points,
-                        expected_behavior=expected_behavior,
-                    )
-                )
-
-                add_quality_score(acc_quality, answer_evaluation_response)
-                valid_judgements += 1
-                evaluator_questions_total.labels(status="judge_success").inc()
-
-            except Exception as exception:
-                logger.exception(
-                    "evaluation judge call failed",
-                    extra={
-                        "service": "rag_evaluator",
-                        "event": "judge_call_failed",
-                        "error_type": type(exception).__name__,
-                    },
-                )
-                evaluator_questions_total.labels(status="judge_error").inc()
-
-        response = EvaluatorResponseBase(
-            average_retrieval=calculate_average_retrieval(acc_retrieval, nb_questions),
-            average_answer_quality=calculate_average_quality(
-                acc_quality,
-                valid_judgements,
-            ),
-            total_duration="00:00",
-            total_questions=nb_questions,
-        )
-        _record_scores(response)
-        return response
+    typed_config = EvaluatorConfig.model_validate(config)
+    service = EvaluationService(
+        config=typed_config,
+        dataset_repository=JsonDatasetRepository.from_environment(),
+        orchestrator_client=HttpRagOrchestratorClient.from_environment(
+            typed_config.rag_provider
+        ),
+        judge_client=ConfiguredJudgeClient.from_config(typed_config),
+        admin_groups=load_admin_groups(),
+    )
+    return await service.evaluate(access_token)
 
 
 def build_empty_evaluation_response() -> EvaluatorResponseBase:
@@ -295,17 +373,21 @@ def calculate_average_quality(
         valid_judgements: Nombre de jugements LLM valides.
 
     Returns:
-        Scores moyens de qualité, avec diviseur sécurisé si aucun jugement n'est valide.
+        Scores moyens calculés sur les jugements valides.
+
+    Raises:
+        ValueError: Si aucun jugement valide n'est disponible.
     """
-    divisor = valid_judgements if valid_judgements > 0 else 1
+    if valid_judgements <= 0:
+        raise ValueError("Au moins un jugement valide est requis")
 
     return AnswerEvaluationBase(
         feedback="Moyenne Globale du Dataset",
-        accuracy=round(accumulator["accuracy"] / divisor, 2),
-        completeness=round(accumulator["completeness"] / divisor, 2),
-        relevance=round(accumulator["relevance"] / divisor, 2),
-        faithfulness=round(accumulator["faithfulness"] / divisor, 2),
-        safe_refusal=round(accumulator["safe_refusal"] / divisor, 2),
+        accuracy=round(accumulator["accuracy"] / valid_judgements, 2),
+        completeness=round(accumulator["completeness"] / valid_judgements, 2),
+        relevance=round(accumulator["relevance"] / valid_judgements, 2),
+        faithfulness=round(accumulator["faithfulness"] / valid_judgements, 2),
+        safe_refusal=round(accumulator["safe_refusal"] / valid_judgements, 2),
     )
 
 

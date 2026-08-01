@@ -1,5 +1,4 @@
 import pytest
-
 from app.api.routers import embed_router
 from app.schemas.embed_request_schema import EmbedRequestBase
 from app.schemas.embed_text_response_schema import EmbedTextResponseBase

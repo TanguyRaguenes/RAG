@@ -2,7 +2,6 @@ from types import TracebackType
 from typing import ClassVar, Self
 
 import pytest
-
 from app.core.exceptions import EmbeddingServiceException
 from app.dal.clients import embedding_client
 from app.dal.clients.embedding_client import embed

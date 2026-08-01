@@ -1,7 +1,6 @@
 from datetime import UTC, date, datetime, timedelta
 
 import streamlit as st
-
 from app.components.common import (
     load_config_or_stop,
     render_api_error,

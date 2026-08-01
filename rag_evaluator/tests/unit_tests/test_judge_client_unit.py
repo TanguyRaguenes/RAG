@@ -1,104 +1,69 @@
-from typing import ClassVar
+from typing import ClassVar, Self
 
 import httpx
 import pytest
-
+from app.core.config import EvaluatorConfig
 from app.core.exceptions import EvaluatorClientError
-from app.dal.client import judge_client as client
-from app.dal.client.judge_client import (
-    build_auth_headers,
-    build_judge_payload,
-    format_judge_response,
-)
+from app.dal.clients import judge_client as client
+from app.dal.clients.judge_client import LocalJudgeClient, OpenAIJudgeClient
+from app.schemas.judge_schema import JudgeMessage
 
 
-def test_build_judge_payload_maps_config_to_ollama_options() -> None:
-    config = {
-        "llm": {
-            "model": "judge-model",
-            "stream": False,
-            "temperature": 0.1,
-            "num_ctx": 4096,
-            "max_output_token": 512,
+def _config(*, use_openai: bool = False) -> EvaluatorConfig:
+    return EvaluatorConfig.model_validate(
+        {
+            "llm": {
+                "provider": "ollama",
+                "url_provider": "http://ollama:11434",
+                "model": "judge-model",
+                "stream": False,
+                "temperature": 0.1,
+                "num_ctx": 4096,
+                "max_output_token": 512,
+                "timeout_seconds": 10,
+            },
+            "evaluation_method": {"use_api_openai": use_openai},
         }
-    }
-    messages = [{"role": "user", "content": "Evaluer"}]
-
-    payload = build_judge_payload(config, messages)
-
-    assert payload == {
-        "model": "judge-model",
-        "messages": messages,
-        "stream": False,
-        "options": {
-            "temperature": 0.1,
-            "num_ctx": 4096,
-            "num_predict": 512,
-        },
-    }
-
-
-def test_build_auth_headers_adds_bearer_token_when_available() -> None:
-    assert build_auth_headers("token") == {
-        "Content-Type": "application/json",
-        "Authorization": "Bearer token",
-    }
-
-
-def test_build_auth_headers_without_token_keeps_content_type_only() -> None:
-    assert build_auth_headers(None) == {"Content-Type": "application/json"}
-
-
-def test_format_judge_response_extracts_llm_answer() -> None:
-    response = {
-        "choices": [
-            {
-                "message": {
-                    "content": '{"accuracy": 5}',
-                }
-            }
-        ]
-    }
-
-    assert format_judge_response(response) == {"llm_answer": '{"accuracy": 5}'}
-
-
-def test_format_judge_response_rejects_invalid_payload() -> None:
-    with pytest.raises(EvaluatorClientError):
-        format_judge_response({"choices": []})
+    )
 
 
 class FakeResponse:
-    def __init__(self, payload, status_code: int = 200, text: str = ""):
+    def __init__(self, payload: object, status_code: int = 200) -> None:
         self.payload = payload
         self.status_code = status_code
-        self.text = text
         self.request = httpx.Request("POST", "http://judge")
 
     def raise_for_status(self) -> None:
         if self.status_code >= 400:
             raise httpx.HTTPStatusError("failed", request=self.request, response=self)
 
-    def json(self):
+    def json(self) -> object:
         if isinstance(self.payload, BaseException):
             raise self.payload
         return self.payload
 
 
 class FakeAsyncClient:
-    calls: ClassVar[list[dict]] = []
-    response = FakeResponse({"choices": [{"message": {"content": "ok"}}]})
+    calls: ClassVar[list[dict[str, object]]] = []
+    response: ClassVar[FakeResponse] = FakeResponse(
+        {"choices": [{"message": {"content": "judgement"}}]}
+    )
 
-    def __init__(self, timeout: int):
+    def __init__(self, timeout: float) -> None:
         self.timeout = timeout
 
-    async def __aenter__(self):
+    async def __aenter__(self) -> Self:
         return self
 
-    async def __aexit__(self, exc_type, exc, traceback):
+    async def __aexit__(self, *args: object) -> bool:
         return False
 
-    async def post(self, url: str, json: dict, headers=None) -> FakeResponse:
+    async def post(
+        self,
+        url: str,
+        json: dict[str, object],
+        headers: dict[str, str] | None = None,
+    ) -> FakeResponse:
         self.calls.append(
             {"url": url, "json": json, "headers": headers, "timeout": self.timeout}
         )
@@ -106,56 +71,105 @@ class FakeAsyncClient:
 
 
 @pytest.mark.asyncio
-async def test_post_json_returns_dict_payload(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_openai_client_respects_chat_completions_contract(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     FakeAsyncClient.calls = []
-    FakeAsyncClient.response = FakeResponse({"choices": []})
     monkeypatch.setattr(client.httpx, "AsyncClient", FakeAsyncClient)
 
-    result = await client._post_json(
-        url="http://judge", payload={"p": 1}, timeout_seconds=5, headers={"h": "v"}
+    result = await OpenAIJudgeClient(_config(use_openai=True), "secret").judge(
+        [JudgeMessage(role="user", content="judge")]
     )
 
-    assert result == {"choices": []}
+    assert result == "judgement"
     assert FakeAsyncClient.calls == [
-        {"url": "http://judge", "json": {"p": 1}, "headers": {"h": "v"}, "timeout": 5}
+        {
+            "url": "https://api.openai.com/v1/chat/completions",
+            "json": {
+                "model": "gpt-4o",
+                "messages": [{"role": "user", "content": "judge"}],
+                "temperature": 0.1,
+                "max_completion_tokens": 512,
+            },
+            "headers": {
+                "Content-Type": "application/json",
+                "Authorization": "Bearer secret",
+            },
+            "timeout": 10.0,
+        }
     ]
 
 
 @pytest.mark.asyncio
-async def test_post_json_wraps_http_status_errors(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    FakeAsyncClient.response = FakeResponse({}, status_code=500, text="ko")
-    monkeypatch.setattr(client.httpx, "AsyncClient", FakeAsyncClient)
-
-    with pytest.raises(EvaluatorClientError, match="Erreur HTTP 500"):
-        await client._post_json(url="http://judge", payload={}, timeout_seconds=5)
-
-
-@pytest.mark.asyncio
-async def test_judge_client_builds_local_endpoint_and_formats_response(
+async def test_openai_client_uses_configured_url_and_model(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     FakeAsyncClient.calls = []
-    FakeAsyncClient.response = FakeResponse(
-        {"choices": [{"message": {"content": "answer"}}]}
+    config = _config(use_openai=True)
+    config.evaluation_method.openai_url = (
+        "https://openai-proxy.example/v1/chat/completions"
     )
+    config.evaluation_method.openai_model = "gpt-5-mini"
     monkeypatch.setattr(client.httpx, "AsyncClient", FakeAsyncClient)
 
-    result = await client.judge_client(
-        {
-            "llm": {
-                "url_provider": "http://ollama",
-                "timeout_seconds": 10,
-                "model": "model",
-                "stream": False,
-                "temperature": 0,
-                "num_ctx": 1024,
-                "max_output_token": 128,
-            }
-        },
-        [{"role": "user", "content": "judge"}],
+    await OpenAIJudgeClient(config, "secret").judge(
+        [JudgeMessage(role="user", content="judge")]
     )
 
-    assert result == {"llm_answer": "answer"}
-    assert FakeAsyncClient.calls[0]["url"] == "http://ollama/v1/chat/completions"
+    assert FakeAsyncClient.calls[0]["url"] == (
+        "https://openai-proxy.example/v1/chat/completions"
+    )
+    assert FakeAsyncClient.calls[0]["json"]["model"] == "gpt-5-mini"
+
+
+@pytest.mark.asyncio
+async def test_local_client_uses_openai_compatible_payload(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    FakeAsyncClient.calls = []
+    monkeypatch.setattr(client.httpx, "AsyncClient", FakeAsyncClient)
+
+    await LocalJudgeClient(_config()).judge(
+        [JudgeMessage(role="system", content="judge")]
+    )
+
+    assert FakeAsyncClient.calls[0]["url"] == (
+        "http://ollama:11434/v1/chat/completions"
+    )
+    assert FakeAsyncClient.calls[0]["json"]["max_tokens"] == 512
+    assert "options" not in FakeAsyncClient.calls[0]["json"]
+
+
+@pytest.mark.asyncio
+async def test_judge_client_rejects_missing_content(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    FakeAsyncClient.response = FakeResponse({"choices": []})
+    monkeypatch.setattr(client.httpx, "AsyncClient", FakeAsyncClient)
+
+    with pytest.raises(EvaluatorClientError, match="Réponse du juge LLM invalide"):
+        await LocalJudgeClient(_config()).judge(
+            [JudgeMessage(role="user", content="judge")]
+        )
+
+    FakeAsyncClient.response = FakeResponse(
+        {"choices": [{"message": {"content": "judgement"}}]}
+    )
+
+
+@pytest.mark.asyncio
+async def test_judge_client_wraps_http_status_without_response_body(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    FakeAsyncClient.response = FakeResponse({"secret": "upstream"}, status_code=500)
+    monkeypatch.setattr(client.httpx, "AsyncClient", FakeAsyncClient)
+
+    with pytest.raises(EvaluatorClientError) as exc_info:
+        await LocalJudgeClient(_config()).judge(
+            [JudgeMessage(role="user", content="judge")]
+        )
+
+    assert exc_info.value.details == {"status_code": 500}
+    FakeAsyncClient.response = FakeResponse(
+        {"choices": [{"message": {"content": "judgement"}}]}
+    )

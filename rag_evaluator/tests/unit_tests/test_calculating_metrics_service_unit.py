@@ -1,21 +1,30 @@
 from app.services.calculating_metrics_service import (
     calculate_dcg,
-    calculate_mrr,
     calculate_ndcg,
     calculate_precision,
     calculate_recall,
+    calculate_reciprocal_rank,
     contains_keyword,
     normalize_texts,
 )
 
 
-def test_calculate_mrr_averages_first_matching_rank_per_keyword() -> None:
-    result = calculate_mrr(
+def test_calculate_reciprocal_rank_returns_first_relevant_chunk_rank() -> None:
+    result = calculate_reciprocal_rank(
         keywords=["Kelio", "Moffi", "Absence"],
         retrieved_chunks=["Moffi reservation", "Kelio badgeage"],
     )
 
-    assert result == (0.5 + 1.0 + 0.0) / 3
+    assert result == 1.0
+
+
+def test_reciprocal_rank_penalizes_first_relevant_chunk_at_lower_rank() -> None:
+    result = calculate_reciprocal_rank(
+        keywords=["kelio"],
+        retrieved_chunks=["bruit", "encore du bruit", "kelio badgeage"],
+    )
+
+    assert result == 1 / 3
 
 
 def test_calculate_ndcg_rewards_relevant_chunks_at_top() -> None:

@@ -1,10 +1,9 @@
 import pytest
-from fastapi.testclient import TestClient
-
 from app import main as main_module
 from app.api.dependencies import get_config, get_vector_store_repository
 from app.api.routers import collections_router
 from app.core.exceptions import RetrievalFormatException
+from fastapi.testclient import TestClient
 
 
 def _client() -> TestClient:

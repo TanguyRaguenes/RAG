@@ -21,15 +21,18 @@ import math
 # Si le bon chunk est en 2ème position : score = 1/2 = 0.5
 # Si le bon chunk est en 10ème position : score = 1/10 = 0.1
 # Pas de chunk pertinent ? Score = 0.
-def calculate_mrr(keywords: list[str], retrieved_chunks: list[str]) -> float:
-    """Calcule le Mean Reciprocal Rank à partir des mots-clés attendus et des chunks récupérés.
+def calculate_reciprocal_rank(
+    keywords: list[str], retrieved_chunks: list[str]
+) -> float:
+    """Calcule le reciprocal rank du premier chunk pertinent pour une requête.
 
     Args:
         keywords: Mots-clés attendus pour mesurer la récupération documentaire.
         retrieved_chunks: Chunks retournés par le retriever ou l'orchestrator.
 
     Returns:
-        Score MRR moyen entre `0.0` et `1.0`.
+        Reciprocal rank entre `0.0` et `1.0`. La moyenne entre requêtes est
+        réalisée ensuite par le service d'évaluation du dataset.
     """
     if not keywords or not retrieved_chunks:
         return 0.0
@@ -37,25 +40,10 @@ def calculate_mrr(keywords: list[str], retrieved_chunks: list[str]) -> float:
     keywords_lower = normalize_texts(keywords)
     retrieved_chunks_lower = normalize_texts(retrieved_chunks)
 
-    rr_scores = []
-
-    for keyword in keywords_lower:
-        found = False
-
-        # On cherche le mot dans les chunks
-        for rank, text in enumerate(retrieved_chunks_lower, start=1):
-            if keyword in text.lower():
-                rr_scores.append(1.0 / rank)
-                found = True
-                break
-
-        if not found:
-            rr_scores.append(0.0)
-
-    # Calcul de la moyenne (Mean)
-    if not rr_scores:
-        return 0.0
-    return sum(rr_scores) / len(rr_scores)
+    for rank, text in enumerate(retrieved_chunks_lower, start=1):
+        if contains_keyword(text, keywords_lower):
+            return 1.0 / rank
+    return 0.0
 
 
 # _____________________________________________________________________________________________________________________
@@ -107,7 +95,8 @@ def calculate_ndcg(keywords: list[str], retrieved_chunks: list[str], k: int) -> 
     # 1. Score réel
     actual_dcg = calculate_dcg(relevances)
 
-    # 2. Score idéal (On trie les 1 d'abord)
+    # Le classement idéal conserve le même ensemble de jugements binaires,
+    # mais place tous les chunks pertinents en tête.
     # sorted : Trie la liste.
     # reverse=True : Du plus grand au plus petit (Descendant).
     idcg = calculate_dcg(sorted(relevances, reverse=True))
@@ -240,7 +229,7 @@ def normalize_texts(texts: list[str]) -> list[str]:
     Returns:
         Valeur normalisée prête à être comparée, stockée ou affichée.
     """
-    return [text.lower() for text in texts]
+    return [text.casefold() for text in texts]
 
 
 def contains_keyword(text: str, keywords: list[str]) -> bool:

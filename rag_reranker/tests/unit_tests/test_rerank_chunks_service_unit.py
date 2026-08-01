@@ -1,81 +1,97 @@
 import pytest
+from app.core.config import RerankerConfig
+from app.core.exceptions import RerankingResponseFormatException
+from app.schemas.rerank_chunks_request_schema import ChunkModelBase
+from app.services.rerank_chunks_service import RerankChunksService
 
-from app.services import rerank_chunks_service
+
+def _config(top_k: int = 2) -> RerankerConfig:
+    return RerankerConfig.model_validate(
+        {
+            "reranking": {
+                "provider": "tei",
+                "url": "http://tei/rerank",
+                "model": "model",
+                "top_k": top_k,
+            }
+        }
+    )
 
 
-def _chunks() -> list[dict]:
+def _chunks() -> list[ChunkModelBase]:
     return [
-        {
-            "id": "chunk-1",
-            "document": "first",
-            "metadata": {"title": "A"},
-            "similarity": 0.8,
-        },
-        {
-            "id": "chunk-2",
-            "document": "second",
-            "metadata": {"title": "B"},
-            "similarity": 0.9,
-        },
-        {
-            "id": "chunk-3",
-            "document": "third",
-            "metadata": {"title": "C"},
-            "similarity": 0.7,
-        },
+        ChunkModelBase(id="chunk-1", document="first", metadata={}, similarity=0.8),
+        ChunkModelBase(id="chunk-2", document="second", metadata={}, similarity=0.9),
+        ChunkModelBase(id="chunk-3", document="third", metadata={}, similarity=0.7),
     ]
 
 
-@pytest.mark.asyncio
-async def test_rerank_chunks_orders_by_rerank_score_and_applies_top_k(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    async def fake_score_chunks(
-        question: str, chunks: list[dict], config: dict
+class FakeRerankingClient:
+    def __init__(self, scores: dict[int, float]) -> None:
+        self.scores = scores
+        self.calls = 0
+
+    async def score(
+        self, question: str, chunks: list[ChunkModelBase]
     ) -> dict[int, float]:
         assert question == "Question"
-        assert len(chunks) == 3
-        assert config == {"reranking": {"top_k": 2}}
-        return {0: 0.2, 1: 0.95, 2: 0.5}
+        self.calls += 1
+        return self.scores
 
-    monkeypatch.setattr(rerank_chunks_service, "score_chunks", fake_score_chunks)
 
-    response = await rerank_chunks_service.rerank_chunks(
-        "Question",
-        _chunks(),
-        {"reranking": {"top_k": 2}},
-    )
-
-    assert [chunk["id"] for chunk in response] == ["chunk-2", "chunk-3"]
-    assert response[0]["rerank_score"] == 0.95
+class FailingRerankingClient:
+    async def score(
+        self, question: str, chunks: list[ChunkModelBase]
+    ) -> dict[int, float]:
+        raise RuntimeError("programming bug")
 
 
 @pytest.mark.asyncio
-async def test_rerank_chunks_returns_empty_list_when_chunks_are_empty() -> None:
-    response = await rerank_chunks_service.rerank_chunks(
-        "Question",
-        [],
-        {"reranking": {"top_k": 2}},
+async def test_service_orders_scores_and_applies_top_k() -> None:
+    service = RerankChunksService(
+        _config(top_k=2), FakeRerankingClient({0: 0.2, 1: 0.95, 2: 0.5})
     )
+
+    response = await service.rerank("Question", _chunks())
+
+    assert [chunk.id for chunk in response] == ["chunk-2", "chunk-3"]
+    assert response[0].rerank_score == 0.95
+
+
+@pytest.mark.asyncio
+async def test_service_does_not_call_provider_for_empty_chunks() -> None:
+    client = FakeRerankingClient({})
+
+    response = await RerankChunksService(_config(), client).rerank("Question", [])
 
     assert response == []
+    assert client.calls == 0
 
 
 @pytest.mark.asyncio
-async def test_rerank_chunks_uses_similarity_when_scores_are_equal(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    async def fake_score_chunks(
-        question: str, chunks: list[dict], config: dict
-    ) -> dict[int, float]:
-        return {0: 0.5, 1: 0.5, 2: 0.5}
-
-    monkeypatch.setattr(rerank_chunks_service, "score_chunks", fake_score_chunks)
-
-    response = await rerank_chunks_service.rerank_chunks(
-        "Question",
-        _chunks(),
-        {"reranking": {"top_k": 3}},
+async def test_service_uses_similarity_when_scores_are_equal() -> None:
+    service = RerankChunksService(
+        _config(top_k=3), FakeRerankingClient({0: 0.5, 1: 0.5, 2: 0.5})
     )
 
-    assert [chunk["id"] for chunk in response] == ["chunk-2", "chunk-1", "chunk-3"]
+    response = await service.rerank("Question", _chunks())
+
+    assert [chunk.id for chunk in response] == ["chunk-2", "chunk-1", "chunk-3"]
+
+
+@pytest.mark.asyncio
+async def test_service_never_invents_missing_score() -> None:
+    service = RerankChunksService(
+        _config(top_k=3), FakeRerankingClient({0: 0.5, 1: 0.4})
+    )
+
+    with pytest.raises(RerankingResponseFormatException, match="exhaustive"):
+        await service.rerank("Question", _chunks())
+
+
+@pytest.mark.asyncio
+async def test_service_does_not_mask_unexpected_client_bug() -> None:
+    service = RerankChunksService(_config(), FailingRerankingClient())
+
+    with pytest.raises(RuntimeError, match="programming bug"):
+        await service.rerank("Question", _chunks())

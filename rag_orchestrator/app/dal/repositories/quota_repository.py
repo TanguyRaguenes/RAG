@@ -36,7 +36,7 @@ class QuotaRepository:
             ON CONFLICT DO NOTHING
         """
 
-        async with self.db_pool.acquire() as connection:
+        async with self._acquire() as connection:
             await connection.execute(query, user_id, max_tokens_per_month)
 
     async def get_active_quota_usage(self, user_id: str) -> tuple[int, int, bool]:
@@ -88,7 +88,7 @@ class QuotaRepository:
             GROUP BY active_quota.max_tokens_par_mois, active_quota.actif
         """
 
-        async with self.db_pool.acquire() as connection:
+        async with self._acquire() as connection:
             row = await connection.fetchrow(query, user_id)
 
         if row is None:
@@ -155,7 +155,7 @@ class QuotaRepository:
             LIMIT 1
         """
 
-        async with self.db_pool.acquire() as connection:
+        async with self._acquire() as connection:
             row = await connection.fetchrow(query, user_id)
 
         if row is None:
@@ -188,6 +188,11 @@ class QuotaRepository:
             FROM utilisateur
             LEFT JOIN quota_utilisateur
                 ON quota_utilisateur.utilisateur_id = utilisateur.id
+               AND quota_utilisateur.date_debut <= now()
+               AND (
+                   quota_utilisateur.date_fin IS NULL
+                   OR quota_utilisateur.date_fin > now()
+               )
             CROSS JOIN current_month
             LEFT JOIN session_usage
                 ON session_usage.utilisateur_id = utilisateur.id
@@ -209,7 +214,7 @@ class QuotaRepository:
             ORDER BY consumed_tokens DESC, utilisateur.id
         """
 
-        async with self.db_pool.acquire() as connection:
+        async with self._acquire() as connection:
             return await connection.fetch(query)
 
     async def update_quota_rule(
@@ -229,22 +234,40 @@ class QuotaRepository:
         Raises:
             ValueError: Si une valeur obligatoire est absente ou invalide.
         """
-        query = """
+        close_query = """
             UPDATE quota_utilisateur
-            SET
-                max_tokens_par_mois = $2,
-                actif = $3,
-                date_fin = NULL
-            WHERE utilisateur_id = $1
+            SET actif = false,
+                date_fin = now()
+            WHERE id = (
+                SELECT id
+                FROM quota_utilisateur
+                WHERE utilisateur_id = $1
+                  AND date_debut <= now()
+                  AND (date_fin IS NULL OR date_fin > now())
+                ORDER BY date_debut DESC
+                LIMIT 1
+                FOR UPDATE
+            )
+        """
+        insert_query = """
+            INSERT INTO quota_utilisateur (
+                utilisateur_id,
+                max_tokens_par_mois,
+                actif,
+                date_debut,
+                date_fin
+            )
+            VALUES ($1, $2, $3, now(), NULL)
         """
 
-        async with self.db_pool.acquire() as connection:
-            result = await connection.execute(
-                query,
+        async with self._acquire() as connection, connection.transaction():
+            result = await connection.execute(close_query, user_id)
+            if result == "UPDATE 0":
+                raise ValueError("Unknown user quota")
+
+            await connection.execute(
+                insert_query,
                 user_id,
                 max_tokens_per_month,
                 active,
             )
-
-        if result == "UPDATE 0":
-            raise ValueError("Unknown user quota")

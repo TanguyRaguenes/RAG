@@ -4,7 +4,7 @@ from typing import Any
 import httpx
 from opentelemetry import trace
 
-from app.core.exceptions import LlmApiException
+from app.core.exceptions import DependencyResponseError, LlmApiException
 from app.core.metrics import (
     orchestrator_external_call_duration_seconds,
     orchestrator_external_call_errors_total,
@@ -28,7 +28,6 @@ async def ask_question_to_llm(
 
     Raises:
         LlmApiException: Si le LLM répond en erreur ou n'est pas joignable.
-        ValueError: Si la réponse HTTP n'est pas un JSON valide.
     """
     start = time.perf_counter()
     operation = "local_llm"
@@ -42,33 +41,45 @@ async def ask_question_to_llm(
         except httpx.TimeoutException as exception:
             _record_external_error("llm", operation, "timeout", start)
             raise LlmApiException(
-                message="Timeout lors de l'appel au LLM local",
-                details={"url": url, "error": str(exception)},
+                internal_message="Local LLM request timed out",
+                details={"error_type": "timeout"},
             ) from exception
         except httpx.ConnectError as exception:
             _record_external_error("llm", operation, "connect_error", start)
             raise LlmApiException(
-                message="Impossible de se connecter au LLM local",
-                details={"url": url, "error": str(exception)},
+                internal_message="Local LLM connection failed",
+                details={"error_type": "connect_error"},
             ) from exception
         except httpx.HTTPStatusError as exception:
             _record_external_error("llm", operation, "http_status", start)
             raise LlmApiException(
-                message=f"Erreur HTTP {exception.response.status_code}",
+                internal_message="Local LLM returned an HTTP error",
                 details={
-                    "url": url,
-                    "error": f"{exception!s} ; {exception.response.text}",
+                    "status_code": exception.response.status_code,
+                    "error_type": "http_status",
                 },
             ) from exception
         except httpx.RequestError as exception:
             _record_external_error("llm", operation, "request_error", start)
             raise LlmApiException(
-                message="Erreur réseau lors de l'appel au LLM local",
-                details={"url": url, "error": str(exception)},
+                internal_message="Local LLM request failed",
+                details={"error_type": "request_error"},
             ) from exception
-
-    _record_external_success("llm", operation, start)
-    return data
+        except ValueError as exception:
+            _record_external_error("llm", operation, "invalid_json", start)
+            raise DependencyResponseError(
+                "Local LLM returned invalid JSON",
+                details={"dependency": "llm", "operation": operation},
+            ) from exception
+        else:
+            if not isinstance(data, dict):
+                _record_external_error("llm", operation, "invalid_json", start)
+                raise DependencyResponseError(
+                    "Local LLM returned a non-object JSON response",
+                    details={"dependency": "llm", "operation": operation},
+                )
+            _record_external_success("llm", operation, start)
+            return data
 
 
 async def ask_question_to_api(
@@ -86,7 +97,6 @@ async def ask_question_to_api(
 
     Raises:
         LlmApiException: Si l'API répond en erreur ou n'est pas joignable.
-        ValueError: Si la réponse HTTP n'est pas un JSON valide.
     """
     start = time.perf_counter()
     operation = "api_llm"
@@ -102,42 +112,46 @@ async def ask_question_to_api(
                 data = response.json()
         except httpx.HTTPStatusError as exception:
             _record_external_error("llm", operation, "http_status", start)
-            try:
-                response_json = exception.response.json()
-                raise LlmApiException(
-                    message=f"Erreur HTTP {exception.response.status_code}",
-                    details={"url": url, "error": str(exception)},
-                    original_exception=response_json,
-                ) from exception
-            except ValueError:
-                raise LlmApiException(
-                    message=f"Erreur HTTP {exception.response.status_code}",
-                    details={
-                        "url": url,
-                        "error": f"{exception!s} ; {exception.response.text}",
-                    },
-                ) from exception
+            raise LlmApiException(
+                internal_message="LLM API returned an HTTP error",
+                details={
+                    "status_code": exception.response.status_code,
+                    "error_type": "http_status",
+                },
+            ) from exception
         except httpx.ConnectError as exception:
             _record_external_error("llm", operation, "connect_error", start)
             raise LlmApiException(
-                message="Impossible de se connecter à l'API du LLM",
-                details={"url": url, "error": str(exception)},
+                internal_message="LLM API connection failed",
+                details={"error_type": "connect_error"},
             ) from exception
         except httpx.TimeoutException as exception:
             _record_external_error("llm", operation, "timeout", start)
             raise LlmApiException(
-                message="Timeout lors de l'appel à l'API du LLM",
-                details={"url": url, "error": str(exception)},
+                internal_message="LLM API request timed out",
+                details={"error_type": "timeout"},
             ) from exception
         except httpx.RequestError as exception:
             _record_external_error("llm", operation, "request_error", start)
             raise LlmApiException(
-                message="Erreur réseau lors de l'appel à l'API du LLM",
-                details={"url": url, "error": str(exception)},
+                internal_message="LLM API request failed",
+                details={"error_type": "request_error"},
             ) from exception
-
-    _record_external_success("llm", operation, start)
-    return data
+        except ValueError as exception:
+            _record_external_error("llm", operation, "invalid_json", start)
+            raise DependencyResponseError(
+                "LLM API returned invalid JSON",
+                details={"dependency": "llm", "operation": operation},
+            ) from exception
+        else:
+            if not isinstance(data, dict):
+                _record_external_error("llm", operation, "invalid_json", start)
+                raise DependencyResponseError(
+                    "LLM API returned a non-object JSON response",
+                    details={"dependency": "llm", "operation": operation},
+                )
+            _record_external_success("llm", operation, start)
+            return data
 
 
 def _record_external_success(dependency: str, operation: str, start: float) -> None:

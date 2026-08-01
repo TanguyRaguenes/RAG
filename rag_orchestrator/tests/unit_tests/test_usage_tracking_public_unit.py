@@ -1,7 +1,7 @@
 from datetime import date
 
 import pytest
-
+from app.core.exceptions import InvalidRequestError
 from app.schemas.authenticated_user_schema import AuthenticatedUser
 from app.services import usage_tracking_service as service
 
@@ -150,10 +150,10 @@ async def test_preferences_feedback_and_admin_feedbacks_are_mapped() -> None:
     assert feedback.commentaire == "ok"
     assert rows[0].chunks[0].contenu == "doc"
 
-    with pytest.raises(ValueError):
+    with pytest.raises(InvalidRequestError):
         await service.update_current_user_preferences(_user(), db_pool, "Invalid")
 
-    with pytest.raises(ValueError):
+    with pytest.raises(InvalidRequestError):
         await service.list_admin_interaction_feedbacks(
             db_pool, date(2026, 2, 1), date(2026, 1, 1)
         )

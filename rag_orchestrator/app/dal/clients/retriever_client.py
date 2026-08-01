@@ -5,7 +5,7 @@ from typing import Any
 import httpx
 from opentelemetry import trace
 
-from app.core.exceptions import RetrieverContainerException
+from app.core.exceptions import DependencyResponseError, RetrieverContainerException
 from app.core.metrics import (
     orchestrator_external_call_duration_seconds,
     orchestrator_external_call_errors_total,
@@ -25,7 +25,7 @@ async def retrieve_chunks(embeded_question: list[float]) -> list[dict[str, Any]]
 
     Raises:
         RetrieverContainerException: Si l'URL manque, si le retriever échoue, ou si l'appel HTTP échoue.
-        KeyError: Si la réponse JSON ne contient pas `chunks`.
+        DependencyResponseError: Si la réponse JSON ne contient pas les chunks attendus.
     """
     return await _post_retriever(
         env_var="RAG_RETRIEVER_RETRIEVE_CHUNKS_URL",
@@ -45,7 +45,7 @@ async def retrieve_document_chunks(paths: list[str]) -> list[dict[str, Any]]:
 
     Raises:
         RetrieverContainerException: Si l'URL manque, si le retriever échoue, ou si l'appel HTTP échoue.
-        KeyError: Si la réponse JSON ne contient pas `chunks`.
+        DependencyResponseError: Si la réponse JSON ne contient pas les chunks attendus.
     """
     return await _post_retriever(
         env_var="RAG_RETRIEVER_RETRIEVE_DOCUMENT_CHUNKS_URL",
@@ -69,12 +69,12 @@ async def _post_retriever(
 
     Raises:
         RetrieverContainerException: Si l'URL manque ou si l'appel échoue.
-        KeyError: Si la réponse JSON ne contient pas `chunks`.
+        DependencyResponseError: Si la réponse JSON ne contient pas les chunks attendus.
     """
     url = os.getenv(env_var)
     if not url:
         raise RetrieverContainerException(
-            message="URL du service 'retriever' non configurée",
+            internal_message="Retriever URL is not configured",
             details={"env_var": env_var},
         )
 
@@ -87,42 +87,80 @@ async def _post_retriever(
                 data = response.json()
         except httpx.HTTPStatusError as exception:
             _record_external_error("retriever", operation, "http_status", start)
-            try:
-                response_json = exception.response.json()
-                raise RetrieverContainerException(
-                    message=f"Erreur HTTP {exception.response.status_code}",
-                    details={"url": url, "error": str(exception)},
-                    original_exception=response_json,
-                ) from exception
-            except ValueError:
-                raise RetrieverContainerException(
-                    message=f"Erreur HTTP {exception.response.status_code}",
-                    details={"url": url, "error": str(exception)},
-                ) from exception
+            raise RetrieverContainerException(
+                internal_message="Retriever returned an HTTP error",
+                details={"status_code": exception.response.status_code},
+            ) from exception
         except httpx.ConnectError as exception:
             _record_external_error("retriever", operation, "connect_error", start)
             raise RetrieverContainerException(
-                message="Impossible de se connecter au service 'retriever'",
-                details={"url": url, "error": str(exception)},
+                internal_message="Retriever connection failed",
             ) from exception
         except httpx.TimeoutException as exception:
             _record_external_error("retriever", operation, "timeout", start)
             raise RetrieverContainerException(
-                message="Timeout lors de l'appel au service 'retriever'",
-                details={"url": url, "error": str(exception)},
+                internal_message="Retriever request timed out",
             ) from exception
         except httpx.RequestError as exception:
             _record_external_error("retriever", operation, "request_error", start)
             raise RetrieverContainerException(
-                message="Erreur réseau lors de l'appel au service 'retriever'",
-                details={"url": url, "error": str(exception)},
+                internal_message="Retriever request failed",
             ) from exception
+        except ValueError as exception:
+            _record_external_error("retriever", operation, "invalid_json", start)
+            raise DependencyResponseError(
+                "Retriever returned invalid JSON",
+                details={"dependency": "retriever", "operation": operation},
+            ) from exception
+
+    try:
+        chunks = _extract_chunks(data, operation)
+    except DependencyResponseError:
+        _record_external_error("retriever", operation, "invalid_response", start)
+        raise
 
     orchestrator_external_call_duration_seconds.labels(
         dependency="retriever", operation=operation, status="success"
     ).observe(time.perf_counter() - start)
+    return chunks
 
-    return data["chunks"]
+
+def _extract_chunks(data: object, operation: str) -> list[dict[str, Any]]:
+    """Valide le champ ``chunks`` d'une réponse retriever.
+
+    Args:
+        data: JSON décodé retourné par le retriever.
+        operation: Opération retriever utilisée pour le diagnostic interne.
+
+    Returns:
+        Liste de chunks représentés par des objets JSON.
+
+    Raises:
+        DependencyResponseError: Si le champ est absent ou mal typé.
+    """
+    if not isinstance(data, dict):
+        raise DependencyResponseError(
+            "Retriever response is not an object",
+            details={"dependency": "retriever", "operation": operation},
+        )
+
+    try:
+        chunks = data["chunks"]
+    except (KeyError, TypeError) as exception:
+        raise DependencyResponseError(
+            "Retriever response is missing chunks",
+            details={"dependency": "retriever", "operation": operation},
+        ) from exception
+
+    if not isinstance(chunks, list) or not all(
+        isinstance(chunk, dict) and isinstance(chunk.get("metadata", {}), dict)
+        for chunk in chunks
+    ):
+        raise DependencyResponseError(
+            "Retriever response contains malformed chunks",
+            details={"dependency": "retriever", "operation": operation},
+        )
+    return chunks
 
 
 def _record_external_error(

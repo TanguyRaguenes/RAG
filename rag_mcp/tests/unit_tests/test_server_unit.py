@@ -1,7 +1,6 @@
 import json
 
 import pytest
-
 from app.core.config import load_mcp_config
 from app.core.errors import McpConfigError
 from app.schemas.rag_response import RetrievedChunksResponse

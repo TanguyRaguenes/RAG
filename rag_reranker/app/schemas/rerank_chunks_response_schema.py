@@ -1,14 +1,14 @@
 from typing import Any
 
-from pydantic import BaseModel
+from pydantic import BaseModel, FiniteFloat
 
 
 class RerankedChunkModelBase(BaseModel):
     id: str
     document: str
     metadata: dict[str, Any]
-    similarity: float
-    rerank_score: float
+    similarity: FiniteFloat
+    rerank_score: FiniteFloat
 
 
 class RerankChunksResponseBase(BaseModel):

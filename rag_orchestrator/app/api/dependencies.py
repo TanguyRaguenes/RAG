@@ -1,16 +1,20 @@
 import os
 from functools import lru_cache
+from typing import Any
 
 import asyncpg
 import jwt
-from fastapi import Depends, HTTPException, Request, status
+from fastapi import Depends, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
+from app.core.exceptions import AuthenticationInvalidError, AuthenticationRequiredError
 from app.dal.clients.oidc_client import OidcClient
+from app.schemas.authenticated_user_schema import AuthenticatedUser
 from app.services.auth_service import AuthService
+from app.services.question_orchestration_service import QuestionOrchestrationService
 
 
-def get_config(request: Request) -> dict:
+def get_config(request: Request) -> dict[str, Any]:
     """Retourne la configuration chargée au démarrage de l'application FastAPI.
 
     Args:
@@ -32,6 +36,26 @@ def get_db_pool(request: Request) -> asyncpg.Pool:
         Pool PostgreSQL partagé par l'application.
     """
     return request.app.state.db_pool
+
+
+config_dependency = Depends(get_config)
+db_pool_dependency = Depends(get_db_pool)
+
+
+def get_question_orchestration_service(
+    config: dict[str, Any] = config_dependency,
+    db_pool: asyncpg.Pool = db_pool_dependency,
+) -> QuestionOrchestrationService:
+    """Construit le service de question avec les ressources de la requête courante.
+
+    Args:
+        config: Configuration applicative partagée par le pipeline RAG.
+        db_pool: Pool PostgreSQL partagé par le suivi d'usage.
+
+    Returns:
+        Service d'orchestration prêt à traiter les routes de question et retrieval.
+    """
+    return QuestionOrchestrationService(config, db_pool)
 
 
 # Déclare un mécanisme d'authentification HTTP Bearer.
@@ -71,7 +95,7 @@ auth_service_dependency = Depends(get_auth_service)
 async def get_current_user(
     credentials: HTTPAuthorizationCredentials | None = security_dependency,
     auth_service: AuthService = auth_service_dependency,
-):
+) -> AuthenticatedUser:
     """Valide le bearer token courant et retourne l'utilisateur authentifié.
 
     Args:
@@ -79,21 +103,18 @@ async def get_current_user(
         auth_service: Service chargé de valider le token bearer reçu par l'API.
 
     Returns:
-        Utilisateur authentifié ou erreur HTTP si le token est invalide.
+        Utilisateur authentifié construit depuis le bearer token.
 
     Raises:
-        HTTPException: Si la requête ne respecte pas les règles d'authentification, d'autorisation ou de validation.
+        AuthenticationRequiredError: Si aucun bearer token n'est fourni.
+        AuthenticationInvalidError: Si la validation du token échoue.
     """
     if credentials is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Il manque le bearer token",
-        )
+        raise AuthenticationRequiredError("Bearer credentials are missing")
 
     try:
         return await auth_service.authenticate(credentials.credentials)
-    except jwt.PyJWTError:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Le token d'authentification n'est pas valide.",
-        )
+    except jwt.PyJWTError as exception:
+        raise AuthenticationInvalidError(
+            "Bearer token validation failed"
+        ) from exception

@@ -1,9 +1,10 @@
 from datetime import date
 
 import asyncpg
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends
 
 from app.api.dependencies import get_current_user, get_db_pool
+from app.core.exceptions import ForbiddenError
 from app.schemas.authenticated_user_schema import AuthenticatedUser
 from app.schemas.feedback_schema import (
     AdminInteractionFeedbackResponse,
@@ -82,17 +83,12 @@ async def update_my_preferences(
     Returns:
         Préférences utilisateur après mise à jour côté orchestrator.
 
-    Raises:
-        HTTPException: Si la requête ne respecte pas les règles d'authentification, d'autorisation ou de validation.
     """
-    try:
-        return await update_current_user_preferences(
-            current_user,
-            db_pool,
-            body.theme_preference,
-        )
-    except ValueError as exception:
-        raise HTTPException(status_code=400, detail=str(exception)) from exception
+    return await update_current_user_preferences(
+        current_user,
+        db_pool,
+        body.theme_preference,
+    )
 
 
 @router.post("/interactions/{interaction_id}/feedback", response_model=FeedbackResponse)
@@ -113,19 +109,14 @@ async def save_interaction_feedback(
     Returns:
         Feedback enregistré pour l'interaction demandée.
 
-    Raises:
-        HTTPException: Si la requête ne respecte pas les règles d'authentification, d'autorisation ou de validation.
     """
-    try:
-        return await save_current_user_feedback(
-            current_user=current_user,
-            db_pool=db_pool,
-            interaction_id=interaction_id,
-            note=body.note,
-            comment=body.commentaire,
-        )
-    except ValueError as exception:
-        raise HTTPException(status_code=404, detail=str(exception)) from exception
+    return await save_current_user_feedback(
+        current_user=current_user,
+        db_pool=db_pool,
+        interaction_id=interaction_id,
+        note=body.note,
+        comment=body.commentaire,
+    )
 
 
 @router.get("/quota/admin/users", response_model=list[QuotaUsageResponse])
@@ -165,20 +156,15 @@ async def update_user_quota_usage(
     Returns:
         Quota utilisateur recalculé après modification administrateur.
 
-    Raises:
-        HTTPException: Si la requête ne respecte pas les règles d'authentification, d'autorisation ou de validation.
     """
     _ensure_usage_admin(current_user)
 
-    try:
-        return await update_user_quota(
-            db_pool=db_pool,
-            user_id=user_id,
-            max_tokens_per_month=body.max_tokens_par_mois,
-            active=body.actif,
-        )
-    except ValueError as exception:
-        raise HTTPException(status_code=404, detail=str(exception)) from exception
+    return await update_user_quota(
+        db_pool=db_pool,
+        user_id=user_id,
+        max_tokens_per_month=body.max_tokens_par_mois,
+        active=body.actif,
+    )
 
 
 @router.get(
@@ -202,19 +188,14 @@ async def list_interaction_feedbacks(
     Returns:
         Feedbacks d'interactions filtrés par période.
 
-    Raises:
-        HTTPException: Si la requête ne respecte pas les règles d'authentification, d'autorisation ou de validation.
     """
     _ensure_usage_admin(current_user)
 
-    try:
-        return await list_admin_interaction_feedbacks(
-            db_pool=db_pool,
-            start_date=start_date,
-            end_date=end_date,
-        )
-    except ValueError as exception:
-        raise HTTPException(status_code=400, detail=str(exception)) from exception
+    return await list_admin_interaction_feedbacks(
+        db_pool=db_pool,
+        start_date=start_date,
+        end_date=end_date,
+    )
 
 
 def _ensure_usage_admin(current_user: AuthenticatedUser) -> None:
@@ -224,12 +205,9 @@ def _ensure_usage_admin(current_user: AuthenticatedUser) -> None:
         current_user: Utilisateur authentifié issu du token OIDC courant.
 
     Raises:
-        HTTPException: Si la requête ne respecte pas les règles d'authentification, d'autorisation ou de validation.
+        ForbiddenError: Si aucun groupe administrateur autorisé n'est présent.
     """
     if is_usage_admin(current_user):
         return
 
-    raise HTTPException(
-        status_code=status.HTTP_403_FORBIDDEN,
-        detail="Restriction aux profils administateurs.",
-    )
+    raise ForbiddenError("Usage administration role is required")

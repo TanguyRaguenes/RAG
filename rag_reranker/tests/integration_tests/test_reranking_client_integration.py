@@ -1,25 +1,26 @@
 import os
 
 import pytest
-
 from app.core.config import load_config
 from app.dal.clients.reranking_client import score_chunks
 
 
 @pytest.mark.asyncio
-async def test_score_chunks_returns_scores_with_local_tei():
+async def test_score_chunks_returns_scores_with_local_tei() -> None:
     if os.getenv("RAG_RERANKER_RUN_INTEGRATION") != "1":
         pytest.skip("Set RAG_RERANKER_RUN_INTEGRATION=1 with TEI running locally")
 
     config = load_config()
-    config["reranking"]["url"] = "http://localhost:8081/rerank"
+    config.reranking.url = "http://localhost:8081/rerank"
 
     scores = await score_chunks(
         "Comment configurer Docker ?",
         [
             {
+                "id": "docker-compose",
                 "document": "Docker Compose permet de déclarer des services.",
                 "metadata": {"title": "Docker"},
+                "similarity": 0.8,
             }
         ],
         config=config,

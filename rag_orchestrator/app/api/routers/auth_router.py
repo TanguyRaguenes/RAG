@@ -10,7 +10,7 @@ current_user_dependency = Depends(get_current_user)
 @router.get("/me", response_model=AuthenticatedUser)
 async def get_me(
     current_user: AuthenticatedUser = current_user_dependency,
-):
+) -> AuthenticatedUser:
     """Retourne les informations de l'utilisateur authentifié courant.
 
     Args:

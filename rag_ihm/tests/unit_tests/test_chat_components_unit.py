@@ -1,7 +1,6 @@
 from typing import Self
 
 import pytest
-
 from app.components import chat
 from app.components.chat import (
     ROLE_ASSISTANT,

@@ -1,41 +1,40 @@
 import pytest
+from app.api.routers.rerank_router import rerank_chunks_route
+from app.schemas.rerank_chunks_request_schema import RerankChunksRequestBase
+from app.schemas.rerank_chunks_response_schema import RerankChunksResponseBase
 
-from app.api.routers import rerank_router
-from app.domain.models.rerank_chunks_request_model import RerankChunksRequestBase
+
+class FakeRerankService:
+    def __init__(self) -> None:
+        self.payload: RerankChunksRequestBase | None = None
+
+    async def execute(
+        self, payload: RerankChunksRequestBase
+    ) -> RerankChunksResponseBase:
+        self.payload = payload
+        return RerankChunksResponseBase(
+            duration_ms=12.0,
+            duration_human="00:00",
+            reranked_chunks=[{**payload.chunks[0].model_dump(), "rerank_score": 0.9}],
+        )
 
 
 @pytest.mark.asyncio
-async def test_rerank_chunks_route_returns_chunks_and_duration(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    async def fake_service_rerank_chunks(
-        question: str, chunks: list[dict], config: dict
-    ):
-        assert question == "Question"
-        assert chunks[0]["id"] == "chunk-1"
-        assert config == {"config": True}
-        return [dict(chunks[0], rerank_score=0.9)]
-
-    monkeypatch.setattr(
-        rerank_router, "service_rerank_chunks", fake_service_rerank_chunks
+async def test_route_only_delegates_validated_payload() -> None:
+    payload = RerankChunksRequestBase(
+        question="Question",
+        chunks=[
+            {
+                "id": "chunk-1",
+                "document": "doc",
+                "metadata": {"title": "Doc"},
+                "similarity": 0.7,
+            }
+        ],
     )
-    monkeypatch.setattr(rerank_router.time, "perf_counter", iter([1.0, 2.2]).__next__)
+    service = FakeRerankService()
 
-    response = await rerank_router.rerank_chunks_route(
-        RerankChunksRequestBase(
-            question="Question",
-            chunks=[
-                {
-                    "id": "chunk-1",
-                    "document": "doc",
-                    "metadata": {"title": "Doc"},
-                    "similarity": 0.7,
-                }
-            ],
-        ),
-        {"config": True},
-    )
+    response = await rerank_chunks_route(payload, service)
 
-    assert response.duration_ms == 1200.0
-    assert response.duration_human == "00:01"
+    assert service.payload is payload
     assert response.reranked_chunks[0].rerank_score == 0.9

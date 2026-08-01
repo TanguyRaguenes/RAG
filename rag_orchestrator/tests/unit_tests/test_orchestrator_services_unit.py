@@ -1,6 +1,5 @@
-import httpx
 import pytest
-
+from app.core.exceptions import IdentityProviderError
 from app.services import ask_question_service, retrieve_chunks_service
 from app.services.auth_service import AuthService
 from app.services.user_identity_service import (
@@ -180,6 +179,18 @@ async def test_ask_question_to_local_model_builds_payload_and_response(
 async def test_ask_question_to_api_builds_payload_tokens_and_cost(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    calls = []
+
+    class FakeUsageRepository:
+        def __init__(self, db_pool):
+            assert db_pool is not None
+
+        async def get_active_model_pricing(self, *, provider: str, model_name: str):
+            calls.append(("pricing", provider, model_name))
+            from decimal import Decimal
+
+            return Decimal(2), Decimal(6)
+
     async def fake_retrieve_and_rerank_chunks(
         question: str, config: dict
     ) -> list[dict]:
@@ -190,15 +201,19 @@ async def test_ask_question_to_api_builds_payload_tokens_and_cost(
     async def fake_api_client(
         payload: dict, endpoint: str, api_key: str | None
     ) -> dict:
+        calls.append(("llm", payload["model"]))
         assert payload["model"] == "api-model"
         assert endpoint == "http://api/v1/responses"
         return {
-            "output": [{}, {"content": [{"text": "api answer"}]}],
+            "output": [
+                {
+                    "type": "message",
+                    "content": [{"type": "output_text", "text": "api answer"}],
+                },
+                {"type": "function_call", "content": []},
+            ],
             "usage": {"input_tokens": 10, "output_tokens": 5, "total_tokens": 15},
         }
-
-    async def fake_calculate_cost(**kwargs) -> float:
-        return 0.123456
 
     monkeypatch.setattr(
         ask_question_service,
@@ -208,7 +223,7 @@ async def test_ask_question_to_api_builds_payload_tokens_and_cost(
     monkeypatch.setattr(
         ask_question_service, "ask_question_to_api_client", fake_api_client
     )
-    monkeypatch.setattr(ask_question_service, "calculate_cost", fake_calculate_cost)
+    monkeypatch.setattr(ask_question_service, "UsageRepository", FakeUsageRepository)
 
     response = await ask_question_service.ask_question_to_api(
         "Question", _config(), db_pool=object()
@@ -217,7 +232,8 @@ async def test_ask_question_to_api_builds_payload_tokens_and_cost(
     assert response.llm_response == "api answer"
     assert response.input_tokens == 10
     assert response.output_tokens == 5
-    assert response.cost == 0.123456
+    assert response.cost == 0.00005
+    assert calls == [("pricing", "openai", "api-model"), ("llm", "api-model")]
 
 
 class FakeOidcClient:
@@ -248,16 +264,29 @@ class FakeOidcClient:
 class FakeFailingUserinfoOidcClient(FakeOidcClient):
     async def get_userinfo(self, token: str) -> dict:
         self.userinfo_called = True
-        request = httpx.Request("GET", "http://pocket-id/userinfo")
-        response = httpx.Response(403, request=request)
-        raise httpx.HTTPStatusError("forbidden", request=request, response=response)
+        raise IdentityProviderError("OIDC userinfo request failed")
+
+
+class FakeUnavailableUserinfoOidcClient(FakeOidcClient):
+    def __init__(
+        self,
+        claims: dict,
+        userinfo_error: Exception,
+        pocket_id_user: dict,
+    ) -> None:
+        super().__init__(claims, pocket_id_user=pocket_id_user)
+        self.userinfo_error = userinfo_error
+
+    async def get_userinfo(self, token: str) -> dict:
+        self.userinfo_called = True
+        raise self.userinfo_error
 
 
 @pytest.mark.asyncio
 async def test_auth_service_merges_userinfo_for_oauth_user_token() -> None:
     oidc = FakeOidcClient(
         {"iss": "issuer", "sub": "user-1", "type": "oauth-access-token"},
-        {"email": "user@example.com", "groups": ["dev"]},
+        {"sub": "user-1", "email": "user@example.com", "groups": ["dev"]},
     )
 
     user = await AuthService(oidc).authenticate("token")
@@ -265,6 +294,47 @@ async def test_auth_service_merges_userinfo_for_oauth_user_token() -> None:
     assert oidc.userinfo_called
     assert user.email == "user@example.com"
     assert user.groups == ["dev"]
+
+
+@pytest.mark.asyncio
+async def test_auth_service_keeps_validated_identity_claims() -> None:
+    oidc = FakeOidcClient(
+        {"iss": "TrustedIssuer", "sub": "User-1"},
+        {
+            "iss": "attacker",
+            "sub": "User-1",
+            "email": "user@example.com",
+        },
+    )
+
+    user = await AuthService(oidc).authenticate("token")
+
+    assert user.issuer == "TrustedIssuer"
+    assert user.sub == "User-1"
+    assert user.email == "user@example.com"
+
+
+@pytest.mark.asyncio
+async def test_auth_service_rejects_userinfo_for_another_subject() -> None:
+    oidc = FakeOidcClient(
+        {"iss": "issuer", "sub": "user-1"},
+        {"sub": "user-2", "email": "other@example.com"},
+    )
+
+    import jwt
+
+    with pytest.raises(jwt.InvalidTokenError):
+        await AuthService(oidc).authenticate("token")
+
+    assert not oidc.pocket_id_user_called
+
+
+@pytest.mark.asyncio
+async def test_auth_service_rejects_token_without_subject() -> None:
+    import jwt
+
+    with pytest.raises(jwt.InvalidTokenError):
+        await AuthService(FakeOidcClient({"iss": "issuer"})).authenticate("token")
 
 
 @pytest.mark.asyncio
@@ -318,6 +388,31 @@ async def test_auth_service_uses_pocket_id_api_when_userinfo_is_forbidden() -> N
     assert user.preferred_username == "user"
 
 
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "userinfo_error",
+    [
+        IdentityProviderError("OIDC connection failed"),
+        IdentityProviderError("OIDC request timed out"),
+        IdentityProviderError("OIDC response is invalid"),
+    ],
+)
+async def test_auth_service_uses_pocket_id_api_when_userinfo_is_unavailable(
+    userinfo_error: Exception,
+) -> None:
+    oidc = FakeUnavailableUserinfoOidcClient(
+        {"iss": "issuer", "sub": "user-1", "groups": ["dev"]},
+        userinfo_error,
+        {"email": "fallback@example.com"},
+    )
+
+    user = await AuthService(oidc).authenticate("token")
+
+    assert oidc.userinfo_called
+    assert oidc.pocket_id_user_called
+    assert user.email == "fallback@example.com"
+
+
 def test_user_identity_hashes_normalized_identifier_and_rejects_empty_values() -> None:
     assert build_user_id_from_email(
         " USER@Example.COM ", "secret"
@@ -333,4 +428,12 @@ def test_user_identity_hashes_normalized_identifier_and_rejects_empty_values() -
 def test_user_identity_hashes_issuer_and_subject() -> None:
     assert build_user_id_from_oidc_subject(
         " https://auth.example.com/ ", " User-1 ", "secret"
-    ) == build_user_id_from_identifier("https://auth.example.com/|user-1", "secret")
+    ) == build_user_id_from_oidc_subject(
+        "https://auth.example.com/", "User-1", "secret"
+    )
+
+    assert build_user_id_from_oidc_subject(
+        "https://auth.example.com/", "User-1", "secret"
+    ) != build_user_id_from_oidc_subject(
+        "https://auth.example.com/", "user-1", "secret"
+    )

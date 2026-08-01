@@ -1,6 +1,4 @@
 import pytest
-from streamlit.testing.v1 import AppTest
-
 from app.components.chat import EXAMPLE_QUESTIONS
 from app.services import rag_api_client
 from app.services.auth_service import (
@@ -8,6 +6,7 @@ from app.services.auth_service import (
     IDENTITY_VERIFIED_KEY,
     USER_KEY,
 )
+from streamlit.testing.v1 import AppTest
 
 
 def test_examples_disappear_after_first_question(

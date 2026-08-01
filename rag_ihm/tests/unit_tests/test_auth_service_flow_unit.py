@@ -1,7 +1,6 @@
 from urllib.parse import parse_qs, urlparse
 
 import pytest
-
 from app.components import common
 from app.core.errors import RagApiError
 from app.services import auth_service

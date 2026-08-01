@@ -38,7 +38,7 @@ class ModelPricingRepository:
             LIMIT 1
         """
 
-        async with self.db_pool.acquire() as connection:
+        async with self._acquire() as connection:
             row = await connection.fetchrow(query, provider, model_name)
 
         if row is None:

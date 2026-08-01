@@ -1,102 +1,88 @@
 import pytest
-
-from app.schemas.answer_evaluation_schema import AnswerEvaluationBase
+from app.core.config import EvaluatorConfig
+from app.core.exceptions import JudgeEvaluationException
+from app.schemas.judge_schema import JudgeMessage
 from app.services import evaluating_answer_service as service
 
 
-class FakeJudgeOutput:
-    def model_dump(self) -> dict:
-        return {
-            "feedback": "ok",
-            "accuracy": 4,
-            "completeness": 3,
-            "relevance": 5,
-            "faithfulness": 4,
-            "safe_refusal": 5,
+def _config() -> EvaluatorConfig:
+    return EvaluatorConfig.model_validate(
+        {
+            "llm": {
+                "provider": "ollama",
+                "url_provider": "http://ollama",
+                "model": "judge",
+                "temperature": 0.1,
+                "num_ctx": 1024,
+                "max_output_token": 128,
+                "timeout_seconds": 10,
+            },
+            "evaluation_method": {"use_api_openai": False},
         }
+    )
 
 
-class FakeParser:
-    def parse(self, raw: str) -> FakeJudgeOutput:
-        assert raw == "raw-json"
-        return FakeJudgeOutput()
+class FakeJudgeClient:
+    def __init__(self, response: str) -> None:
+        self.response = response
+        self.messages: list[JudgeMessage] = []
+
+    async def judge(self, messages: list[JudgeMessage]) -> str:
+        self.messages = messages
+        return self.response
 
 
 @pytest.mark.asyncio
-async def test_evaluate_answer_uses_local_judge_client(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    calls = []
-
-    def fake_build_judge_messages(**kwargs):
-        calls.append(("messages", kwargs))
-        return [{"role": "user", "content": "judge"}]
-
-    async def fake_judge_client(config, messages):
-        calls.append(("local", config, messages))
-        return {"llm_answer": "raw-json"}
-
-    monkeypatch.setattr(service, "build_judge_messages", fake_build_judge_messages)
-    monkeypatch.setattr(service, "judge_client", fake_judge_client)
-    monkeypatch.setattr(service, "judge_parser", FakeParser())
+async def test_evaluate_answer_uses_injected_judge_client() -> None:
+    judge = FakeJudgeClient(
+        '{"feedback":"ok","accuracy":4,"completeness":3,'
+        '"relevance":5,"faithfulness":4,"safe_refusal":5}'
+    )
 
     result = await service.evaluate_answer(
-        {"evaluation_method": {"use_api_openai": False}},
+        _config(),
         "question",
         "generated",
         "reference",
         [],
         expected_answer_points=["point attendu"],
         expected_behavior="answer",
+        judge_client=judge,
     )
 
-    assert isinstance(result, AnswerEvaluationBase)
     assert result.accuracy == 4
     assert result.faithfulness == 4
-    assert calls[0][1]["expected_answer_points"] == ["point attendu"]
-    assert calls[0][1]["expected_behavior"] == "answer"
-    assert calls[1] == (
-        "local",
-        {"evaluation_method": {"use_api_openai": False}},
-        [{"role": "user", "content": "judge"}],
-    )
+    assert judge.messages[0].role == "system"
 
 
 @pytest.mark.asyncio
-async def test_evaluate_answer_uses_openai_judge_client(
+async def test_evaluate_answer_rejects_invalid_judgement() -> None:
+    with pytest.raises(JudgeEvaluationException):
+        await service.evaluate_answer(
+            _config(),
+            "question",
+            "generated",
+            "reference",
+            [],
+            judge_client=FakeJudgeClient("not-json"),
+        )
+
+
+@pytest.mark.asyncio
+async def test_evaluate_answer_does_not_mask_unexpected_parser_bug(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    calls = []
+    def fail_unexpectedly(_parser: object, _value: str) -> None:
+        raise RuntimeError("programming bug")
 
-    async def fake_judge_client_api_openia(payload, timeout, base_url, api_key):
-        calls.append((payload, timeout, base_url, api_key))
-        return {"llm_answer": "raw-json"}
+    monkeypatch.setattr(type(service.judge_parser), "parse", fail_unexpectedly)
 
-    monkeypatch.setenv("OPEN_API_KEY", "api-key")
-    monkeypatch.setattr(
-        service,
-        "build_judge_messages",
-        lambda **kwargs: [{"role": "user", "content": "judge"}],
-    )
-    monkeypatch.setattr(
-        service, "judge_client_api_openia", fake_judge_client_api_openia
-    )
-    monkeypatch.setattr(service, "judge_parser", FakeParser())
-
-    result = await service.evaluate_answer(
-        {
-            "evaluation_method": {"use_api_openai": True},
-            "llm": {"timeout_seconds": 12, "temperature": 0.1, "max_output_token": 128},
-        },
-        "question",
-        "generated",
-        "reference",
-        [],
-        expected_answer_points=["refuser"],
-        expected_behavior="refuse",
-    )
-
-    assert result.relevance == 5
-    assert result.safe_refusal == 5
-    assert calls[0][0]["model"] == "gpt-4o"
-    assert calls[0][1:] == (12, "https://api.openai.com/v1/chat/completions", "api-key")
+    with pytest.raises(RuntimeError, match="programming bug"):
+        await service.evaluate_answer(
+            _config(),
+            "question",
+            "generated",
+            "reference",
+            [],
+            judge_client=FakeJudgeClient("valid-looking"),
+        )

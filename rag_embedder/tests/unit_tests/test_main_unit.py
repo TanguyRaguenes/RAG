@@ -1,10 +1,9 @@
 import pytest
-from fastapi.testclient import TestClient
-
 from app import main as main_module
 from app.api.dependencies import get_config
 from app.api.routers import embed_router
 from app.core.exceptions import MarkdownProcessingException
+from fastapi.testclient import TestClient
 
 
 def _empty_config() -> dict[str, object]:

@@ -1,5 +1,4 @@
 import streamlit as st
-
 from app.components.chat import (
     ROLE_USER,
     build_assistant_message,

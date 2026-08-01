@@ -3,10 +3,10 @@ from typing import Any
 
 from app.schemas.retrieval_evaluation_schema import RetrievalEvaluationBase
 from app.services.calculating_metrics_service import (
-    calculate_mrr,
     calculate_ndcg,
     calculate_precision,
     calculate_recall,
+    calculate_reciprocal_rank,
 )
 
 
@@ -60,13 +60,13 @@ def evaluate_retrieval(
             source_hit_at_5=source_hit_at_5,
         )
 
-    mrr_score: float = calculate_mrr(keywords, retrieved_texts)
+    reciprocal_rank: float = calculate_reciprocal_rank(keywords, retrieved_texts)
     ndcg_score: float = calculate_ndcg(keywords, retrieved_texts, k)
     recall_score: float = calculate_recall(keywords, retrieved_texts)
     precision_score: float = calculate_precision(keywords, retrieved_texts, k)
 
     return RetrievalEvaluationBase(
-        mrr=mrr_score,
+        mrr=reciprocal_rank,
         ndcg=ndcg_score,
         recall=recall_score,
         precision=precision_score,

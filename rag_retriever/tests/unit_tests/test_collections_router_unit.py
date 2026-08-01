@@ -1,7 +1,4 @@
 import pytest
-from fastapi import FastAPI
-from fastapi.testclient import TestClient
-
 from app.api.dependencies import get_config, get_vector_store_repository
 from app.api.routers import collections_router
 from app.schemas.retrieve_chunks_request_schema import (
@@ -11,6 +8,8 @@ from app.schemas.retrieve_chunks_request_schema import (
 from app.schemas.retrieve_chunks_response_schema import RetrievedChunksModelBase
 from app.schemas.save_items_response_schema import SaveItemsResponseBase
 from app.schemas.vector_db_items_schema import VectorStoreItemsBase
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
 
 
 def _metadata() -> dict[str, str | int | bool]:

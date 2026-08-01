@@ -1,20 +1,26 @@
-import os
 from typing import Any
 
-from app.dal.client.judge_client import judge_client, judge_client_api_openia
+from langchain_core.exceptions import OutputParserException
+from pydantic import ValidationError
+
+from app.core.config import EvaluatorConfig
+from app.core.exceptions import JudgeEvaluationException
+from app.dal.clients.judge_client import ConfiguredJudgeClient, JudgeClient
 from app.domain.models.judge_response_model import judge_parser
 from app.schemas.answer_evaluation_schema import AnswerEvaluationBase
+from app.schemas.judge_schema import JudgeMessage
 from app.services.prompt_builder_service import build_judge_messages
 
 
 async def evaluate_answer(
-    config: dict,
+    config: EvaluatorConfig,
     question: str,
     generated_answer: str,
     reference_answer: str,
     retrieved_chunks: list[dict[str, Any]],
     expected_answer_points: list[str] | None = None,
     expected_behavior: str = "answer",
+    judge_client: JudgeClient | None = None,
 ) -> AnswerEvaluationBase:
     """Demande au juge LLM d'évaluer la réponse générée par le RAG.
 
@@ -26,40 +32,36 @@ async def evaluate_answer(
         retrieved_chunks: Chunks retournés par le retriever ou l'orchestrator.
         expected_answer_points: Points factuels attendus dans une bonne réponse.
         expected_behavior: Comportement attendu par le dataset, `answer` ou `refuse`.
+        judge_client: Client externe injecté, ou client sélectionné par la configuration.
 
     Returns:
         Scores JSON produits par le juge LLM pour la réponse RAG.
+
+    Raises:
+        EvaluatorClientError: Si l'appel au fournisseur du juge échoue.
+        JudgeEvaluationException: Si le jugement ne respecte pas le schéma métier.
     """
-    messages = build_judge_messages(
-        question=question,
-        generated_answer=generated_answer,
-        reference_answer=reference_answer,
-        retrieved_chunks=retrieved_chunks,
-        expected_answer_points=expected_answer_points,
-        expected_behavior=expected_behavior,
-        max_context_chars=12000,
-    )
+    messages = [
+        JudgeMessage.model_validate(message)
+        for message in build_judge_messages(
+            question=question,
+            generated_answer=generated_answer,
+            reference_answer=reference_answer,
+            retrieved_chunks=retrieved_chunks,
+            expected_answer_points=expected_answer_points,
+            expected_behavior=expected_behavior,
+            max_context_chars=12000,
+        )
+    ]
+    client = judge_client or ConfiguredJudgeClient.from_config(config)
+    raw_judgement = await client.judge(messages)
 
-    use_api_openai = config["evaluation_method"]["use_api_openai"]
-    if use_api_openai:
-        api_key = os.getenv("OPEN_API_KEY")
-
-        base_url = "https://api.openai.com/v1/chat/completions"
-        timeout = config["llm"]["timeout_seconds"]
-
-        # Payload à plat pour API
-        payload = {
-            "model": "gpt-4o",
-            "messages": messages,
-            "temperature": config["llm"]["temperature"],
-            "max_output_token": config["llm"]["max_output_token"],
-        }
-        judge_json = await judge_client_api_openia(payload, timeout, base_url, api_key)
-    else:
-        # Appel classique Ollama
-        judge_json = await judge_client(config, messages)
-
-    raw = judge_json["llm_answer"]  # <- la string renvoyée par le LLM
-    judge_out = judge_parser.parse(raw)  # <- -> JudgeOutput (validé)
-
-    return AnswerEvaluationBase.model_validate(judge_out.model_dump())
+    try:
+        judge_output = judge_parser.parse(raw_judgement)
+        return AnswerEvaluationBase.model_validate(judge_output.model_dump())
+    except (OutputParserException, ValidationError) as exception:
+        raise JudgeEvaluationException(
+            message="Le jugement LLM ne respecte pas le format attendu",
+            internal_message="Parsing de la réponse métier du juge impossible",
+            internal_details={"error_type": type(exception).__name__},
+        ) from exception

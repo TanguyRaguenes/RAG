@@ -1,8 +1,11 @@
 from typing import ClassVar
 
 import pytest
-
-from app.core.exceptions import RerankerContainerException, RetrieverContainerException
+from app.core.exceptions import (
+    DependencyResponseError,
+    RerankerContainerException,
+    RetrieverContainerException,
+)
 from app.dal.clients import embedder_client, reranker_client, retriever_client
 
 
@@ -165,3 +168,25 @@ async def test_rerank_chunks_raises_domain_exception_when_url_is_missing(
         await reranker_client.rerank_chunks("Question", [])
 
     assert exc_info.value.details == {"env_var": "RAG_RERANKER_RERANK_CHUNKS_URL"}
+
+
+@pytest.mark.asyncio
+async def test_retriever_rejects_malformed_success_response(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class MalformedAsyncClient(FakeAsyncClient):
+        async def post(self, url: str, json: dict) -> FakeResponse:
+            return FakeResponse({"unexpected": []})
+
+    monkeypatch.setenv(
+        "RAG_RETRIEVER_RETRIEVE_CHUNKS_URL", "http://retriever/retrieve_chunks"
+    )
+    monkeypatch.setattr(retriever_client.httpx, "AsyncClient", MalformedAsyncClient)
+
+    with pytest.raises(DependencyResponseError) as error:
+        await retriever_client.retrieve_chunks([0.1])
+
+    assert error.value.details == {
+        "dependency": "retriever",
+        "operation": "retrieve_chunks",
+    }

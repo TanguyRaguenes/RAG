@@ -2,7 +2,6 @@ from datetime import date
 from typing import Any
 
 import pytest
-
 from app.core.errors import RagApiError
 from app.dal.clients import http_client
 from app.dal.clients.http_client import RequestsHttpClient

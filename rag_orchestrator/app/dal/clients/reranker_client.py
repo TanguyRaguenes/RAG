@@ -5,7 +5,7 @@ from typing import Any
 import httpx
 from opentelemetry import trace
 
-from app.core.exceptions import RerankerContainerException
+from app.core.exceptions import DependencyResponseError, RerankerContainerException
 from app.core.metrics import (
     orchestrator_external_call_duration_seconds,
     orchestrator_external_call_errors_total,
@@ -29,12 +29,12 @@ async def rerank_chunks(
 
     Raises:
         RerankerContainerException: Si l'URL manque, si le reranker échoue, ou si l'appel HTTP échoue.
-        KeyError: Si la réponse JSON ne contient pas `reranked_chunks`.
+        DependencyResponseError: Si la réponse JSON ne contient pas les chunks attendus.
     """
     url = os.getenv("RAG_RERANKER_RERANK_CHUNKS_URL")
     if not url:
         raise RerankerContainerException(
-            message="URL du service 'reranker' non configurée",
+            internal_message="Reranker URL is not configured",
             details={"env_var": "RAG_RERANKER_RERANK_CHUNKS_URL"},
         )
 
@@ -53,42 +53,79 @@ async def rerank_chunks(
                 data = response.json()
         except httpx.HTTPStatusError as exception:
             _record_external_error("reranker", "rerank_chunks", "http_status", start)
-            try:
-                response_json = exception.response.json()
-                raise RerankerContainerException(
-                    message=f"Erreur HTTP {exception.response.status_code}",
-                    details={"url": url, "error": str(exception)},
-                    original_exception=response_json,
-                ) from exception
-            except ValueError:
-                raise RerankerContainerException(
-                    message=f"Erreur HTTP {exception.response.status_code}",
-                    details={"url": url, "error": str(exception)},
-                ) from exception
+            raise RerankerContainerException(
+                internal_message="Reranker returned an HTTP error",
+                details={"status_code": exception.response.status_code},
+            ) from exception
         except httpx.ConnectError as exception:
             _record_external_error("reranker", "rerank_chunks", "connect_error", start)
             raise RerankerContainerException(
-                message="Impossible de se connecter au service 'reranker'",
-                details={"url": url, "error": str(exception)},
+                internal_message="Reranker connection failed",
             ) from exception
         except httpx.TimeoutException as exception:
             _record_external_error("reranker", "rerank_chunks", "timeout", start)
             raise RerankerContainerException(
-                message="Timeout lors de l'appel au service 'reranker'",
-                details={"url": url, "error": str(exception)},
+                internal_message="Reranker request timed out",
             ) from exception
         except httpx.RequestError as exception:
             _record_external_error("reranker", "rerank_chunks", "request_error", start)
             raise RerankerContainerException(
-                message="Erreur réseau lors de l'appel au service 'reranker'",
-                details={"url": url, "error": str(exception)},
+                internal_message="Reranker request failed",
             ) from exception
+        except ValueError as exception:
+            _record_external_error("reranker", "rerank_chunks", "invalid_json", start)
+            raise DependencyResponseError(
+                "Reranker returned invalid JSON",
+                details={"dependency": "reranker", "operation": "rerank_chunks"},
+            ) from exception
+
+    try:
+        reranked_chunks = _extract_reranked_chunks(data)
+    except DependencyResponseError:
+        _record_external_error("reranker", "rerank_chunks", "invalid_response", start)
+        raise
 
     orchestrator_external_call_duration_seconds.labels(
         dependency="reranker", operation="rerank_chunks", status="success"
     ).observe(time.perf_counter() - start)
+    return reranked_chunks
 
-    return data["reranked_chunks"]
+
+def _extract_reranked_chunks(data: object) -> list[dict[str, Any]]:
+    """Valide le champ ``reranked_chunks`` d'une réponse reranker.
+
+    Args:
+        data: JSON décodé retourné par le reranker.
+
+    Returns:
+        Liste de chunks rerankés représentés par des objets JSON.
+
+    Raises:
+        DependencyResponseError: Si le champ est absent ou mal typé.
+    """
+    if not isinstance(data, dict):
+        raise DependencyResponseError(
+            "Reranker response is not an object",
+            details={"dependency": "reranker", "operation": "rerank_chunks"},
+        )
+
+    try:
+        chunks = data["reranked_chunks"]
+    except (KeyError, TypeError) as exception:
+        raise DependencyResponseError(
+            "Reranker response is missing reranked_chunks",
+            details={"dependency": "reranker", "operation": "rerank_chunks"},
+        ) from exception
+
+    if not isinstance(chunks, list) or not all(
+        isinstance(chunk, dict) and isinstance(chunk.get("metadata", {}), dict)
+        for chunk in chunks
+    ):
+        raise DependencyResponseError(
+            "Reranker response contains malformed chunks",
+            details={"dependency": "reranker", "operation": "rerank_chunks"},
+        )
+    return chunks
 
 
 def _record_external_error(

@@ -3,12 +3,11 @@ from types import SimpleNamespace
 
 import jwt
 import pytest
-from fastapi import HTTPException
-from fastapi.security import HTTPAuthorizationCredentials
-
 from app.api import dependencies
 from app.core import config as config_module
+from app.core.exceptions import AuthenticationInvalidError, AuthenticationRequiredError
 from app.schemas.authenticated_user_schema import AuthenticatedUser
+from fastapi.security import HTTPAuthorizationCredentials
 
 
 def test_get_config_and_db_pool_return_app_state_values() -> None:
@@ -21,6 +20,10 @@ def test_get_config_and_db_pool_return_app_state_values() -> None:
     assert dependencies.get_config(request) is config
     assert dependencies.get_db_pool(request) is db_pool
 
+    service = dependencies.get_question_orchestration_service(config, db_pool)
+    assert service.config is config
+    assert service.db_pool is db_pool
+
 
 def test_load_config_reads_json_file(tmp_path, monkeypatch) -> None:
     config_path = tmp_path / "config.json"
@@ -32,10 +35,10 @@ def test_load_config_reads_json_file(tmp_path, monkeypatch) -> None:
 
 @pytest.mark.asyncio
 async def test_get_current_user_requires_credentials() -> None:
-    with pytest.raises(HTTPException) as exc_info:
+    with pytest.raises(AuthenticationRequiredError) as exc_info:
         await dependencies.get_current_user(credentials=None, auth_service=object())
 
-    assert exc_info.value.status_code == 401
+    assert exc_info.value.STATUS_CODE == 401
 
 
 @pytest.mark.asyncio
@@ -44,7 +47,7 @@ async def test_get_current_user_maps_jwt_errors_to_401() -> None:
         async def authenticate(self, token: str):
             raise jwt.PyJWTError("invalid")
 
-    with pytest.raises(HTTPException) as exc_info:
+    with pytest.raises(AuthenticationInvalidError) as exc_info:
         await dependencies.get_current_user(
             credentials=HTTPAuthorizationCredentials(
                 scheme="Bearer", credentials="bad"
@@ -52,7 +55,7 @@ async def test_get_current_user_maps_jwt_errors_to_401() -> None:
             auth_service=FailingAuthService(),
         )
 
-    assert exc_info.value.status_code == 401
+    assert exc_info.value.STATUS_CODE == 401
 
 
 @pytest.mark.asyncio

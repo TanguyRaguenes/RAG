@@ -42,7 +42,7 @@ class FeedbackRepository:
             RETURNING id
         """
 
-        async with self.db_pool.acquire() as connection:
+        async with self._acquire() as connection:
             feedback_id = await connection.fetchval(
                 query,
                 interaction_id,
@@ -110,5 +110,5 @@ class FeedbackRepository:
             ORDER BY interaction_rag.cree_le DESC
         """
 
-        async with self.db_pool.acquire() as connection:
+        async with self._acquire() as connection:
             return await connection.fetch(query, start_date, end_date)

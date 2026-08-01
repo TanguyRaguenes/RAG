@@ -1,9 +1,12 @@
 import importlib
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
 from app.core.config import load_config
+from app.dal.clients.reranking_client import TeiRerankingClient
+from app.services.rerank_chunks_service import RerankChunksService
 
 
 def _warm_up_http_stack() -> None:
@@ -13,7 +16,7 @@ def _warm_up_http_stack() -> None:
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Prépare les ressources applicatives au démarrage puis les libère à l'arrêt du service.
 
     Args:
@@ -21,5 +24,9 @@ async def lifespan(app: FastAPI):
     """
     _warm_up_http_stack()
     app.state.config = load_config()
+    app.state.rerank_chunks_service = RerankChunksService(
+        config=app.state.config,
+        client=TeiRerankingClient(app.state.config.reranking),
+    )
 
     yield

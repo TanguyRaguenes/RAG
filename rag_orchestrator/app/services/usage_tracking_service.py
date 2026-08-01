@@ -5,6 +5,13 @@ from datetime import date
 
 import asyncpg
 
+from app.core.exceptions import (
+    QUOTA_EXCEEDED_PUBLIC_MESSAGE,
+    InvalidRequestError,
+    QuotaExceededError,
+    QuotaInactiveError,
+    ResourceNotFoundError,
+)
 from app.dal.repositories.usage_repository import UsageRepository
 from app.schemas.ask_question_response_schema import AskQuestionResponseBase
 from app.schemas.authenticated_user_schema import AuthenticatedUser
@@ -18,29 +25,7 @@ from app.services.user_identity_service import build_user_id_from_oidc_subject
 MCP_PROVIDER = "KiloCode"
 MCP_MODEL = "mcp-retrieval"
 DEFAULT_USER_MONTHLY_TOKEN_QUOTA = 100000
-QUOTA_EXCEEDED_MESSAGE = (
-    "Vous avez consommé votre enveloppe de tokens. "
-    "Veuillez vous rapprocher de votre administrateur."
-)
-
-
-class QuotaExceededError(Exception):
-    def __init__(self, max_tokens: int, consumed_tokens: int):
-        """Construit l'erreur indiquant qu'un utilisateur a dépassé son quota mensuel.
-
-        Args:
-            max_tokens: Plafond de tokens autorisé par le quota actif.
-            consumed_tokens: Nombre de tokens déjà consommés sur la période de quota courante.
-        """
-        self.max_tokens = max_tokens
-        self.consumed_tokens = consumed_tokens
-        super().__init__(QUOTA_EXCEEDED_MESSAGE)
-
-
-class QuotaInactiveError(Exception):
-    def __init__(self):
-        """Construit l'erreur indiquant que le quota utilisateur est désactivé."""
-        super().__init__(QUOTA_EXCEEDED_MESSAGE)
+QUOTA_EXCEEDED_MESSAGE = QUOTA_EXCEEDED_PUBLIC_MESSAGE
 
 
 async def ensure_usage_user_exists(
@@ -192,11 +177,14 @@ async def update_user_quota(
         Quota utilisateur recalculé après modification de la règle active.
     """
     usage_repository = UsageRepository(db_pool)
-    await usage_repository.update_quota_rule(
-        user_id=user_id,
-        max_tokens_per_month=max_tokens_per_month,
-        active=active,
-    )
+    try:
+        await usage_repository.update_quota_rule(
+            user_id=user_id,
+            max_tokens_per_month=max_tokens_per_month,
+            active=active,
+        )
+    except ValueError as exception:
+        raise ResourceNotFoundError("User quota is unknown") from exception
     row = await usage_repository.get_quota_usage_details(user_id)
 
     return _quota_row_to_response(row)
@@ -241,7 +229,7 @@ async def update_current_user_preferences(
         ValueError: Si une valeur obligatoire est absente ou invalide.
     """
     if theme_preference not in {"Sombre", "Clair"}:
-        raise ValueError("Unknown theme preference")
+        raise InvalidRequestError("Unknown theme preference")
 
     user_id = await ensure_usage_user_exists(current_user, db_pool)
     usage_repository = UsageRepository(db_pool)
@@ -276,12 +264,17 @@ async def save_current_user_feedback(
     usage_repository = UsageRepository(db_pool)
     normalized_comment = _normalize_optional_comment(comment)
 
-    await usage_repository.upsert_feedback(
-        interaction_id=interaction_id,
-        user_id=user_id,
-        note=note,
-        comment=normalized_comment,
-    )
+    try:
+        await usage_repository.upsert_feedback(
+            interaction_id=interaction_id,
+            user_id=user_id,
+            note=note,
+            comment=normalized_comment,
+        )
+    except ValueError as exception:
+        raise ResourceNotFoundError(
+            "Interaction is unknown for current user"
+        ) from exception
 
     return FeedbackResponse(
         interaction_id=interaction_id,
@@ -309,7 +302,7 @@ async def list_admin_interaction_feedbacks(
         ValueError: Si une valeur obligatoire est absente ou invalide.
     """
     if end_date < start_date:
-        raise ValueError("end_date must be greater than or equal to start_date")
+        raise InvalidRequestError("Feedback date range is invalid")
 
     usage_repository = UsageRepository(db_pool)
     rows = await usage_repository.list_interaction_feedbacks(
@@ -476,7 +469,7 @@ def _get_default_user_monthly_token_quota() -> int:
     return max_tokens
 
 
-def _quota_row_to_response(row) -> QuotaUsageResponse:
+def _quota_row_to_response(row: asyncpg.Record) -> QuotaUsageResponse:
     """Transforme une ligne SQL de quota en schéma de réponse API.
 
     Args:
@@ -579,7 +572,7 @@ def _normalize_optional_comment(comment: str | None) -> str | None:
     return normalized_comment or None
 
 
-def _decode_chunks(raw_chunks) -> list[dict]:
+def _decode_chunks(raw_chunks: object) -> list[dict]:
     """Décode la représentation JSON des chunks stockés en base.
 
     Args:

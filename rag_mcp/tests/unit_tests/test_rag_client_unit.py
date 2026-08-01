@@ -3,7 +3,6 @@ from typing import ClassVar, Self
 
 import httpx
 import pytest
-
 from app.core.config import McpConfig
 from app.core.errors import (
     McpConnectionError,

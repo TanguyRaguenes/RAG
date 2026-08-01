@@ -21,13 +21,6 @@ fi
 
 log "RAG wiki ingestion started"
 
-if ! curl -fsS -X POST http://localhost:8001/delete_collection; then
-    printf '\n'
-    log "RAG wiki ingestion failed: collection deletion request failed"
-    exit 1
-fi
-printf '\n'
-
 if ! curl -fsS -X POST http://localhost:8002/ingest/bulk; then
     printf '\n'
     log "RAG wiki ingestion failed: bulk ingestion request failed"

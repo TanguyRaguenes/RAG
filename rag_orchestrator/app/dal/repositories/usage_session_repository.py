@@ -20,7 +20,7 @@ class UsageSessionRepository:
             RETURNING id
         """
 
-        async with self.db_pool.acquire() as connection:
+        async with self._acquire() as connection:
             session_id = await connection.fetchval(query, user_id, channel_name)
 
         if session_id is None:
@@ -40,5 +40,5 @@ class UsageSessionRepository:
             WHERE id = $1
         """
 
-        async with self.db_pool.acquire() as connection:
+        async with self._acquire() as connection:
             await connection.execute(query, session_id)

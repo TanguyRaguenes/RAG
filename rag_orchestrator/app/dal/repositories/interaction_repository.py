@@ -39,7 +39,7 @@ class InteractionRepository:
         Returns:
             Identifiant de l'interaction RAG créée en base.
         """
-        async with self.db_pool.acquire() as connection, connection.transaction():
+        async with self._acquire() as connection, connection.transaction():
             interaction_id = await self._insert_interaction(
                 connection=connection,
                 session_id=session_id,
@@ -75,7 +75,7 @@ class InteractionRepository:
                     interaction_id=interaction_id,
                     chunk_id=chunk_id,
                     rank=rank,
-                    score=chunk.get("similarity"),
+                    score=_get_chunk_score(chunk),
                 )
 
         return interaction_id
@@ -99,7 +99,7 @@ class InteractionRepository:
         Returns:
             Identifiant de l'interaction échouée créée en base.
         """
-        async with self.db_pool.acquire() as connection, connection.transaction():
+        async with self._acquire() as connection, connection.transaction():
             return await self._insert_interaction(
                 connection=connection,
                 session_id=session_id,
@@ -300,3 +300,20 @@ class InteractionRepository:
             rank,
             _to_decimal_or_none(score),
         )
+
+
+def _get_chunk_score(chunk: dict[str, Any]) -> float | None:
+    """Sélectionne le score de reranking persistant avec repli sur la similarité.
+
+    Args:
+        chunk: Chunk enrichi par le retriever puis éventuellement le reranker.
+
+    Returns:
+        Score de reranking lorsqu'il existe, sinon score de similarité ou `None`.
+    """
+    score = chunk.get("rerank_score")
+    if isinstance(score, bool) or not isinstance(score, int | float):
+        score = chunk.get("similarity")
+    if isinstance(score, bool) or not isinstance(score, int | float):
+        return None
+    return float(score)

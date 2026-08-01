@@ -1,6 +1,6 @@
 import pytest
-
 from app.api.routers import evaluate_router
+from app.core.config import EvaluatorConfig
 from app.schemas.answer_evaluation_schema import AnswerEvaluationBase
 from app.schemas.evaluator_response_schema import EvaluatorResponseBase
 from app.schemas.retrieval_evaluation_schema import RetrievalEvaluationBase
@@ -10,8 +10,26 @@ from app.schemas.retrieval_evaluation_schema import RetrievalEvaluationBase
 async def test_ask_question_route_sets_total_duration(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    async def fake_evaluate_rag(config):
-        assert config == {"config": True}
+    expected_config = EvaluatorConfig.model_validate(
+        {
+            "llm": {
+                "provider": "ollama",
+                "url_provider": "http://ollama",
+                "model": "judge",
+                "temperature": 0.1,
+                "num_ctx": 1024,
+                "max_output_token": 128,
+                "timeout_seconds": 10,
+            },
+            "evaluation_method": {"use_api_openai": False},
+        }
+    )
+
+    async def fake_evaluate_rag(
+        *, config: EvaluatorConfig, access_token: str
+    ) -> EvaluatorResponseBase:
+        assert config is expected_config
+        assert access_token == "opaque-token"
         return EvaluatorResponseBase(
             average_retrieval=RetrievalEvaluationBase(
                 mrr=1, ndcg=1, recall=1, precision=1
@@ -28,7 +46,7 @@ async def test_ask_question_route_sets_total_duration(
         evaluate_router.time, "perf_counter", iter([1.0, 62.0]).__next__
     )
 
-    response = await evaluate_router.ask_question_route({"config": True})
+    response = await evaluate_router.ask_question_route(expected_config, "opaque-token")
 
     assert response.total_duration == "01:01"
     assert response.total_questions == 2

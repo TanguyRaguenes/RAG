@@ -41,7 +41,7 @@ class UsageUserRepository:
                 )
         """
 
-        async with self.db_pool.acquire() as connection:
+        async with self._acquire() as connection:
             await connection.execute(
                 query,
                 user_id,
@@ -70,7 +70,7 @@ class UsageUserRepository:
             WHERE id = $1
         """
 
-        async with self.db_pool.acquire() as connection:
+        async with self._acquire() as connection:
             theme_preference = await connection.fetchval(query, user_id)
 
         if theme_preference is None:
@@ -99,7 +99,7 @@ class UsageUserRepository:
             WHERE id = $1
         """
 
-        async with self.db_pool.acquire() as connection:
+        async with self._acquire() as connection:
             result = await connection.execute(query, user_id, theme_preference)
 
         if result == "UPDATE 0":

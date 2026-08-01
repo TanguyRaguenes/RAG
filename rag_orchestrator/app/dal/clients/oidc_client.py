@@ -2,6 +2,8 @@ import httpx
 import jwt
 from jwt import PyJWKClient
 
+from app.core.exceptions import IdentityProviderError
+
 
 class OidcClient:
     def __init__(
@@ -12,7 +14,7 @@ class OidcClient:
         userinfo_url: str | None = None,
         pocket_id_api_url: str | None = None,
         pocket_id_api_key: str | None = None,
-    ):
+    ) -> None:
         """Configure le client OIDC utilisé pour valider les JWT et charger le profil.
 
         Args:
@@ -71,13 +73,24 @@ class OidcClient:
         if not self.userinfo_url:
             return {}
 
-        async with httpx.AsyncClient(timeout=10) as client:
-            response = await client.get(
-                self.userinfo_url,
-                headers={"Authorization": f"Bearer {access_token}"},
-            )
-            response.raise_for_status()
-            return response.json()
+        try:
+            async with httpx.AsyncClient(timeout=10) as client:
+                response = await client.get(
+                    self.userinfo_url,
+                    headers={"Authorization": f"Bearer {access_token}"},
+                )
+                response.raise_for_status()
+                userinfo = response.json()
+        except httpx.HTTPError as exception:
+            raise IdentityProviderError("OIDC userinfo request failed") from exception
+        except ValueError as exception:
+            raise IdentityProviderError(
+                "OIDC userinfo returned invalid JSON"
+            ) from exception
+
+        if not isinstance(userinfo, dict):
+            raise IdentityProviderError("OIDC userinfo returned a non-object response")
+        return userinfo
 
     async def get_user_by_id(self, user_id: str) -> dict:
         """Récupère un utilisateur Pocket ID depuis l'API serveur par son identifiant.
@@ -91,13 +104,25 @@ class OidcClient:
         if not self.pocket_id_api_url or not self.pocket_id_api_key:
             return {}
 
-        async with httpx.AsyncClient(timeout=10) as client:
-            response = await client.get(
-                f"{self.pocket_id_api_url}/users/{user_id}",
-                headers={"X-API-Key": self.pocket_id_api_key},
+        try:
+            async with httpx.AsyncClient(timeout=10) as client:
+                response = await client.get(
+                    f"{self.pocket_id_api_url}/users/{user_id}",
+                    headers={"X-API-Key": self.pocket_id_api_key},
+                )
+                response.raise_for_status()
+                user = response.json()
+        except httpx.HTTPError as exception:
+            raise IdentityProviderError("Pocket ID user lookup failed") from exception
+        except ValueError as exception:
+            raise IdentityProviderError(
+                "Pocket ID user lookup returned invalid JSON"
+            ) from exception
+
+        if not isinstance(user, dict):
+            raise IdentityProviderError(
+                "Pocket ID user lookup returned a non-object response"
             )
-            response.raise_for_status()
-            user = response.json()
 
         return _pocket_id_user_to_claims(user)
 

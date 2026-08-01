@@ -3,7 +3,6 @@ from typing import ClassVar, Self
 
 import httpx
 import pytest
-
 from app.core.exceptions import RetrievalServiceException
 from app.dal.clients import retriever_client
 from app.schemas.vector_store_items_schema import VectorStoreItemsBase

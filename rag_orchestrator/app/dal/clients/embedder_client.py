@@ -4,7 +4,7 @@ import time
 import httpx
 from opentelemetry import trace
 
-from app.core.exceptions import EmbedderContainerException
+from app.core.exceptions import DependencyResponseError, EmbedderContainerException
 from app.core.metrics import (
     orchestrator_external_call_duration_seconds,
     orchestrator_external_call_errors_total,
@@ -24,12 +24,12 @@ async def embed(texts: list[str]) -> list[list[float]]:
 
     Raises:
         EmbedderContainerException: Si l'URL manque, si le service échoue, ou si l'appel HTTP échoue.
-        KeyError: Si la réponse JSON ne contient pas `embeded_texts`.
+        DependencyResponseError: Si la réponse JSON ne contient pas les embeddings attendus.
     """
     url = os.getenv("RAG_EMBEDDER_EMBED_URL")
     if not url:
         raise EmbedderContainerException(
-            message="URL du service 'embedder' non configurée",
+            internal_message="Embedder URL is not configured",
             details={"env_var": "RAG_EMBEDDER_EMBED_URL"},
         )
 
@@ -48,42 +48,88 @@ async def embed(texts: list[str]) -> list[list[float]]:
                 data = response.json()
         except httpx.HTTPStatusError as exception:
             _record_external_error("embedder", "embed", "http_status", start)
-            try:
-                response_json = exception.response.json()
-                raise EmbedderContainerException(
-                    message=f"Erreur HTTP {exception.response.status_code}",
-                    details={"url": url, "error": str(exception)},
-                    original_exception=response_json,
-                ) from exception
-            except ValueError:
-                raise EmbedderContainerException(
-                    message=f"Erreur HTTP {exception.response.status_code}",
-                    details={"url": url, "error": str(exception)},
-                ) from exception
+            raise EmbedderContainerException(
+                internal_message="Embedder returned an HTTP error",
+                details={"status_code": exception.response.status_code},
+            ) from exception
         except httpx.ConnectError as exception:
             _record_external_error("embedder", "embed", "connect_error", start)
             raise EmbedderContainerException(
-                message="Impossible de se connecter au service 'embedder'",
-                details={"url": url, "error": str(exception)},
+                internal_message="Embedder connection failed",
             ) from exception
         except httpx.TimeoutException as exception:
             _record_external_error("embedder", "embed", "timeout", start)
             raise EmbedderContainerException(
-                message="Timeout lors de l'appel au service 'embedder'",
-                details={"url": url, "error": str(exception)},
+                internal_message="Embedder request timed out",
             ) from exception
         except httpx.RequestError as exception:
             _record_external_error("embedder", "embed", "request_error", start)
             raise EmbedderContainerException(
-                message="Erreur réseau lors de l'appel au service 'embedder'",
-                details={"url": url, "error": str(exception)},
+                internal_message="Embedder request failed",
             ) from exception
+        except ValueError as exception:
+            _record_external_error("embedder", "embed", "invalid_json", start)
+            raise DependencyResponseError(
+                "Embedder returned invalid JSON",
+                details={"dependency": "embedder", "operation": "embed"},
+            ) from exception
+
+    try:
+        embeddings = _extract_embeddings(data)
+    except DependencyResponseError:
+        _record_external_error("embedder", "embed", "invalid_response", start)
+        raise
 
     orchestrator_external_call_duration_seconds.labels(
         dependency="embedder", operation="embed", status="success"
     ).observe(time.perf_counter() - start)
+    return embeddings
 
-    return data["embeded_texts"]
+
+def _extract_embeddings(data: object) -> list[list[float]]:
+    """Valide la collection minimale attendue du service embedder.
+
+    Args:
+        data: JSON décodé retourné par la dépendance.
+
+    Returns:
+        Liste non vide d'embeddings numériques.
+
+    Raises:
+        DependencyResponseError: Si la structure de réponse est absente ou malformée.
+    """
+    if not isinstance(data, dict):
+        raise DependencyResponseError(
+            "Embedder response is not an object",
+            details={"dependency": "embedder", "operation": "embed"},
+        )
+
+    try:
+        embeddings = data["embeded_texts"]
+    except (KeyError, TypeError) as exception:
+        raise DependencyResponseError(
+            "Embedder response is missing embeded_texts",
+            details={"dependency": "embedder", "operation": "embed"},
+        ) from exception
+
+    if (
+        not isinstance(embeddings, list)
+        or not embeddings
+        or not all(
+            isinstance(embedding, list)
+            and embedding
+            and all(
+                not isinstance(value, bool) and isinstance(value, int | float)
+                for value in embedding
+            )
+            for embedding in embeddings
+        )
+    ):
+        raise DependencyResponseError(
+            "Embedder response contains malformed embeddings",
+            details={"dependency": "embedder", "operation": "embed"},
+        )
+    return embeddings
 
 
 def _record_external_error(

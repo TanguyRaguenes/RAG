@@ -76,7 +76,7 @@ orchestrator_tokens_total = Counter(
 
 orchestrator_cost_total = Counter(
     "orchestrator_cost_total",
-    "Coût estimé cumulé des appels LLM",
+    "Coût estimé cumulé des appels LLM en euros",
     ["provider", "model"],
 )
 
