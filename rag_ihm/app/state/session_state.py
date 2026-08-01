@@ -5,14 +5,6 @@ import streamlit as st
 CHAT_MESSAGES_KEY = "chat_messages"
 CHAT_PENDING_PROMPT_KEY = "chat_pending_prompt"
 DASHBOARD_RESULT_KEY = "dashboard_result"
-UI_THEME_KEY = "ui_theme_mode"
-UI_THEME_SYNCED_KEY = "ui_theme_synced"
-UI_THEME_PERSISTED_KEY = "ui_theme_persisted"
-
-
-def init_chat_state() -> None:
-    """Initialise les clés Streamlit nécessaires à l'historique de conversation."""
-    st.session_state.setdefault(CHAT_MESSAGES_KEY, [])
 
 
 def get_chat_messages() -> list[dict[str, Any]]:
@@ -21,8 +13,7 @@ def get_chat_messages() -> list[dict[str, Any]]:
     Returns:
         Liste mutable des messages de chat conservés en session Streamlit.
     """
-    init_chat_state()
-    return st.session_state[CHAT_MESSAGES_KEY]
+    return st.session_state.setdefault(CHAT_MESSAGES_KEY, [])
 
 
 def append_chat_message(message: dict[str, Any]) -> None:
@@ -79,52 +70,3 @@ def get_dashboard_result() -> dict[str, Any] | None:
 def clear_dashboard_result() -> None:
     """Supprime le résultat d'évaluation conservé en session."""
     st.session_state.pop(DASHBOARD_RESULT_KEY, None)
-
-
-def get_theme_mode() -> str:
-    """Retourne le mode de thème actuellement sélectionné dans la session.
-
-    Returns:
-        Nom du thème actuellement actif dans l'IHM.
-    """
-    value = st.session_state.get(UI_THEME_KEY, "Clair")
-    return str(value)
-
-
-def set_theme_mode(mode: str) -> None:
-    """Enregistre le mode de thème choisi dans la session Streamlit.
-
-    Args:
-        mode: Mode de thème sélectionné par l'utilisateur.
-    """
-    st.session_state[UI_THEME_KEY] = mode
-
-
-def has_synced_theme_preference() -> bool:
-    """Indique si la préférence de thème distante a déjà été synchronisée.
-
-    Returns:
-        `True` si la préférence de thème a déjà été synchronisée.
-    """
-    return bool(st.session_state.get(UI_THEME_SYNCED_KEY))
-
-
-def mark_theme_preference_synced(mode: str) -> None:
-    """Marque la préférence de thème comme synchronisée avec la valeur distante.
-
-    Args:
-        mode: Mode de thème sélectionné par l'utilisateur.
-    """
-    st.session_state[UI_THEME_SYNCED_KEY] = True
-    st.session_state[UI_THEME_PERSISTED_KEY] = mode
-
-
-def get_persisted_theme_mode() -> str | None:
-    """Retourne le thème précédemment persisté pour éviter les écritures inutiles.
-
-    Returns:
-        Nom du thème déjà persisté, ou `None` si aucune valeur n'est connue.
-    """
-    value = st.session_state.get(UI_THEME_PERSISTED_KEY)
-
-    return str(value) if value else None

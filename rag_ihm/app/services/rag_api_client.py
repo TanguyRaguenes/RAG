@@ -171,7 +171,9 @@ def get_my_quota_usage(
     Raises:
         RagApiError: Si l'API appelée par l'IHM est indisponible ou retourne une réponse inexploitable.
     """
-    data = _authenticated_get(_usage_url(config, "/usage/quota/me"), access_token)
+    data = _authenticated_request(
+        "GET", _usage_url(config, "/usage/quota/me"), access_token
+    )
 
     if not isinstance(data, dict):
         raise RagApiError("Le service a retourné un format inattendu.")
@@ -195,8 +197,8 @@ def list_admin_quota_usages(
     Raises:
         RagApiError: Si l'API appelée par l'IHM est indisponible ou retourne une réponse inexploitable.
     """
-    data = _authenticated_get(
-        _usage_url(config, "/usage/quota/admin/users"), access_token
+    data = _authenticated_request(
+        "GET", _usage_url(config, "/usage/quota/admin/users"), access_token
     )
 
     if not isinstance(data, list):
@@ -229,10 +231,11 @@ def update_admin_quota_usage(
     """
     url = _usage_url(config, f"/usage/quota/admin/users/{user_id}")
 
-    data = _authenticated_patch(
+    data = _authenticated_request(
+        "PATCH",
         url,
         access_token,
-        {"max_tokens_par_mois": max_tokens_par_mois, "actif": actif},
+        payload={"max_tokens_par_mois": max_tokens_par_mois, "actif": actif},
     )
 
     if not isinstance(data, dict):
@@ -261,7 +264,8 @@ def list_admin_interaction_feedbacks(
     Raises:
         RagApiError: Si l'API appelée par l'IHM est indisponible ou retourne une réponse inexploitable.
     """
-    data = _authenticated_get(
+    data = _authenticated_request(
+        "GET",
         _usage_url(config, "/usage/admin/interactions/feedbacks"),
         access_token,
         params={
@@ -271,60 +275,6 @@ def list_admin_interaction_feedbacks(
     )
 
     if not isinstance(data, list):
-        raise RagApiError("Le service a retourné un format inattendu.")
-
-    return data
-
-
-def get_my_preferences(
-    config: ChatApiConfig,
-    access_token: str | None,
-) -> dict[str, Any]:
-    """Récupère les préférences d'affichage de l'utilisateur connecté.
-
-    Args:
-        config: Configuration applicative contenant les URLs, modèles ou paramètres métier nécessaires.
-        access_token: Access token OIDC utilisé pour authentifier l'appel HTTP sortant.
-
-    Returns:
-        Préférences utilisateur retournées par l'orchestrator.
-
-    Raises:
-        RagApiError: Si l'API appelée par l'IHM est indisponible ou retourne une réponse inexploitable.
-    """
-    data = _authenticated_get(_usage_url(config, "/usage/preferences/me"), access_token)
-
-    if not isinstance(data, dict):
-        raise RagApiError("Le service a retourné un format inattendu.")
-
-    return data
-
-
-def update_my_preferences(
-    config: ChatApiConfig,
-    access_token: str | None,
-    theme_preference: str,
-) -> dict[str, Any]:
-    """Met à jour la préférence de thème de l'utilisateur connecté.
-
-    Args:
-        config: Configuration applicative contenant les URLs, modèles ou paramètres métier nécessaires.
-        access_token: Access token OIDC utilisé pour authentifier l'appel HTTP sortant.
-        theme_preference: Préférence de thème choisie par l'utilisateur.
-
-    Returns:
-        Préférences utilisateur après mise à jour côté orchestrator.
-
-    Raises:
-        RagApiError: Si l'API appelée par l'IHM est indisponible ou retourne une réponse inexploitable.
-    """
-    data = _authenticated_patch(
-        _usage_url(config, "/usage/preferences/me"),
-        access_token,
-        {"theme_preference": theme_preference},
-    )
-
-    if not isinstance(data, dict):
         raise RagApiError("Le service a retourné un format inattendu.")
 
     return data
@@ -352,10 +302,11 @@ def submit_interaction_feedback(
     Raises:
         RagApiError: Si l'API appelée par l'IHM est indisponible ou retourne une réponse inexploitable.
     """
-    data = _authenticated_post(
+    data = _authenticated_request(
+        "POST",
         _usage_url(config, f"/usage/interactions/{interaction_id}/feedback"),
         access_token,
-        {"note": note, "commentaire": commentaire},
+        payload={"note": note, "commentaire": commentaire},
     )
 
     if not isinstance(data, dict):
@@ -390,7 +341,7 @@ def run_evaluation(config: EvaluatorApiConfig) -> dict[str, Any]:
         raise RagApiError("L'évaluation n'a pas pu être lancée.") from exception
 
     _raise_for_error_response(response)
-    return _response_json_any(response)
+    return _response_json(response)
 
 
 def _required_env(name: str) -> str:
@@ -426,50 +377,6 @@ def _usage_url(config: ChatApiConfig, path: str) -> str:
     return f"{base_url}{path}"
 
 
-def _authenticated_get(
-    url: str,
-    access_token: str | None,
-    params: dict[str, Any] | None = None,
-):
-    """Exécute une requête GET authentifiée vers l'orchestrator.
-
-    Args:
-        url: URL cible de l'appel HTTP.
-        access_token: Access token OIDC utilisé pour authentifier l'appel HTTP sortant.
-        params: Paramètres de query string transmis à l'API appelée.
-
-    Returns:
-        Corps JSON décodé de la réponse GET authentifiée.
-    """
-    response = _authenticated_request(
-        "GET",
-        url,
-        access_token,
-        params=params,
-    )
-    return _response_json_any(response)
-
-
-def _authenticated_post(url: str, access_token: str | None, payload: dict[str, Any]):
-    """Exécute une requête POST authentifiée vers l'orchestrator.
-
-    Args:
-        url: URL cible de l'appel HTTP.
-        access_token: Access token OIDC utilisé pour authentifier l'appel HTTP sortant.
-        payload: Corps JSON transmis à une API externe ou persisté en base.
-
-    Returns:
-        Corps JSON décodé de la réponse POST authentifiée.
-    """
-    response = _authenticated_request(
-        "POST",
-        url,
-        access_token,
-        payload=payload,
-    )
-    return _response_json_any(response)
-
-
 def _response_json_any(response: requests.Response):
     """Décode une réponse JSON dont le type racine peut varier.
 
@@ -488,26 +395,6 @@ def _response_json_any(response: requests.Response):
         raise RagApiError("Le service a retourné une réponse illisible.") from exception
 
 
-def _authenticated_patch(url: str, access_token: str | None, payload: dict[str, Any]):
-    """Exécute une requête PATCH authentifiée vers l'orchestrator.
-
-    Args:
-        url: URL cible de l'appel HTTP.
-        access_token: Access token OIDC utilisé pour authentifier l'appel HTTP sortant.
-        payload: Corps JSON transmis à une API externe ou persisté en base.
-
-    Returns:
-        Corps JSON objet de la réponse PATCH authentifiée.
-    """
-    response = _authenticated_request(
-        "PATCH",
-        url,
-        access_token,
-        payload=payload,
-    )
-    return _response_json(response)
-
-
 def _authenticated_request(
     method: str,
     url: str,
@@ -515,7 +402,7 @@ def _authenticated_request(
     *,
     params: dict[str, Any] | None = None,
     payload: dict[str, Any] | None = None,
-) -> requests.Response:
+) -> Any:
     """Centralise l'envoi HTTP authentifié vers les APIs RAG.
 
     Args:
@@ -526,7 +413,7 @@ def _authenticated_request(
         payload: Corps JSON transmis à une API externe ou persisté en base.
 
     Returns:
-        Réponse HTTP validée après authentification bearer.
+        Corps JSON décodé de la réponse authentifiée.
 
     Raises:
         RagApiError: Si l'API appelée par l'IHM est indisponible ou retourne une réponse inexploitable.
@@ -553,7 +440,7 @@ def _authenticated_request(
         ) from exception
 
     _raise_for_error_response(response)
-    return response
+    return _response_json_any(response)
 
 
 def _auth_headers(access_token: str) -> dict[str, str]:
@@ -592,7 +479,7 @@ def _raise_for_error_response(response: requests.Response) -> None:
     Raises:
         RagApiError: Si l'API appelée par l'IHM est indisponible ou retourne une réponse inexploitable.
     """
-    if response.status_code == 200:
+    if 200 <= response.status_code < 300:
         return
 
     details = _safe_response_details(response)

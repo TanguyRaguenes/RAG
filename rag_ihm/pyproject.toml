@@ -1,12 +1,11 @@
 [project]
 name = "rag-ihm"
 version = "0.1.0"
-description = "Add your description here"
-readme = "README.md"
+description = "Interface Streamlit du RAG interne"
 requires-python = ">=3.12"
 dependencies = [
     "requests>=2.34.2",
-    "streamlit>=1.31.0",
+    "streamlit>=1.57.0",
 ]
 
 [dependency-groups]
@@ -20,5 +19,4 @@ omit = [
     "app/main.py",
     "app/components/*.py",
     "app/pages/*.py",
-    "app/styles/*.py",
 ]

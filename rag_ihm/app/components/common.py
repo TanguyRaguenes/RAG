@@ -1,5 +1,4 @@
 from collections.abc import Callable
-from pathlib import Path
 from typing import Any
 
 import streamlit as st
@@ -8,14 +7,18 @@ from app.services.auth_service import is_usage_admin
 from app.services.rag_api_client import RagApiError
 
 
-def render_sidebar_brand(current_user: dict[str, Any] | None) -> None:
-    """Affiche l'identité de l'application et l'utilisateur connecté."""
-    image_path = Path("assets/images/robot_isilog.png")
-    if image_path.exists():
-        st.image(str(image_path), use_container_width=True)
-    else:
-        st.title("IsiDore")
+def load_config_or_stop[Config](loader: Callable[[], Config]) -> Config:
+    """Charge une configuration ou interrompt proprement le rendu de la page."""
+    try:
+        return loader()
+    except RagApiError as error:
+        render_api_error(error)
+        st.stop()
 
+
+def render_sidebar_header(current_user: dict[str, Any] | None) -> None:
+    """Affiche l'application et l'utilisateur connecté dans la barre latérale."""
+    st.title("IsiDore")
     st.caption("Assistant RAG sur la documentation interne ISILOG.")
 
     user_label = None
@@ -42,11 +45,6 @@ def render_api_error(error: RagApiError, debug_enabled: bool = False) -> None:
     if debug_enabled and error.details:
         with st.expander("Détails techniques"):
             st.json(error.details)
-
-
-def render_healthcheck_status(label: str, healthcheck: Callable[[], None]) -> None:
-    """Affiche le contrôle d'un service API."""
-    render_healthchecks_status([(label, healthcheck)])
 
 
 def render_healthchecks_status(
@@ -78,15 +76,7 @@ def _run_healthcheck(
     label: str,
     healthcheck: Callable[[], None],
 ) -> tuple[str, bool, str | None]:
-    """Exécute un healthcheck HTTP et affiche le statut dans l'IHM.
-
-    Args:
-        label: Libellé affiché à l'utilisateur pour le statut, le score ou le KPI.
-        healthcheck: Fonction qui vérifie la disponibilité d'un backend depuis l'IHM.
-
-    Returns:
-        `True` si le backend vérifié répond correctement.
-    """
+    """Exécute un healthcheck et retourne son libellé, son état et son erreur."""
     try:
         healthcheck()
     except RagApiError as error:

@@ -1,6 +1,7 @@
 import streamlit as st
 
 from app.components.common import (
+    load_config_or_stop,
     render_api_error,
     render_page_header,
 )
@@ -16,22 +17,8 @@ from app.services.rag_api_client import (
     load_chat_api_config,
     update_admin_quota_usage,
 )
-from app.styles.theme import apply_theme
 
 ADMIN_QUOTA_FLASH_KEY = "admin_quota_flash_message"
-
-
-def _load_config_or_stop():
-    """Charge la configuration requise par une page Streamlit ou arrête le rendu avec un message.
-
-    Returns:
-        Configuration de l'API chat nécessaire pour charger les quotas et préférences utilisateur.
-    """
-    try:
-        return load_chat_api_config()
-    except RagApiError as error:
-        render_api_error(error)
-        st.stop()
 
 
 def _load_my_quota(config, access_token: str | None) -> dict | None:
@@ -111,17 +98,16 @@ def _render_admin_panel(config, access_token: str | None) -> None:
         st.info("Aucun quota utilisateur à afficher.")
         return
 
-    table_rows = [_quota_to_table_row(quota) for quota in quotas]
-    st.dataframe(table_rows, use_container_width=True, hide_index=True)
+    quotas_by_id = {quota["utilisateur_id"]: quota for quota in quotas}
+    table_rows = [_quota_to_table_row(quota) for quota in quotas_by_id.values()]
+    st.dataframe(table_rows, width="stretch", hide_index=True)
 
     selected_user_id = st.selectbox(
         "Utilisateur à modifier",
-        [quota["utilisateur_id"] for quota in quotas],
-        format_func=lambda user_id: _quota_label(_quota_by_user_id(quotas, user_id)),
+        list(quotas_by_id),
+        format_func=lambda user_id: _quota_label(quotas_by_id[user_id]),
     )
-    selected_quota = next(
-        quota for quota in quotas if quota["utilisateur_id"] == selected_user_id
-    )
+    selected_quota = quotas_by_id[selected_user_id]
 
     with st.form("admin_quota_form"):
         max_tokens = st.number_input(
@@ -218,19 +204,6 @@ def _quota_label(quota: dict) -> str:
     return f"Utilisateur Pocket ID ({_short_user_id(quota['utilisateur_id'])})"
 
 
-def _quota_by_user_id(quotas: list[dict], user_id: str) -> dict:
-    """Indexe les quotas par identifiant utilisateur.
-
-    Args:
-        quotas: Liste des quotas utilisateur affichés dans le panneau administrateur.
-        user_id: Identifiant interne ou pseudonymisé de l'utilisateur ciblé.
-
-    Returns:
-        Dictionnaire des quotas indexés par identifiant utilisateur.
-    """
-    return next(quota for quota in quotas if quota["utilisateur_id"] == user_id)
-
-
 def _format_tokens(value: int) -> str:
     """Formate un nombre de tokens avec séparateurs lisibles.
 
@@ -243,11 +216,9 @@ def _format_tokens(value: int) -> str:
     return f"{value:,}".replace(",", " ")
 
 
-config = _load_config_or_stop()
+config = load_config_or_stop(load_chat_api_config)
 current_user = require_authenticated_user()
 access_token = get_access_token()
-
-apply_theme()
 
 render_page_header(
     "Consommation",

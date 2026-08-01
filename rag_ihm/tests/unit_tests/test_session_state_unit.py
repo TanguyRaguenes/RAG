@@ -40,18 +40,3 @@ def test_dashboard_result_is_returned_only_when_it_is_a_dict(monkeypatch) -> Non
 
     session_state.clear_dashboard_result()
     assert session_state.DASHBOARD_RESULT_KEY not in fake_streamlit.session_state
-
-
-def test_theme_preference_state_defaults_and_tracks_sync(monkeypatch) -> None:
-    fake_streamlit = SimpleNamespace(session_state={})
-    monkeypatch.setattr(session_state, "st", fake_streamlit)
-
-    assert session_state.get_theme_mode() == "Clair"
-    assert not session_state.has_synced_theme_preference()
-
-    session_state.set_theme_mode("Sombre")
-    session_state.mark_theme_preference_synced("Sombre")
-
-    assert session_state.get_theme_mode() == "Sombre"
-    assert session_state.has_synced_theme_preference()
-    assert session_state.get_persisted_theme_mode() == "Sombre"

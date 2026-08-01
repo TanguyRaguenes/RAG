@@ -59,10 +59,10 @@ def render_summary_cards(result: dict) -> None:
     )
 
     col1, col2, col3, col4 = st.columns(4)
-    _render_kpi(col1, "Questions", str(int(result.get("total_questions", 0))))
-    _render_kpi(col2, "Durée", str(result.get("total_duration", "N/A")))
-    _render_kpi(col3, "Retrieval", f"{retrieval_average:.0%}")
-    _render_kpi(col4, "Réponse", f"{answer_average:.0%}")
+    col1.metric("Questions", str(int(result.get("total_questions", 0))))
+    col2.metric("Durée", str(result.get("total_duration", "N/A")))
+    col3.metric("Retrieval", f"{retrieval_average:.0%}")
+    col4.metric("Réponse", f"{answer_average:.0%}")
 
 
 def render_retrieval_scores(retrieval: dict) -> None:
@@ -141,43 +141,15 @@ def _render_score_grid(metrics: list[ScoreMetric]) -> None:
             st.caption(metric.help_text)
 
 
-def _render_kpi(column, label: str, value: str) -> None:
-    """Affiche un indicateur KPI avec son libellé et sa valeur.
-
-    Args:
-        column: Colonne Streamlit dans laquelle rendre le KPI.
-        label: Libellé affiché à l'utilisateur pour le statut, le score ou le KPI.
-        value: Valeur à convertir, borner ou formater.
-    """
-    with column:
-        st.caption(label)
-        st.markdown(f"### {value}")
-
-
 def _format_score(value: float, scale_max: float) -> str:
-    """Formate un score numérique en pourcentage lisible.
-
-    Args:
-        value: Valeur à convertir, borner ou formater.
-        scale_max: Valeur maximale utilisée pour convertir un score en pourcentage.
-
-    Returns:
-        Score formaté en pourcentage lisible.
-    """
+    """Formate un score en pourcentage ou sur son échelle absolue."""
     if scale_max == 1.0:
         return f"{value:.0%}"
     return f"{value:.1f}/{int(scale_max)}"
 
 
 def _average(values: list[float]) -> float:
-    """Calcule la moyenne de valeurs numériques disponibles.
-
-    Args:
-        values: Valeurs numériques utilisées pour un calcul agrégé.
-
-    Returns:
-        Moyenne des valeurs numériques disponibles.
-    """
+    """Calcule la moyenne des valeurs positives disponibles."""
     valid_values = [value for value in values if value >= 0]
     if not valid_values:
         return 0.0
@@ -185,14 +157,7 @@ def _average(values: list[float]) -> float:
 
 
 def _as_float(value: object) -> float:
-    """Convertit une valeur optionnelle en nombre flottant affichable.
-
-    Args:
-        value: Valeur à convertir, borner ou formater.
-
-    Returns:
-        Valeur convertie en float, ou `None` si la conversion échoue.
-    """
+    """Convertit une valeur en flottant et retourne zéro si elle est invalide."""
     try:
         return float(value)
     except (TypeError, ValueError):
@@ -200,12 +165,5 @@ def _as_float(value: object) -> float:
 
 
 def _clamp(value: float) -> float:
-    """Borne une valeur numérique entre deux limites inclusives.
-
-    Args:
-        value: Valeur à convertir, borner ou formater.
-
-    Returns:
-        Valeur bornée entre les limites fournies.
-    """
+    """Borne une valeur entre zéro et un."""
     return min(max(value, 0.0), 1.0)

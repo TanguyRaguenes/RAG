@@ -1,12 +1,13 @@
 import streamlit as st
 
 from app.components.chat import (
+    ROLE_USER,
     build_assistant_message,
-    build_user_message,
     render_chat_message,
     render_empty_chat_state,
 )
 from app.components.common import (
+    load_config_or_stop,
     render_api_error,
     render_healthchecks_status,
     render_page_header,
@@ -24,11 +25,9 @@ from app.state.session_state import (
     append_chat_message,
     clear_chat_messages,
     get_chat_messages,
-    init_chat_state,
     pop_pending_prompt,
     set_pending_prompt,
 )
-from app.styles.theme import apply_theme
 
 PROVIDER_OPTIONS = {
     "Cloud": "api",
@@ -72,19 +71,6 @@ def _raise_health_error(error: RagApiError) -> None:
     raise error
 
 
-def _load_config_or_stop():
-    """Charge la configuration requise par une page Streamlit ou arrête le rendu avec un message.
-
-    Returns:
-        Configuration de l'API chat nécessaire pour appeler l'orchestrator.
-    """
-    try:
-        return load_chat_api_config()
-    except RagApiError as error:
-        render_api_error(error)
-        st.stop()
-
-
 def _render_sidebar(config) -> tuple[str, bool]:
     """Affiche la barre latérale contextuelle de la page Streamlit courante.
 
@@ -103,7 +89,7 @@ def _render_sidebar(config) -> tuple[str, bool]:
             horizontal=True,
             help="Cloud utilise l'API configurée. Local utilise le modèle Ollama.",
         )
-        details_mode = st.radio(
+        details_label = st.radio(
             "Détails techniques",
             ["Masqués", "Affichés"],
             index=1,
@@ -111,15 +97,15 @@ def _render_sidebar(config) -> tuple[str, bool]:
             help="À réserver au diagnostic : prompt généré et détails d'erreur.",
         )
 
-        if st.button("🔍 État API", use_container_width=True):
+        if st.button("État API", width="stretch"):
             _render_api_status(config)
 
-        if st.button("Effacer la conversation", use_container_width=True):
+        if st.button("Effacer la conversation", width="stretch"):
             clear_chat_messages()
             st.toast("Conversation effacée.")
             st.rerun()
 
-    return PROVIDER_OPTIONS[provider_label], details_mode == "Affichés"
+    return PROVIDER_OPTIONS[provider_label], details_label == "Affichés"
 
 
 def _submit_feedback(config, interaction_id: int, note: int, comment: str) -> bool:
@@ -149,17 +135,17 @@ def _submit_feedback(config, interaction_id: int, note: int, comment: str) -> bo
     return True
 
 
-def _render_history(debug_enabled: bool, config) -> None:
+def _render_history(show_technical_details: bool, config) -> None:
     """Affiche l'historique de conversation dans la page de chat.
 
     Args:
-        debug_enabled: Indique si les détails techniques doivent être affichés dans l'interface.
+        show_technical_details: Indique si les détails techniques doivent être affichés dans l'interface.
         config: Configuration applicative contenant les URLs, modèles ou paramètres métier nécessaires.
     """
     for message in get_chat_messages():
         render_chat_message(
             message,
-            debug_enabled=debug_enabled,
+            debug_enabled=show_technical_details,
             on_submit_feedback=lambda interaction_id, note, comment: _submit_feedback(
                 config,
                 interaction_id,
@@ -169,16 +155,18 @@ def _render_history(debug_enabled: bool, config) -> None:
         )
 
 
-def _process_prompt(prompt: str, provider: str, debug_enabled: bool, config) -> None:
+def _process_prompt(
+    prompt: str, provider: str, show_technical_details: bool, config
+) -> None:
     """Envoie le prompt utilisateur au RAG et ajoute la réponse à l'historique.
 
     Args:
         prompt: Prompt utilisateur ou prompt généré à traiter.
         provider: Provider LLM ou service externe concerné.
-        debug_enabled: Indique si les détails techniques doivent être affichés dans l'interface.
+        show_technical_details: Indique si les détails techniques doivent être affichés dans l'interface.
         config: Configuration applicative contenant les URLs, modèles ou paramètres métier nécessaires.
     """
-    user_message = build_user_message(prompt)
+    user_message = {"role": ROLE_USER, "content": prompt}
     append_chat_message(user_message)
     render_chat_message(user_message)
 
@@ -187,7 +175,7 @@ def _process_prompt(prompt: str, provider: str, debug_enabled: bool, config) -> 
             access_token = get_access_token()
             response = ask_question(config, prompt, provider, access_token)
         except RagApiError as error:
-            render_api_error(error, debug_enabled=debug_enabled)
+            render_api_error(error, debug_enabled=show_technical_details)
             return
 
     st.toast("Réponse prête.")
@@ -196,7 +184,7 @@ def _process_prompt(prompt: str, provider: str, debug_enabled: bool, config) -> 
     append_chat_message(assistant_message)
     render_chat_message(
         assistant_message,
-        debug_enabled=debug_enabled,
+        debug_enabled=show_technical_details,
         on_submit_feedback=lambda interaction_id, note, comment: _submit_feedback(
             config,
             interaction_id,
@@ -206,12 +194,10 @@ def _process_prompt(prompt: str, provider: str, debug_enabled: bool, config) -> 
     )
 
 
-config = _load_config_or_stop()
+config = load_config_or_stop(load_chat_api_config)
 require_authenticated_user()
-init_chat_state()
-apply_theme()
 
-provider, debug_mode = _render_sidebar(config)
+provider, show_technical_details = _render_sidebar(config)
 
 render_page_header("IsiDore", "")
 
@@ -219,11 +205,11 @@ messages = get_chat_messages()
 if not messages:
     render_empty_chat_state(lambda question: (set_pending_prompt(question), st.rerun()))
 
-_render_history(debug_mode, config)
+_render_history(show_technical_details, config)
 
 pending_prompt = pop_pending_prompt()
 typed_prompt = st.chat_input("Pose ta question sur la documentation interne")
 prompt = typed_prompt or pending_prompt
 
 if prompt:
-    _process_prompt(prompt, provider, debug_mode, config)
+    _process_prompt(prompt, provider, show_technical_details, config)

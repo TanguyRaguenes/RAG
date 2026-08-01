@@ -2,7 +2,11 @@ from datetime import UTC, date, datetime, timedelta
 
 import streamlit as st
 
-from app.components.common import render_api_error, render_page_header
+from app.components.common import (
+    load_config_or_stop,
+    render_api_error,
+    render_page_header,
+)
 from app.services.auth_service import (
     get_access_token,
     is_usage_admin,
@@ -13,20 +17,6 @@ from app.services.rag_api_client import (
     list_admin_interaction_feedbacks,
     load_chat_api_config,
 )
-from app.styles.theme import apply_theme
-
-
-def _load_config_or_stop():
-    """Charge la configuration requise par une page Streamlit ou arrête le rendu avec un message.
-
-    Returns:
-        Configuration de l'API chat utilisée pour interroger les endpoints d'administration.
-    """
-    try:
-        return load_chat_api_config()
-    except RagApiError as error:
-        render_api_error(error)
-        st.stop()
 
 
 def _render_period_selector() -> tuple[date, date]:
@@ -145,17 +135,18 @@ def _format_chunks(chunks: object) -> str:
         path = chunk.get("chemin") or "-"
         score = chunk.get("score")
         content = str(chunk.get("contenu") or "").strip()
-        score_label = f" - score {float(score):.2f}" if score is not None else ""
+        try:
+            score_label = f" - score {float(score):.2f}" if score is not None else ""
+        except (TypeError, ValueError):
+            score_label = ""
         formatted_chunks.append(f"[{rank}] {title}{score_label}\n{path}\n{content}")
 
     return "\n\n".join(formatted_chunks) if formatted_chunks else "-"
 
 
-config = _load_config_or_stop()
+config = load_config_or_stop(load_chat_api_config)
 current_user = require_authenticated_user()
 access_token = get_access_token()
-
-apply_theme()
 
 if not is_usage_admin(current_user):
     st.error("Cette page est réservée aux administrateurs.")
@@ -179,5 +170,4 @@ if not feedbacks:
     st.stop()
 
 table_rows = [_feedback_to_table_row(feedback) for feedback in feedbacks]
-st.markdown('<div class="dataframe-toolbar-safe-space"></div>', unsafe_allow_html=True)
-st.dataframe(table_rows, use_container_width=True, hide_index=True)
+st.dataframe(table_rows, width="stretch", hide_index=True)

@@ -3712,7 +3712,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "requests", specifier = ">=2.34.2" },
-    { name = "streamlit", specifier = ">=1.31.0" },
+    { name = "streamlit", specifier = ">=1.57.0" },
 ]
 
 [package.metadata.requires-dev]

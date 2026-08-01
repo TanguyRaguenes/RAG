@@ -1,9 +1,11 @@
 import base64
 import binascii
-import html
+import hashlib
+import hmac
 import json
 import os
 import secrets
+import time
 from dataclasses import dataclass
 from typing import Any
 from urllib.parse import urlencode
@@ -12,19 +14,12 @@ import requests
 import streamlit as st
 
 ACCESS_TOKEN_KEY = "auth_access_token"
-ID_TOKEN_KEY = "auth_id_token"
-REFRESH_TOKEN_KEY = "auth_refresh_token"
 USER_KEY = "auth_user"
-STATE_KEY = "auth_state"
+OAUTH_STATE_TTL_SECONDS = 600
 
 AUTH_SESSION_KEYS = (
     ACCESS_TOKEN_KEY,
-    ID_TOKEN_KEY,
-    REFRESH_TOKEN_KEY,
     USER_KEY,
-    STATE_KEY,
-    "ui_theme_synced",
-    "ui_theme_persisted",
 )
 
 
@@ -136,12 +131,46 @@ def build_login_url() -> str:
         URL de login avec paramètres OAuth et state.
     """
     config = get_oidc_config()
-    state = secrets.token_urlsafe(32)
-    st.session_state[STATE_KEY] = state
-
+    state = _build_oauth_state(config.client_secret)
     params = build_authorization_params(config, state)
 
     return f"{config.authorize_url}?{urlencode(params)}"
+
+
+def _build_oauth_state(client_secret: str) -> str:
+    """Crée un state OAuth signé qui reste vérifiable après le rechargement Streamlit."""
+    payload = f"{int(time.time())}.{secrets.token_urlsafe(32)}"
+    signature = hmac.new(
+        client_secret.encode(), payload.encode(), hashlib.sha256
+    ).digest()
+    encoded_signature = base64.urlsafe_b64encode(signature).decode().rstrip("=")
+    return f"{payload}.{encoded_signature}"
+
+
+def _is_valid_oauth_state(state: str | None, client_secret: str) -> bool:
+    """Vérifie la signature et l'âge maximal du state OAuth reçu."""
+    if not state:
+        return False
+
+    try:
+        issued_at_text, nonce, signature = state.split(".", 2)
+        issued_at = int(issued_at_text)
+    except (TypeError, ValueError):
+        return False
+
+    age = int(time.time()) - issued_at
+    if not nonce or age < 0 or age > OAUTH_STATE_TTL_SECONDS:
+        return False
+
+    payload = f"{issued_at_text}.{nonce}"
+    expected_signature = (
+        base64.urlsafe_b64encode(
+            hmac.new(client_secret.encode(), payload.encode(), hashlib.sha256).digest()
+        )
+        .decode()
+        .rstrip("=")
+    )
+    return hmac.compare_digest(signature, expected_signature)
 
 
 def build_authorization_params(config: OidcConfig, state: str) -> dict[str, str]:
@@ -236,27 +265,18 @@ def handle_oidc_callback() -> None:
         return
 
     returned_state = _query_param_value("state")
-    expected_state = st.session_state.get(STATE_KEY)
-    if expected_state and returned_state != expected_state:
+    if not _is_valid_oauth_state(returned_state, get_oidc_config().client_secret):
         logout()
         st.error("État OAuth invalide. Recommence la connexion.")
         st.stop()
 
     try:
         token_response = _exchange_code_for_tokens(code)
-    except requests.HTTPError as exception:
-        status_code = (
-            exception.response.status_code if exception.response is not None else "?"
-        )
-        response_text = (
-            exception.response.text
-            if exception.response is not None
-            else str(exception)
-        )
-        st.error(f"Échec de l'échange OAuth : {status_code} - {response_text}")
+    except requests.HTTPError:
+        st.error("Pocket ID a refusé la connexion. Recommence l'authentification.")
         st.stop()
-    except requests.RequestException as exception:
-        st.error(f"Impossible de contacter Pocket ID : {exception}")
+    except requests.RequestException:
+        st.error("Pocket ID est momentanément injoignable.")
         st.stop()
 
     access_token = token_response.get("access_token")
@@ -265,8 +285,6 @@ def handle_oidc_callback() -> None:
         st.stop()
 
     st.session_state[ACCESS_TOKEN_KEY] = access_token
-    st.session_state[ID_TOKEN_KEY] = token_response.get("id_token")
-    st.session_state[REFRESH_TOKEN_KEY] = token_response.get("refresh_token")
     id_claims = _decode_jwt_payload_without_verification(
         token_response.get("id_token", "")
     )
@@ -286,26 +304,9 @@ def require_authenticated_user() -> dict[str, Any] | None:
     if is_authenticated():
         return get_current_user()
 
-    from app.styles.theme import apply_theme
-
-    apply_theme()
-
-    login_url = html.escape(build_login_url(), quote=True)
-    st.markdown(
-        f"""
-        <style>
-        [data-testid="stSidebar"],
-        [data-testid="collapsedControl"],
-        [data-testid="stSidebarNav"] {{
-            display: none !important;
-        }}
-        </style>
-        <div class="auth-shell">
-            <a class="auth-button auth-button-standalone" href="{login_url}" target="_self">Se connecter</a>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
+    st.title("IsiDore")
+    st.caption("Assistant RAG sur la documentation interne ISILOG.")
+    st.link_button("Se connecter", build_login_url(), type="primary")
     st.stop()
 
 

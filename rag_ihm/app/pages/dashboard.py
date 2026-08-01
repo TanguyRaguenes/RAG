@@ -1,6 +1,7 @@
 import streamlit as st
 
 from app.components.common import (
+    load_config_or_stop,
     render_api_error,
     render_page_header,
 )
@@ -21,29 +22,13 @@ from app.state.session_state import (
     get_dashboard_result,
     save_dashboard_result,
 )
-from app.styles.theme import apply_theme
-
-
-def _load_evaluator_config_or_stop():
-    """Charge la configuration evaluator ou arrête le dashboard avec une erreur lisible.
-
-    Returns:
-        Configuration de l'API evaluator nécessaire pour lancer une évaluation RAG.
-    """
-    try:
-        return load_evaluator_api_config()
-    except RagApiError as error:
-        render_api_error(error)
-        st.stop()
 
 
 def _render_sidebar() -> None:
     """Affiche la barre latérale contextuelle de la page Streamlit courante."""
     with st.sidebar:
         has_result = get_dashboard_result() is not None
-        if has_result and st.button(
-            "Réinitialiser les résultats", use_container_width=True
-        ):
+        if has_result and st.button("Réinitialiser les résultats", width="stretch"):
             clear_dashboard_result()
             st.toast("Résultats réinitialisés.")
             st.rerun()
@@ -93,13 +78,12 @@ def _render_results(result: dict) -> None:
 
 
 current_user = require_authenticated_user()
-apply_theme()
 
 if not is_usage_admin(current_user):
     st.error("Cette page est réservée aux administrateurs.")
     st.stop()
 
-evaluator_config = _load_evaluator_config_or_stop()
+evaluator_config = load_config_or_stop(load_evaluator_api_config)
 _render_sidebar()
 
 render_page_header(
@@ -107,7 +91,7 @@ render_page_header(
     "Lance une évaluation pour vérifier la qualité des sources récupérées et des réponses générées.",
 )
 
-if st.button("Lancer l'évaluation", type="primary", use_container_width=True):
+if st.button("Lancer l'évaluation", type="primary", width="stretch"):
     _run_evaluation(evaluator_config)
 
 result = get_dashboard_result()

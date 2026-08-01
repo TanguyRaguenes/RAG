@@ -1,15 +1,9 @@
 from app.components.chat import (
     ROLE_ASSISTANT,
-    ROLE_USER,
     _format_similarity,
     _shorten_text,
     build_assistant_message,
-    build_user_message,
 )
-
-
-def test_build_user_message_sets_role_and_content() -> None:
-    assert build_user_message("Bonjour") == {"role": ROLE_USER, "content": "Bonjour"}
 
 
 def test_build_assistant_message_uses_defaults_when_optional_fields_are_missing() -> (

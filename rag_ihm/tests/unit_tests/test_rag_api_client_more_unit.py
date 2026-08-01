@@ -39,7 +39,7 @@ def test_check_api_health_raises_displayable_error_for_non_200(
         client.check_api_health("http://service")
 
 
-def test_quota_preferences_and_feedback_endpoints_use_authenticated_requests(
+def test_quota_and_feedback_endpoints_use_authenticated_requests(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     calls = []
@@ -48,8 +48,6 @@ def test_quota_preferences_and_feedback_endpoints_use_authenticated_requests(
             {"quota": True},
             [{"user": "u"}],
             {"updated": True},
-            {"theme_preference": "Sombre"},
-            {"theme_preference": "Clair"},
             {"feedback": True},
         ]
     )
@@ -74,10 +72,6 @@ def test_quota_preferences_and_feedback_endpoints_use_authenticated_requests(
     assert client.list_admin_quota_usages(config, "token") == [{"user": "u"}]
     assert client.update_admin_quota_usage(config, "token", "user", 100, True) == {
         "updated": True
-    }
-    assert client.get_my_preferences(config, "token") == {"theme_preference": "Sombre"}
-    assert client.update_my_preferences(config, "token", "Clair") == {
-        "theme_preference": "Clair"
     }
     assert client.submit_interaction_feedback(config, "token", 1, 1, "ok") == {
         "feedback": True

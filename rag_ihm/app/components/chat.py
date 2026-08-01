@@ -21,20 +21,8 @@ def render_empty_chat_state(on_select_question) -> None:
     columns = st.columns(len(EXAMPLE_QUESTIONS))
     for column, question in zip(columns, EXAMPLE_QUESTIONS):
         with column:
-            if st.button(question, use_container_width=True):
+            if st.button(question, width="stretch"):
                 on_select_question(question)
-
-
-def build_user_message(content: str) -> dict[str, Any]:
-    """Construit le modèle de message affiché pour une question utilisateur.
-
-    Args:
-        content: Texte du message à afficher dans la conversation.
-
-    Returns:
-        Message utilisateur normalisé pour l'historique de chat.
-    """
-    return {"role": ROLE_USER, "content": content}
 
 
 def build_assistant_message(response: dict[str, Any]) -> dict[str, Any]:

@@ -1,5 +1,6 @@
 import base64
 import json
+from urllib.parse import parse_qs, urlparse
 
 import pytest
 
@@ -26,10 +27,22 @@ class FakeStreamlit:
         self.session_state = {}
         self.query_params = QueryParams()
         self.errors = []
+        self.titles = []
+        self.captions = []
+        self.link_buttons = []
         self.rerun_called = False
 
     def error(self, message: str) -> None:
         self.errors.append(message)
+
+    def title(self, message: str) -> None:
+        self.titles.append(message)
+
+    def caption(self, message: str) -> None:
+        self.captions.append(message)
+
+    def link_button(self, label: str, url: str, *, type: str) -> None:
+        self.link_buttons.append({"label": label, "url": url, "type": type})
 
     def stop(self) -> None:
         raise StopCalled()
@@ -43,6 +56,17 @@ def _jwt_payload(payload: dict) -> str:
         base64.urlsafe_b64encode(json.dumps(payload).encode()).decode().rstrip("=")
     )
     return f"header.{encoded}.signature"
+
+
+def _oidc_config() -> OidcConfig:
+    return OidcConfig(
+        "http://authorize",
+        "http://token",
+        "client",
+        "secret",
+        "http://redirect",
+        "openid",
+    )
 
 
 def test_get_oidc_config_reads_required_environment(
@@ -71,32 +95,25 @@ def test_get_required_env_stops_when_missing(monkeypatch: pytest.MonkeyPatch) ->
     assert fake_st.errors == ["Variable d'environnement manquante : MISSING_ENV"]
 
 
-def test_build_login_url_stores_state_and_encodes_authorization_params(
+def test_build_login_url_signs_state_and_encodes_authorization_params(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     fake_st = FakeStreamlit()
     monkeypatch.setattr(auth_service, "st", fake_st)
-    monkeypatch.setattr(
-        auth_service,
-        "get_oidc_config",
-        lambda: OidcConfig(
-            "http://authorize",
-            "http://token",
-            "client",
-            "secret",
-            "http://redirect",
-            "openid",
-        ),
-    )
-    monkeypatch.setattr(auth_service.secrets, "token_urlsafe", lambda size: "state")
+    monkeypatch.setattr(auth_service, "get_oidc_config", _oidc_config)
+    monkeypatch.setattr(auth_service.secrets, "token_urlsafe", lambda size: "nonce")
+    monkeypatch.setattr(auth_service.time, "time", lambda: 1000)
 
     url = auth_service.build_login_url()
+    params = parse_qs(urlparse(url).query)
+    state = params["state"][0]
 
-    assert fake_st.session_state[auth_service.STATE_KEY] == "state"
-    assert (
-        url
-        == "http://authorize?response_type=code&client_id=client&redirect_uri=http%3A%2F%2Fredirect&scope=openid&state=state"
-    )
+    assert url.startswith("http://authorize?")
+    assert params["client_id"] == ["client"]
+    assert params["redirect_uri"] == ["http://redirect"]
+    assert state.startswith("1000.nonce.")
+    assert auth_service._is_valid_oauth_state(state, "secret")
+    assert fake_st.session_state == {}
 
 
 def test_exchange_code_for_tokens_posts_oidc_form(
@@ -115,18 +132,7 @@ def test_exchange_code_for_tokens_posts_oidc_form(
         calls.append({"url": url, "data": data, "headers": headers, "timeout": timeout})
         return Response()
 
-    monkeypatch.setattr(
-        auth_service,
-        "get_oidc_config",
-        lambda: OidcConfig(
-            "http://authorize",
-            "http://token",
-            "client",
-            "secret",
-            "http://redirect",
-            "openid",
-        ),
-    )
+    monkeypatch.setattr(auth_service, "get_oidc_config", _oidc_config)
     monkeypatch.setattr(auth_service.requests, "post", fake_post)
 
     assert auth_service._exchange_code_for_tokens("code") == {"access_token": "token"}
@@ -138,9 +144,11 @@ def test_handle_oidc_callback_stores_tokens_and_user_claims(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     fake_st = FakeStreamlit()
-    fake_st.query_params.update({"code": "code", "state": "state"})
-    fake_st.session_state[auth_service.STATE_KEY] = "state"
     monkeypatch.setattr(auth_service, "st", fake_st)
+    monkeypatch.setattr(auth_service, "get_oidc_config", _oidc_config)
+    monkeypatch.setattr(auth_service.time, "time", lambda: 1000)
+    state = auth_service._build_oauth_state("secret")
+    fake_st.query_params.update({"code": "code", "state": state})
     monkeypatch.setattr(
         auth_service,
         "_exchange_code_for_tokens",
@@ -165,14 +173,48 @@ def test_handle_oidc_callback_stops_on_invalid_state(
 ) -> None:
     fake_st = FakeStreamlit()
     fake_st.query_params.update({"code": "code", "state": "bad"})
-    fake_st.session_state[auth_service.STATE_KEY] = "expected"
     fake_st.session_state[auth_service.ACCESS_TOKEN_KEY] = "token"
     monkeypatch.setattr(auth_service, "st", fake_st)
+    monkeypatch.setattr(auth_service, "get_oidc_config", _oidc_config)
 
     with pytest.raises(StopCalled):
         auth_service.handle_oidc_callback()
 
     assert auth_service.ACCESS_TOKEN_KEY not in fake_st.session_state
+
+
+def test_oauth_state_expires_after_ten_minutes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(auth_service.time, "time", lambda: 1000)
+    state = auth_service._build_oauth_state("secret")
+    monkeypatch.setattr(auth_service.time, "time", lambda: 1601)
+
+    assert not auth_service._is_valid_oauth_state(state, "secret")
+
+
+def test_require_authenticated_user_renders_native_login_link(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake_st = FakeStreamlit()
+    monkeypatch.setattr(auth_service, "st", fake_st)
+    monkeypatch.setattr(
+        auth_service,
+        "build_login_url",
+        lambda: 'https://idp.example/login?state=abc&return="app"',
+    )
+
+    with pytest.raises(StopCalled):
+        auth_service.require_authenticated_user()
+
+    assert fake_st.titles == ["IsiDore"]
+    assert fake_st.link_buttons == [
+        {
+            "label": "Se connecter",
+            "url": 'https://idp.example/login?state=abc&return="app"',
+            "type": "primary",
+        }
+    ]
 
 
 def test_logout_removes_auth_session_keys(monkeypatch: pytest.MonkeyPatch) -> None:

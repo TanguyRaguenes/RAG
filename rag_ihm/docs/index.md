@@ -22,7 +22,6 @@ flowchart TD
 | `app/components` | Composants UI réutilisables. |
 | `app/services` | Clients HTTP RAG et service OIDC. |
 | `app/state` | Initialisation de `st.session_state`. |
-| `app/styles` | Thème et CSS Streamlit. |
 
 ## 4. Configuration
 
@@ -50,7 +49,7 @@ Pages principales :
 | Page | Rôle |
 |---|---|
 | Discussion | Pose de question au RAG et feedback sur réponse. |
-| Consommation | Quota, tokens et préférences utilisateur. |
+| Consommation | Quota et consommation de tokens. |
 | Avis | Consultation admin des feedbacks. |
 | Évaluation | Lancement admin de `/evaluate_rag`. |
 
@@ -95,4 +94,5 @@ uv run mkdocs build --strict
 
 - Ne jamais stocker les secrets dans `st.session_state` au-delà du nécessaire.
 - Ne pas afficher les détails techniques bruts aux utilisateurs.
+- Utiliser le thème Streamlit natif sans configuration ni surcharge CSS.
 - Préserver les clés de session existantes lors des évolutions UI.

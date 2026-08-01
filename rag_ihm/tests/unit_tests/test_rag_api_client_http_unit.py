@@ -91,3 +91,7 @@ def test_admin_feedbacks_request_sends_iso_dates_and_expects_a_list(
 def test_response_json_rejects_non_dict_payload() -> None:
     with pytest.raises(RagApiError, match="format inattendu"):
         client._response_json(FakeResponse(payload=[]))
+
+
+def test_successful_http_status_accepts_all_2xx_responses() -> None:
+    client._raise_for_error_response(FakeResponse(status_code=201))

@@ -1,76 +1,38 @@
+from typing import Any
+
 import streamlit as st
 
-from app.components.common import render_sidebar_brand
+from app.components.common import render_sidebar_header
 from app.core.logging import configure_json_logging
 from app.services.auth_service import (
-    get_access_token,
-    get_current_user,
     handle_oidc_callback,
-    is_authenticated,
     is_usage_admin,
     logout,
     require_authenticated_user,
 )
-from app.services.rag_api_client import RagApiError, load_chat_api_config
-from app.styles.theme import apply_theme, render_theme_selector, sync_theme_preference
 
 configure_json_logging("rag_ihm")
 
 st.set_page_config(
     page_title="IsiDore",
-    layout="wide",
-    initial_sidebar_state="expanded" if is_authenticated() else "collapsed",
 )
 
 handle_oidc_callback()
 
 
-def _load_chat_config_or_none():
-    """Charge la configuration chat sans interrompre brutalement le rendu principal.
-
-    Returns:
-        Configuration de chat chargée, ou `None` si elle est indisponible.
-    """
-    try:
-        return load_chat_api_config()
-    except RagApiError:
-        return None
-
-
-def _render_global_sidebar(config) -> None:
-    """Affiche les informations globales de navigation et d'utilisateur dans la sidebar.
-
-    Args:
-        config: Configuration applicative contenant les URLs, modèles ou paramètres métier nécessaires.
-    """
-    current_user = get_current_user()
-    access_token = get_access_token()
-
+def _render_global_sidebar(current_user: dict[str, Any] | None) -> None:
+    """Affiche l'identité de l'utilisateur et l'action de déconnexion."""
     with st.sidebar:
-        render_sidebar_brand(current_user)
-        st.divider()
-        render_theme_selector(config, access_token)
+        render_sidebar_header(current_user)
         st.divider()
 
-        if st.button("Se déconnecter", use_container_width=True):
+        if st.button("Se déconnecter", width="stretch"):
             logout()
             st.rerun()
 
 
-chat_config = _load_chat_config_or_none() if is_authenticated() else None
-
-if is_authenticated() and chat_config is not None:
-    sync_theme_preference(chat_config, get_access_token())
-
-apply_theme()
-
-if not is_authenticated():
-    require_authenticated_user()
-
-if is_authenticated() and chat_config is not None:
-    _render_global_sidebar(chat_config)
-
-current_user = get_current_user() if is_authenticated() else None
+current_user = require_authenticated_user()
+_render_global_sidebar(current_user)
 
 pages = [
     st.Page("pages/chat.py", title="Discussion", default=True),
@@ -81,5 +43,5 @@ if is_usage_admin(current_user):
     pages.append(st.Page("pages/feedbacks.py", title="Avis"))
     pages.append(st.Page("pages/dashboard.py", title="Évaluation"))
 
-pg = st.navigation(pages)
-pg.run()
+navigation = st.navigation(pages)
+navigation.run()
