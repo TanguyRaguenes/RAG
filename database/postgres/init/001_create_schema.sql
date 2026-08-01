@@ -11,7 +11,6 @@ CREATE TABLE utilisateur (
     email TEXT NULL,
     display_name TEXT NULL,
     preferred_username TEXT NULL,
-    theme_preference VARCHAR(20) NOT NULL DEFAULT 'Clair',
 
     CONSTRAINT chk_utilisateur_id_hash
         CHECK (id ~ '^[a-f0-9]{64}$'),
@@ -29,10 +28,7 @@ CREATE TABLE utilisateur (
         CHECK (display_name IS NULL OR btrim(display_name) <> ''),
 
     CONSTRAINT chk_utilisateur_preferred_username_not_blank
-        CHECK (preferred_username IS NULL OR btrim(preferred_username) <> ''),
-
-    CONSTRAINT chk_utilisateur_theme_preference
-        CHECK (theme_preference IN ('Sombre', 'Clair'))
+        CHECK (preferred_username IS NULL OR btrim(preferred_username) <> '')
 );
 
 -- ============================================================
@@ -109,33 +105,6 @@ CREATE TABLE modele_llm (
 );
 
 -- ============================================================
--- Table : tarif_modele
--- Objectif : stocker les tarifs des modèles dans le temps
--- ============================================================
-
-CREATE TABLE tarif_modele (
-    id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    modele_id INTEGER NOT NULL,
-    prix_input_million NUMERIC(12, 6) NOT NULL,
-    prix_output_million NUMERIC(12, 6) NOT NULL,
-    date_debut TIMESTAMPTZ NOT NULL,
-    date_fin TIMESTAMPTZ NULL,
-
-    CONSTRAINT fk_tarif_modele_modele
-        FOREIGN KEY (modele_id)
-        REFERENCES modele_llm(id),
-
-    CONSTRAINT chk_tarif_modele_prix_input
-        CHECK (prix_input_million >= 0),
-
-    CONSTRAINT chk_tarif_modele_prix_output
-        CHECK (prix_output_million >= 0),
-
-    CONSTRAINT chk_tarif_modele_dates
-        CHECK (date_fin IS NULL OR date_fin > date_debut)
-);
-
--- ============================================================
 -- Table : consommation_tokens
 -- Objectif : stocker la consommation de tokens d'une interaction
 -- ============================================================
@@ -147,7 +116,6 @@ CREATE TABLE consommation_tokens (
     prompt_tokens BIGINT NOT NULL,
     completion_tokens BIGINT NOT NULL,
     total_tokens BIGINT NOT NULL,
-    cout_estime_eur NUMERIC(12, 6) NULL,
 
     CONSTRAINT fk_consommation_tokens_interaction
         FOREIGN KEY (interaction_id)
@@ -167,10 +135,7 @@ CREATE TABLE consommation_tokens (
         CHECK (total_tokens >= 0),
 
     CONSTRAINT chk_consommation_total_coherent
-        CHECK (total_tokens >= prompt_tokens + completion_tokens),
-
-    CONSTRAINT chk_consommation_cout
-        CHECK (cout_estime_eur IS NULL OR cout_estime_eur >= 0)
+        CHECK (total_tokens >= prompt_tokens + completion_tokens)
 );
 
 -- ============================================================

@@ -14,17 +14,13 @@ from app.schemas.feedback_schema import (
 from app.schemas.quota_schema import (
     QuotaUsageResponse,
     UpdateQuotaRequest,
-    UpdateUserPreferencesRequest,
-    UserPreferencesResponse,
 )
 from app.services.usage_tracking_service import (
-    get_current_user_preferences,
     get_current_user_quota_usage,
     is_usage_admin,
     list_admin_interaction_feedbacks,
     list_all_quota_usages,
     save_current_user_feedback,
-    update_current_user_preferences,
     update_user_quota,
 )
 
@@ -48,47 +44,6 @@ async def get_my_quota_usage(
         Données de quota de l'utilisateur connecté retournées par l'orchestrator.
     """
     return await get_current_user_quota_usage(current_user, db_pool)
-
-
-@router.get("/preferences/me", response_model=UserPreferencesResponse)
-async def get_my_preferences(
-    current_user: AuthenticatedUser = current_user_dependency,
-    db_pool: asyncpg.Pool = db_pool_dependency,
-) -> UserPreferencesResponse:
-    """Récupère les préférences d'affichage de l'utilisateur connecté.
-
-    Args:
-        current_user: Utilisateur authentifié issu du token OIDC courant.
-        db_pool: Pool de connexions PostgreSQL utilisé pour lire ou écrire les données d'usage.
-
-    Returns:
-        Préférences utilisateur retournées par l'orchestrator.
-    """
-    return await get_current_user_preferences(current_user, db_pool)
-
-
-@router.patch("/preferences/me", response_model=UserPreferencesResponse)
-async def update_my_preferences(
-    body: UpdateUserPreferencesRequest,
-    current_user: AuthenticatedUser = current_user_dependency,
-    db_pool: asyncpg.Pool = db_pool_dependency,
-) -> UserPreferencesResponse:
-    """Met à jour la préférence de thème de l'utilisateur connecté.
-
-    Args:
-        body: Corps de requête validé par FastAPI.
-        current_user: Utilisateur authentifié issu du token OIDC courant.
-        db_pool: Pool de connexions PostgreSQL utilisé pour lire ou écrire les données d'usage.
-
-    Returns:
-        Préférences utilisateur après mise à jour côté orchestrator.
-
-    """
-    return await update_current_user_preferences(
-        current_user,
-        db_pool,
-        body.theme_preference,
-    )
 
 
 @router.post("/interactions/{interaction_id}/feedback", response_model=FeedbackResponse)

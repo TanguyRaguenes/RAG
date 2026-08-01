@@ -14,4 +14,3 @@ class AskQuestionResponseBase(BaseModel):
     input_tokens: int = 0
     output_tokens: int = 0
     total_tokens: int = 0
-    cost: float = 0.0

@@ -1,15 +1,13 @@
-from decimal import Decimal
 from typing import Self
 
 import pytest
+
 from app.core.exceptions import DependencyResponseError
-from app.schemas.llm_response_schema import ApiLlmUsage
 from app.services import ask_question_service
 from app.services.ask_question_service import (
     _extract_api_response_text,
     _record_llm_usage,
     _validate_api_llm_response,
-    calculate_cost,
     design_source,
 )
 
@@ -34,20 +32,6 @@ def test_design_source_counts_documents_sorted_by_occurrence() -> None:
     ]
 
     assert design_source(chunks) == {"Doc A": 2, "Doc B": 1}
-
-
-def test_calculate_cost_uses_preloaded_model_pricing() -> None:
-    cost = calculate_cost(
-        usage=ApiLlmUsage(
-            input_tokens=1_000_000,
-            output_tokens=500_000,
-            total_tokens=1_500_000,
-        ),
-        input_price=Decimal("2.0"),
-        output_price=Decimal("6.0"),
-    )
-
-    assert cost == 5.0
 
 
 def test_extract_api_response_text_finds_typed_message_without_fixed_position() -> None:
@@ -83,7 +67,7 @@ def test_extract_api_response_text_rejects_missing_text() -> None:
         raise AssertionError("A response without generated text must be rejected")
 
 
-def test_record_llm_usage_records_cost_only_in_eur_metrics(
+def test_record_llm_usage_records_token_metrics(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     calls: list[tuple[str, float]] = []
@@ -105,22 +89,17 @@ def test_record_llm_usage_records_cost_only_in_eur_metrics(
     )
     monkeypatch.setattr(
         ask_question_service,
-        "orchestrator_cost_total",
-        RecordingMetric("orchestrator_cost_eur", calls),
-    )
-    monkeypatch.setattr(
-        ask_question_service,
         "rag_tokens_total",
         RecordingMetric("rag_tokens", calls),
     )
-    monkeypatch.setattr(
-        ask_question_service,
-        "rag_cost_eur_total",
-        RecordingMetric("rag_cost_eur", calls),
-    )
 
-    _record_llm_usage("openai", "model", response, 0.25)
+    _record_llm_usage("openai", "model", response)
 
-    assert ("orchestrator_cost_eur", 0.25) in calls
-    assert ("rag_cost_eur", 0.25) in calls
-    assert not hasattr(ask_question_service, "rag_cost_usd_total")
+    assert calls == [
+        ("orchestrator_tokens", 1),
+        ("orchestrator_tokens", 2),
+        ("orchestrator_tokens", 3),
+        ("rag_tokens", 1),
+        ("rag_tokens", 2),
+        ("rag_tokens", 3),
+    ]

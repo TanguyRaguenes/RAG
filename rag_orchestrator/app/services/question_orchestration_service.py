@@ -155,7 +155,6 @@ class QuestionOrchestrationService:
                     answer = await ask_question_to_api(
                         body.question,
                         self.config,
-                        self.db_pool,
                     )
 
                 rag_completed = True

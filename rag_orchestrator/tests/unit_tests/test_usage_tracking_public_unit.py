@@ -1,6 +1,7 @@
 from datetime import date
 
 import pytest
+
 from app.core.exceptions import InvalidRequestError
 from app.schemas.authenticated_user_schema import AuthenticatedUser
 from app.services import usage_tracking_service as service
@@ -42,12 +43,6 @@ class FakeUsageRepository:
 
     async def update_quota_rule(self, **kwargs):
         self.calls.append(("update_quota", kwargs))
-
-    async def get_user_theme_preference(self, user_id: str) -> str:
-        return "Sombre"
-
-    async def update_user_theme_preference(self, **kwargs):
-        self.calls.append(("theme", kwargs))
 
     async def upsert_feedback(self, **kwargs):
         self.calls.append(("feedback", kwargs))
@@ -133,12 +128,9 @@ async def test_check_user_token_quota_raises_when_inactive_or_exceeded() -> None
 
 
 @pytest.mark.asyncio
-async def test_preferences_feedback_and_admin_feedbacks_are_mapped() -> None:
+async def test_feedback_and_admin_feedbacks_are_mapped() -> None:
     db_pool = {}
 
-    preferences = await service.update_current_user_preferences(
-        _user(), db_pool, "Clair"
-    )
     feedback = await service.save_current_user_feedback(
         _user(), db_pool, 1, 1, "  ok  "
     )
@@ -146,12 +138,8 @@ async def test_preferences_feedback_and_admin_feedbacks_are_mapped() -> None:
         db_pool, date(2026, 1, 1), date(2026, 1, 31)
     )
 
-    assert preferences.theme_preference == "Clair"
     assert feedback.commentaire == "ok"
     assert rows[0].chunks[0].contenu == "doc"
-
-    with pytest.raises(InvalidRequestError):
-        await service.update_current_user_preferences(_user(), db_pool, "Invalid")
 
     with pytest.raises(InvalidRequestError):
         await service.list_admin_interaction_feedbacks(

@@ -50,7 +50,6 @@ def build_assistant_message(response: AskQuestionResponse) -> ChatMessage:
         "model": response.get("model"),
         "duration": response.get("duration"),
         "total_tokens": response.get("total_tokens"),
-        "cost": response.get("cost"),
         "generated_prompt": response.get("generated_prompt"),
     }
 
@@ -97,8 +96,6 @@ def _render_assistant_metadata(message: ChatMessage) -> None:
         metadata.append(str(message["duration"]))
     if message.get("total_tokens"):
         metadata.append(f"{message['total_tokens']} tokens")
-    if message.get("cost"):
-        metadata.append(f"{message['cost']} EUR")
 
     if metadata:
         st.caption(" | ".join(metadata))

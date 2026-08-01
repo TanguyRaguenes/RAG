@@ -26,18 +26,6 @@ rag_tokens_total = Counter(
     ["service", "provider", "model", "token_type"],
 )
 
-rag_cost_usd_total = Counter(
-    "rag_cost_usd_total",
-    "Coût estimé cumulé des requêtes RAG en dollars US",
-    ["service", "provider", "model"],
-)
-
-rag_cost_eur_total = Counter(
-    "rag_cost_eur_total",
-    "Coût estimé cumulé des questions RAG en euros",
-    ["service", "provider", "model"],
-)
-
 orchestrator_requests_total = Counter(
     "orchestrator_requests_total",
     "Nombre total de requêtes traitées par l'orchestrator",
@@ -74,12 +62,6 @@ orchestrator_tokens_total = Counter(
     ["provider", "model", "token_type"],
 )
 
-orchestrator_cost_total = Counter(
-    "orchestrator_cost_total",
-    "Coût estimé cumulé des appels LLM en euros",
-    ["provider", "model"],
-)
-
 orchestrator_chunks_total = Counter(
     "orchestrator_chunks_total",
     "Nombre total de chunks récupérés par l'orchestrator",
@@ -114,14 +96,3 @@ def initialize_question_metrics(provider: str, model: str) -> None:
             model=model,
             token_type=token_type,
         ).inc(0)
-
-    rag_cost_usd_total.labels(
-        service=SERVICE_NAME,
-        provider=provider,
-        model=model,
-    ).inc(0)
-    rag_cost_eur_total.labels(
-        service=SERVICE_NAME,
-        provider=provider,
-        model=model,
-    ).inc(0)

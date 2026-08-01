@@ -74,7 +74,6 @@ class AskQuestionResponse(TypedDict):
     input_tokens: int
     output_tokens: int
     total_tokens: int
-    cost: float
     generated_prompt: list[dict[str, Any]]
 
 
@@ -89,7 +88,6 @@ class ChatMessage(TypedDict, total=False):
     model: str
     duration: str
     total_tokens: int
-    cost: float
     generated_prompt: list[dict[str, Any]]
     feedback: dict[str, Any]
 
@@ -323,8 +321,6 @@ def validate_ask_question_response(payload: object) -> AskQuestionResponse:
 
     _require_dict_list_field(data, "retrieved_chunks")
     _require_dict_list_field(data, "generated_prompt")
-    if not _is_number(data.get("cost")):
-        raise ResponseContractError("ask_question.cost est invalide")
 
     return cast(AskQuestionResponse, data)
 

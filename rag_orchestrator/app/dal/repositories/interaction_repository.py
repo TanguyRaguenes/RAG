@@ -18,7 +18,6 @@ class InteractionRepository:
         prompt_tokens: int,
         completion_tokens: int,
         total_tokens: int,
-        estimated_cost_eur: float | None,
         retrieved_chunks: list[dict[str, Any]],
     ) -> int:
         """Persiste une interaction réussie avec ses métadonnées, tokens et chunks.
@@ -29,11 +28,10 @@ class InteractionRepository:
             answer: Réponse RAG générée pour l'utilisateur, ou `None` si aucune réponse n'est disponible.
             duration_ms: Durée de traitement de l'interaction exprimée en millisecondes.
             provider: Provider LLM ou service externe concerné.
-            model_name: Nom du modèle LLM référencé par l'usage ou la tarification.
+            model_name: Nom du modèle LLM référencé par l'usage.
             prompt_tokens: Nombre de tokens consommés par le prompt envoyé au modèle.
             completion_tokens: Nombre de tokens générés par le modèle dans la réponse.
             total_tokens: Nombre total de tokens consommés par l'appel LLM.
-            estimated_cost_eur: Coût estimé de l'appel LLM en euros.
             retrieved_chunks: Chunks retournés par le retriever ou l'orchestrator.
 
         Returns:
@@ -62,7 +60,6 @@ class InteractionRepository:
                 prompt_tokens=prompt_tokens,
                 completion_tokens=completion_tokens,
                 total_tokens=total_tokens,
-                estimated_cost_eur=estimated_cost_eur,
             )
 
             for rank, chunk in enumerate(retrieved_chunks, start=1):
@@ -165,7 +162,7 @@ class InteractionRepository:
         Args:
             connection: Connexion PostgreSQL transactionnelle utilisée pour grouper les écritures.
             provider: Provider LLM ou service externe concerné.
-            model_name: Nom du modèle LLM référencé par l'usage ou la tarification.
+            model_name: Nom du modèle LLM référencé par l'usage.
 
         Returns:
             Identifiant du modèle existant ou nouvellement inséré.
@@ -189,9 +186,8 @@ class InteractionRepository:
         prompt_tokens: int,
         completion_tokens: int,
         total_tokens: int,
-        estimated_cost_eur: float | None,
     ) -> None:
-        """Insère les compteurs de tokens et le coût d'une interaction.
+        """Insère les compteurs de tokens d'une interaction.
 
         Args:
             connection: Connexion PostgreSQL transactionnelle utilisée pour grouper les écritures.
@@ -200,7 +196,6 @@ class InteractionRepository:
             prompt_tokens: Nombre de tokens consommés par le prompt envoyé au modèle.
             completion_tokens: Nombre de tokens générés par le modèle dans la réponse.
             total_tokens: Nombre total de tokens consommés par l'appel LLM.
-            estimated_cost_eur: Coût estimé de l'appel LLM en euros.
         """
         query = """
             INSERT INTO consommation_tokens (
@@ -208,10 +203,9 @@ class InteractionRepository:
                 modele_id,
                 prompt_tokens,
                 completion_tokens,
-                total_tokens,
-                cout_estime_eur
+                total_tokens
             )
-            VALUES ($1, $2, $3, $4, $5, $6)
+            VALUES ($1, $2, $3, $4, $5)
         """
 
         await connection.execute(
@@ -221,7 +215,6 @@ class InteractionRepository:
             prompt_tokens,
             completion_tokens,
             total_tokens,
-            _to_decimal_or_none(estimated_cost_eur),
         )
 
     async def _upsert_chunk(

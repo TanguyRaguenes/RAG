@@ -1,4 +1,5 @@
 import pytest
+
 from app.core.exceptions import IdentityProviderError
 from app.services import ask_question_service, retrieve_chunks_service
 from app.services.auth_service import AuthService
@@ -176,20 +177,10 @@ async def test_ask_question_to_local_model_builds_payload_and_response(
 
 
 @pytest.mark.asyncio
-async def test_ask_question_to_api_builds_payload_tokens_and_cost(
+async def test_ask_question_to_api_builds_payload_and_tokens(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     calls = []
-
-    class FakeUsageRepository:
-        def __init__(self, db_pool):
-            assert db_pool is not None
-
-        async def get_active_model_pricing(self, *, provider: str, model_name: str):
-            calls.append(("pricing", provider, model_name))
-            from decimal import Decimal
-
-            return Decimal(2), Decimal(6)
 
     async def fake_retrieve_and_rerank_chunks(
         question: str, config: dict
@@ -223,17 +214,12 @@ async def test_ask_question_to_api_builds_payload_tokens_and_cost(
     monkeypatch.setattr(
         ask_question_service, "ask_question_to_api_client", fake_api_client
     )
-    monkeypatch.setattr(ask_question_service, "UsageRepository", FakeUsageRepository)
-
-    response = await ask_question_service.ask_question_to_api(
-        "Question", _config(), db_pool=object()
-    )
+    response = await ask_question_service.ask_question_to_api("Question", _config())
 
     assert response.llm_response == "api answer"
     assert response.input_tokens == 10
     assert response.output_tokens == 5
-    assert response.cost == 0.00005
-    assert calls == [("pricing", "openai", "api-model"), ("llm", "api-model")]
+    assert calls == [("llm", "api-model")]
 
 
 class FakeOidcClient:

@@ -29,15 +29,6 @@ if [ -z "$(find "$WIKIS_DIR" -type f -name '*.md' ! -path '*/.git/*' -print -qui
     exit 1
 fi
 
-echo "Deleting existing wiki collection"
-if ! curl -fsS -X POST http://127.0.0.1:8001/delete_collection; then
-    printf '\n'
-    log "RAG wiki ingestion failed: collection deletion request failed"
-    echo "============================================================"
-    exit 1
-fi
-printf '\n'
-
 echo "Ingesting wiki documents"
 if ! curl -fsS -X POST http://127.0.0.1:8002/ingest/bulk; then
     printf '\n'

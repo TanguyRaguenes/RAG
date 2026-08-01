@@ -19,7 +19,7 @@ from app.schemas.feedback_schema import (
     AdminInteractionFeedbackResponse,
     FeedbackResponse,
 )
-from app.schemas.quota_schema import QuotaUsageResponse, UserPreferencesResponse
+from app.schemas.quota_schema import QuotaUsageResponse
 from app.services.user_identity_service import build_user_id_from_oidc_subject
 
 MCP_PROVIDER = "KiloCode"
@@ -190,57 +190,6 @@ async def update_user_quota(
     return _quota_row_to_response(row)
 
 
-async def get_current_user_preferences(
-    current_user: AuthenticatedUser,
-    db_pool: asyncpg.Pool,
-) -> UserPreferencesResponse:
-    """Récupère les préférences d'interface de l'utilisateur courant.
-
-    Args:
-        current_user: Utilisateur authentifié issu du token OIDC courant.
-        db_pool: Pool de connexions PostgreSQL utilisé pour lire ou écrire les données d'usage.
-
-    Returns:
-        Préférence de thème enregistrée pour l'utilisateur courant.
-    """
-    user_id = await ensure_usage_user_exists(current_user, db_pool)
-    usage_repository = UsageRepository(db_pool)
-    theme_preference = await usage_repository.get_user_theme_preference(user_id)
-
-    return UserPreferencesResponse(theme_preference=theme_preference)
-
-
-async def update_current_user_preferences(
-    current_user: AuthenticatedUser,
-    db_pool: asyncpg.Pool,
-    theme_preference: str,
-) -> UserPreferencesResponse:
-    """Met à jour les préférences d'interface de l'utilisateur courant.
-
-    Args:
-        current_user: Utilisateur authentifié issu du token OIDC courant.
-        db_pool: Pool de connexions PostgreSQL utilisé pour lire ou écrire les données d'usage.
-        theme_preference: Préférence de thème choisie par l'utilisateur.
-
-    Returns:
-        Préférence de thème après mise à jour en base.
-
-    Raises:
-        ValueError: Si une valeur obligatoire est absente ou invalide.
-    """
-    if theme_preference not in {"Sombre", "Clair"}:
-        raise InvalidRequestError("Unknown theme preference")
-
-    user_id = await ensure_usage_user_exists(current_user, db_pool)
-    usage_repository = UsageRepository(db_pool)
-    await usage_repository.update_user_theme_preference(
-        user_id=user_id,
-        theme_preference=theme_preference,
-    )
-
-    return UserPreferencesResponse(theme_preference=theme_preference)
-
-
 async def save_current_user_feedback(
     current_user: AuthenticatedUser,
     db_pool: asyncpg.Pool,
@@ -345,13 +294,13 @@ async def save_successful_question_usage(
     answer: AskQuestionResponseBase,
     duration_ms: int,
 ) -> int:
-    """Persiste une interaction RAG réussie avec ses tokens, coût, chunks et durée.
+    """Persiste une interaction RAG réussie avec ses tokens, chunks et durée.
 
     Args:
         db_pool: Pool de connexions PostgreSQL utilisé pour lire ou écrire les données d'usage.
         session_id: Identifiant de la session d'usage à mettre à jour ou associer à l'interaction.
         question: Question utilisateur traitée par le pipeline RAG, sans journalisation du contenu complet.
-        llm_provider: Provider LLM utilisé pour calculer le coût et tracer l'interaction.
+        llm_provider: Provider LLM utilisé pour tracer l'interaction.
         answer: Réponse complète retournée par l'orchestrator après génération RAG.
         duration_ms: Durée de traitement de l'interaction exprimée en millisecondes.
 
@@ -370,7 +319,6 @@ async def save_successful_question_usage(
         prompt_tokens=answer.input_tokens,
         completion_tokens=answer.output_tokens,
         total_tokens=answer.total_tokens,
-        estimated_cost_eur=answer.cost,
         retrieved_chunks=answer.retrieved_chunks,
     )
 
@@ -437,7 +385,6 @@ async def save_retrieval_usage(
         prompt_tokens=0,
         completion_tokens=0,
         total_tokens=0,
-        estimated_cost_eur=0.0,
         retrieved_chunks=retrieved_chunks,
     )
 

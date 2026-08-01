@@ -2,6 +2,7 @@ from datetime import date
 from typing import Any
 
 import pytest
+
 from app.core.errors import RagApiError
 from app.dal.clients import http_client
 from app.dal.clients.http_client import RequestsHttpClient
@@ -42,7 +43,6 @@ def _ask_question_response() -> dict[str, object]:
         "input_tokens": 1,
         "output_tokens": 2,
         "total_tokens": 3,
-        "cost": 0.01,
         "generated_prompt": [],
     }
 

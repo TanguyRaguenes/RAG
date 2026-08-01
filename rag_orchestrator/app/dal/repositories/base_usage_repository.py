@@ -34,7 +34,7 @@ class BaseUsageRepository:
 
 
 def _to_decimal_or_none(value: float | None) -> Decimal | None:
-    """Convertit une valeur numérique optionnelle en Decimal pour les calculs de coût.
+    """Convertit une valeur numérique optionnelle en Decimal pour PostgreSQL.
 
     Args:
         value: Valeur à convertir, borner ou formater.

@@ -4,7 +4,6 @@ from app.dal.repositories.base_usage_repository import (
 )
 from app.dal.repositories.feedback_repository import FeedbackRepository
 from app.dal.repositories.interaction_repository import InteractionRepository
-from app.dal.repositories.model_pricing_repository import ModelPricingRepository
 from app.dal.repositories.quota_repository import QuotaRepository
 from app.dal.repositories.usage_session_repository import UsageSessionRepository
 from app.dal.repositories.usage_user_repository import UsageUserRepository
@@ -15,7 +14,6 @@ class UsageRepository(
     UsageUserRepository,
     QuotaRepository,
     UsageSessionRepository,
-    ModelPricingRepository,
     InteractionRepository,
     FeedbackRepository,
 ):

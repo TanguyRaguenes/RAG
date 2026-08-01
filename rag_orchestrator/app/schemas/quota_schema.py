@@ -20,11 +20,3 @@ class QuotaUsageResponse(BaseModel):
 class UpdateQuotaRequest(BaseModel):
     max_tokens_par_mois: int = Field(gt=0)
     actif: bool
-
-
-class UserPreferencesResponse(BaseModel):
-    theme_preference: str
-
-
-class UpdateUserPreferencesRequest(BaseModel):
-    theme_preference: str

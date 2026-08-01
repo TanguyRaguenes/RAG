@@ -52,8 +52,6 @@ Variables non secrètes utiles : `RAG_EMBEDDER_EMBED_URL`, `RAG_RETRIEVER_RETRIE
 | `POST` | `/retrieve_chunks` | Retourne les chunks pour le MCP. |
 | `GET` | `/auth/me` | Retourne l'utilisateur authentifié. |
 | `GET` | `/usage/quota/me` | Usage et quota de l'utilisateur courant. |
-| `GET` | `/usage/preferences/me` | Préférences utilisateur. |
-| `PATCH` | `/usage/preferences/me` | Mise à jour des préférences. |
 | `POST` | `/usage/interactions/{interaction_id}/feedback` | Feedback utilisateur. |
 | `GET` | `/usage/quota/admin/users` | Vue admin quotas. |
 | `PATCH` | `/usage/quota/admin/users/{user_id}` | Mise à jour admin d'un quota. |
@@ -81,7 +79,7 @@ sequenceDiagram
     RR-->>O: chunks ordonnés
     O->>L: prompt + contexte
     L-->>O: réponse
-    O->>P: usage, tokens, coût
+    O->>P: usage et tokens
     O-->>UI: réponse RAG
 ```
 
@@ -95,7 +93,6 @@ sequenceDiagram
 | `orchestrator_external_call_duration_seconds` | Latence embedder, retriever, reranker et LLM. |
 | `orchestrator_external_call_errors_total` | Erreurs des dépendances. |
 | `orchestrator_tokens_total` | Tokens input/output/total par provider et modèle. |
-| `orchestrator_cost_total` | Coût LLM cumulé estimé. |
 | `orchestrator_chunks_total` | Chunks produits par opération. |
 
 Exceptions custom : `EmbedderContainerException`, `RetrieverContainerException`, `RerankerContainerException`, `LlmApiException`.
