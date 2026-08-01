@@ -1,9 +1,10 @@
 import pytest
+from chromadb.errors import InternalError
+
 from app.core.exceptions import RetrievalFormatException, VectorStoreException
 from app.dal.repositories import vector_store_repository as repository_module
 from app.dal.repositories.vector_store_repository import VectorStoreRepository
 from app.domain.models.vector_store_model import VectorMetadata, VectorStoreBatch
-from chromadb.errors import InternalError
 
 
 class FakeCollection:

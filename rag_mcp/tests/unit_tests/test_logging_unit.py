@@ -3,8 +3,9 @@ import json
 import logging
 import sys
 
-from app.core import logging as app_logging
 from uvicorn.config import LOGGING_CONFIG
+
+from app.core import logging as app_logging
 
 
 def test_configure_json_logging_is_idempotent_and_preserves_external_handlers() -> None:

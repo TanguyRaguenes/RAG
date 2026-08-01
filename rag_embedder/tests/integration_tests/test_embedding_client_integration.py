@@ -1,4 +1,5 @@
 import pytest
+
 from app.core.config import load_config
 from app.core.exceptions import EmbeddingServiceException
 from app.dal.clients.embedding_client import embed

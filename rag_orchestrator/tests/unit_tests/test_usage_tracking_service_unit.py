@@ -1,6 +1,7 @@
 from datetime import UTC, datetime
 
 import pytest
+
 from app.services.usage_tracking_service import (
     _decode_chunks,
     _get_default_user_monthly_token_quota,

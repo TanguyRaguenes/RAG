@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 
 import pytest
+
 from app.core import config as config_module
 
 

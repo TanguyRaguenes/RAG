@@ -3,6 +3,7 @@ from datetime import date
 from typing import Any
 
 import pytest
+
 from app.core.errors import RagApiError
 from app.services import rag_api_client as service
 from app.services.rag_api_client import ChatApiConfig, EvaluatorApiConfig

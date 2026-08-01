@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 
 import pytest
+
 from app.core import config as config_module
 
 
@@ -18,6 +19,7 @@ def test_load_config_reads_json_file(
                     "url": "http://tei/rerank",
                     "model": "test",
                     "top_k": 5,
+                    "minimum_rerank_score": 0.125,
                 }
             }
         ),
@@ -25,4 +27,7 @@ def test_load_config_reads_json_file(
     )
     monkeypatch.setattr(config_module, "_CONFIG_PATH", config_path)
 
-    assert config_module.load_config().reranking.model == "test"
+    loaded_config = config_module.load_config().reranking
+
+    assert loaded_config.model == "test"
+    assert loaded_config.minimum_rerank_score == 0.125

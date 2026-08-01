@@ -3,6 +3,7 @@ from types import TracebackType
 from typing import Self
 
 import pytest
+
 from app.core.exceptions import MarkdownProcessingException
 from app.dal.files.markdown_reader import read_markdown_documents
 

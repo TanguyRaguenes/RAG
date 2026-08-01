@@ -4,6 +4,7 @@ import sys
 from types import SimpleNamespace
 
 import pytest
+
 from app.components import common
 from app.core import logging as app_logging
 from app.core.errors import RagApiError

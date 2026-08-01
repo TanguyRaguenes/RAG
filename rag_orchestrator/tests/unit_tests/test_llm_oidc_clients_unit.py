@@ -2,6 +2,7 @@ from typing import ClassVar
 
 import httpx
 import pytest
+
 from app.core.exceptions import (
     DependencyResponseError,
     IdentityProviderError,

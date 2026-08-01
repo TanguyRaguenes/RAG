@@ -1,4 +1,5 @@
 import pytest
+
 from app.api.routers.rerank_router import rerank_chunks_route
 from app.schemas.rerank_chunks_request_schema import RerankChunksRequestBase
 from app.schemas.rerank_chunks_response_schema import RerankChunksResponseBase

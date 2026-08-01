@@ -24,11 +24,12 @@ def _render_global_sidebar(current_user: AuthenticatedUser | None) -> None:
     """Affiche l'identité de l'utilisateur et l'action de déconnexion."""
     with st.sidebar:
         render_sidebar_header(current_user)
-        st.divider()
 
         if st.button("Se déconnecter", width="stretch"):
             logout()
             st.rerun()
+
+        st.divider()
 
 
 current_user = require_authenticated_user()

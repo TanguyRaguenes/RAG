@@ -1,13 +1,14 @@
 import logging
 
 import pytest
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
+
 from app.core.exceptions import (
     DatasetException,
     EvaluatorAuthenticationError,
     register_exception_handlers,
 )
-from fastapi import FastAPI
-from fastapi.testclient import TestClient
 
 
 def _build_test_app() -> FastAPI:

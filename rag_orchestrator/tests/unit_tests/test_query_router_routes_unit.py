@@ -1,4 +1,5 @@
 import pytest
+
 from app.api.routers import query_router
 from app.core.exceptions import QuestionQuotaExceededError, UsageSessionValidationError
 from app.schemas.ask_question_request_schema import AskQuestionRequestBase

@@ -3,6 +3,8 @@ import logging
 
 import httpx
 import pytest
+from fastapi import FastAPI
+
 from app.api.exception_handlers import (
     application_exception_handler,
     unexpected_exception_handler,
@@ -16,7 +18,6 @@ from app.core.exceptions import (
     UsageSessionValidationError,
 )
 from app.core.logging import JsonLogFormatter, configure_json_logging
-from fastapi import FastAPI
 
 
 @pytest.mark.asyncio

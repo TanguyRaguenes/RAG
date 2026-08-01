@@ -3,6 +3,7 @@ from concurrent.futures import ThreadPoolExecutor
 from threading import Lock
 
 import pytest
+
 from app.domain.models.vector_store_model import StoredVectorItem, VectorMetadata
 from app.schemas.vector_db_items_schema import VectorStoreItemsBase
 from app.services.saving_service import save_items

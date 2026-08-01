@@ -3,11 +3,12 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+from fastapi.security import HTTPAuthorizationCredentials
+
 from app.api.dependencies import get_bearer_token, get_config
 from app.core import config as config_module
 from app.core.config import EvaluatorConfig, load_admin_groups
 from app.core.exceptions import EvaluatorAuthenticationError
-from fastapi.security import HTTPAuthorizationCredentials
 
 
 def _raw_config() -> dict:

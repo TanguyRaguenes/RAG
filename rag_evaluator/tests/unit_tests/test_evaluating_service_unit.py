@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 
 import pytest
+
 from app.core.config import EvaluatorConfig
 from app.core.exceptions import (
     DatasetException,

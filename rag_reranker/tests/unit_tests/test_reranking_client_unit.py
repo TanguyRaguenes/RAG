@@ -3,6 +3,7 @@ from typing import Any, ClassVar, Self
 
 import httpx
 import pytest
+
 from app.core.config import RerankerConfig
 from app.core.exceptions import (
     RerankingResponseFormatException,

@@ -13,6 +13,7 @@ class RerankingConfig(BaseModel):
     url: str
     model: str
     top_k: int = Field(ge=0)
+    minimum_rerank_score: float = Field(default=0.005, ge=0, le=1)
     timeout_seconds: float = Field(default=180, gt=0)
     max_chunk_chars: int = Field(default=1600, gt=0)
 

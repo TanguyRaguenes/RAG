@@ -1,6 +1,7 @@
 from types import SimpleNamespace
 
 import pytest
+
 from app.state import session_state
 
 

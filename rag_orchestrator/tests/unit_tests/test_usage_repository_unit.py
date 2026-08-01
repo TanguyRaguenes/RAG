@@ -1,5 +1,6 @@
 import asyncpg
 import pytest
+
 from app.core.exceptions import DatabaseError
 from app.dal.repositories.interaction_repository import _get_chunk_score
 from app.dal.repositories.usage_repository import UsageRepository, _to_decimal_or_none

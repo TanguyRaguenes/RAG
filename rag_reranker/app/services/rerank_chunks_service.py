@@ -63,7 +63,8 @@ class RerankChunksService:
             chunks: Chunks candidats validés dans leur ordre d'origine.
 
         Returns:
-            Chunks enrichis, triés puis limités à `top_k`.
+            Chunks enrichis dont le score ne serait pas affiché comme `0.00`, triés
+            puis limités à `top_k`.
 
         Raises:
             RerankerContainerCustomException: Si aucun score complet n'est disponible.
@@ -95,8 +96,13 @@ class RerankChunksService:
                 internal_message="Validation Pydantic des chunks rerankés impossible",
                 internal_details={"validation_errors": exception.error_count()},
             ) from exception
+        positive_score_chunks = (
+            chunk
+            for chunk in scored_chunks
+            if chunk.rerank_score >= self._config.reranking.minimum_rerank_score
+        )
         return sorted(
-            scored_chunks,
+            positive_score_chunks,
             key=lambda chunk: (chunk.rerank_score, chunk.similarity),
             reverse=True,
         )[: self._config.reranking.top_k]

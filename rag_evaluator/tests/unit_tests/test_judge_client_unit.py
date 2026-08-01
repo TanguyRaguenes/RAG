@@ -2,6 +2,7 @@ from typing import ClassVar, Self
 
 import httpx
 import pytest
+
 from app.core.config import EvaluatorConfig
 from app.core.exceptions import EvaluatorClientError
 from app.dal.clients import judge_client as client

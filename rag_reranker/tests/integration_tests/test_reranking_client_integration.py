@@ -1,6 +1,7 @@
 import os
 
 import pytest
+
 from app.core.config import load_config
 from app.dal.clients.reranking_client import score_chunks
 
