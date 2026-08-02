@@ -105,17 +105,21 @@ class FakeAsyncClient:
 async def test_openai_client_respects_responses_api_contract(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    FakeAsyncClient.calls = []
-    FakeAsyncClient.response = FakeResponse(
-        {
-            "output": [
-                {"type": "reasoning"},
-                {
-                    "type": "message",
-                    "content": [{"type": "output_text", "text": "judgement"}],
-                },
-            ]
-        }
+    monkeypatch.setattr(FakeAsyncClient, "calls", [])
+    monkeypatch.setattr(
+        FakeAsyncClient,
+        "response",
+        FakeResponse(
+            {
+                "output": [
+                    {"type": "reasoning"},
+                    {
+                        "type": "message",
+                        "content": [{"type": "output_text", "text": "judgement"}],
+                    },
+                ]
+            },
+        ),
     )
     monkeypatch.setattr(client.httpx, "AsyncClient", FakeAsyncClient)
 
@@ -154,7 +158,21 @@ async def test_openai_client_respects_responses_api_contract(
 async def test_openai_client_uses_configured_url_and_model(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    FakeAsyncClient.calls = []
+    monkeypatch.setattr(FakeAsyncClient, "calls", [])
+    monkeypatch.setattr(
+        FakeAsyncClient,
+        "response",
+        FakeResponse(
+            {
+                "output": [
+                    {
+                        "type": "message",
+                        "content": [{"type": "output_text", "text": "judgement"}],
+                    }
+                ]
+            }
+        ),
+    )
     config = _config(judge_provider="api")
     config.llm.api.endpoint = "https://openai-proxy.example/v1/responses"
     config.llm.api.model = "gpt-5-mini"
@@ -174,9 +192,11 @@ async def test_openai_client_uses_configured_url_and_model(
 async def test_local_client_uses_openai_compatible_payload(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    FakeAsyncClient.calls = []
-    FakeAsyncClient.response = FakeResponse(
-        {"choices": [{"message": {"content": "judgement"}}]}
+    monkeypatch.setattr(FakeAsyncClient, "calls", [])
+    monkeypatch.setattr(
+        FakeAsyncClient,
+        "response",
+        FakeResponse({"choices": [{"message": {"content": "judgement"}}]}),
     )
     monkeypatch.setattr(client.httpx, "AsyncClient", FakeAsyncClient)
 
