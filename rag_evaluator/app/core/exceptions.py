@@ -111,7 +111,7 @@ def register_exception_handlers(app: FastAPI) -> None:
     app.add_exception_handler(Exception, unexpected_exception_handler)
 
 
-async def evaluator_exception_handler(
+def evaluator_exception_handler(
     request: Request,
     exception: EvaluatorContainerCustomException,
 ) -> JSONResponse:
@@ -145,7 +145,7 @@ async def evaluator_exception_handler(
     )
 
 
-async def unexpected_exception_handler(
+def unexpected_exception_handler(
     request: Request,
     exception: Exception,
 ) -> JSONResponse:

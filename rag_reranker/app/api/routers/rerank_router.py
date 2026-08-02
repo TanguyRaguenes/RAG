@@ -7,7 +7,7 @@ from app.schemas.rerank_chunks_response_schema import RerankChunksResponseBase
 router = APIRouter()
 
 
-@router.post("/rerank_chunks", response_model=RerankChunksResponseBase)
+@router.post("/rerank_chunks")
 async def rerank_chunks_route(
     payload: RerankChunksRequestBase,
     service: RerankServiceDep,

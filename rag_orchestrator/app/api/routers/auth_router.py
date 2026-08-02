@@ -7,7 +7,7 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 current_user_dependency = Depends(get_current_user)
 
 
-@router.get("/me", response_model=AuthenticatedUser)
+@router.get("/me")
 async def get_me(
     current_user: AuthenticatedUser = current_user_dependency,
 ) -> AuthenticatedUser:

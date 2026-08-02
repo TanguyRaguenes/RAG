@@ -26,7 +26,7 @@ BearerTokenDep = Annotated[str, Depends(get_bearer_token)]
 EvaluateRequestBody = Annotated[EvaluateRequest | None, Body()]
 
 
-@router.post("/evaluate_rag", response_model=EvaluatorResponseBase)
+@router.post("/evaluate_rag")
 async def ask_question_route(
     config: ConfigDep,
     access_token: BearerTokenDep,

@@ -18,7 +18,7 @@ current_user_dependency = Depends(get_current_user)
 orchestration_service_dependency = Depends(get_question_orchestration_service)
 
 
-@router.post("/ask_question", response_model=AskQuestionResponseBase)
+@router.post("/ask_question")
 async def ask_question_route(
     body: AskQuestionRequestBase,
     current_user: AuthenticatedUser = current_user_dependency,
@@ -42,7 +42,7 @@ async def ask_question_route(
     return await orchestration_service.ask_question(body, current_user)
 
 
-@router.post("/retrieve_chunks", response_model=RetrieveChunksResponseBase)
+@router.post("/retrieve_chunks")
 async def retrieve_chunks_route(
     body: RetrieveChunksRequestBase,
     current_user: AuthenticatedUser = current_user_dependency,

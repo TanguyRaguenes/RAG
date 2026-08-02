@@ -23,7 +23,7 @@ ConfigDep = Annotated[RetrieverConfig, Depends(get_config)]
 RepositoryDep = Annotated[VectorStoreRepository, Depends(get_vector_store_repository)]
 
 
-@router.post("/save_items", response_model=SaveItemsResponseBase)
+@router.post("/save_items")
 def save_items_route(
     items: VectorStoreItemsBase,
     config: ConfigDep,
@@ -43,7 +43,7 @@ def save_items_route(
         return save_items(items, config, vector_store_repository)
 
 
-@router.post("/retrieve_chunks", response_model=RetrievedChunksModelBase)
+@router.post("/retrieve_chunks")
 def retrieve_chunk_route(
     request_data: RetrieveChunksRequestBase,
     config: ConfigDep,
@@ -68,7 +68,7 @@ def retrieve_chunk_route(
         )
 
 
-@router.post("/retrieve_document_chunks", response_model=RetrievedChunksModelBase)
+@router.post("/retrieve_document_chunks")
 def retrieve_document_chunks_route(
     request_data: RetrieveDocumentChunksRequestBase,
     config: ConfigDep,

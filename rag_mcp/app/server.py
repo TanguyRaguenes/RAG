@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 try:
     config = load_mcp_config()
 except McpConfigError as error:
-    logger.error(
+    logger.exception(
         "MCP configuration rejected",
         extra={
             "service": "rag_mcp",

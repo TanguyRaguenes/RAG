@@ -37,6 +37,7 @@ CHUNK_DOCUMENT_PATTERN = re.compile(
     r"^\s*CONTEXT\s*:\s*(?P<context>.*?)\r?\nCONTENT\s*:\s*(?P<content>.*)\s*$",
     re.DOTALL,
 )
+MISSING_METADATA_VALUE = "Non renseigné"
 
 
 def format_chunk_as_markdown(index: int, chunk: dict[str, Any]) -> str:
@@ -50,10 +51,12 @@ def format_chunk_as_markdown(index: int, chunk: dict[str, Any]) -> str:
         Bloc Markdown contenant le chemin, le titre et le contenu du chunk.
     """
     meta = chunk.get("metadata") or {}
-    title = meta.get("title") or "Non renseigné"
-    path = meta.get("path") or "Non renseigné"
+    title = meta.get("title") or MISSING_METADATA_VALUE
+    path = meta.get("path") or MISSING_METADATA_VALUE
     chunk_index = meta.get("chunk_index")
-    chunk_index_value = chunk_index if chunk_index is not None else "Non renseigné"
+    chunk_index_value = (
+        chunk_index if chunk_index is not None else MISSING_METADATA_VALUE
+    )
     section, content = parse_chunk_document(chunk.get("document") or "")
 
     section_block = f"### Section documentaire\n\n{section}\n\n" if section else ""

@@ -21,6 +21,7 @@ from app.schemas.judge_schema import (
 )
 
 tracer = trace.get_tracer(__name__)
+INVALID_JUDGE_RESPONSE_MESSAGE = "Réponse du juge LLM invalide"
 
 
 class JudgeClient(Protocol):
@@ -205,7 +206,7 @@ def _parse_chat_completion_content(data: object) -> str:
         response = ChatCompletionResponse.model_validate(data)
     except ValidationError as exception:
         raise EvaluatorClientError(
-            message="Réponse du juge LLM invalide",
+            message=INVALID_JUDGE_RESPONSE_MESSAGE,
             details={"validation_errors": exception.error_count()},
         ) from exception
     return response.choices[0].message.content
@@ -227,7 +228,7 @@ def _parse_responses_api_content(data: object) -> str:
         response = ResponsesApiResponse.model_validate(data)
     except ValidationError as exception:
         raise EvaluatorClientError(
-            message="Réponse du juge LLM invalide",
+            message=INVALID_JUDGE_RESPONSE_MESSAGE,
             details={"validation_errors": exception.error_count()},
         ) from exception
 
@@ -236,7 +237,7 @@ def _parse_responses_api_content(data: object) -> str:
             if content.text and content.text.strip():
                 return content.text
 
-    raise EvaluatorClientError(message="Réponse du juge LLM invalide")
+    raise EvaluatorClientError(message=INVALID_JUDGE_RESPONSE_MESSAGE)
 
 
 async def _post_json(

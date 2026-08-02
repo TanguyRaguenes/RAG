@@ -8,7 +8,7 @@ from app.core.exceptions import ApplicationError, ErrorSlug
 logger = logging.getLogger(__name__)
 
 
-async def application_exception_handler(
+def application_exception_handler(
     request: Request, exception: ApplicationError
 ) -> JSONResponse:
     """Transforme une erreur contrôlée en réponse publique standardisée.
@@ -39,7 +39,7 @@ async def application_exception_handler(
     )
 
 
-async def unexpected_exception_handler(
+def unexpected_exception_handler(
     request: Request, exception: Exception
 ) -> JSONResponse:
     """Retourne un 500 neutre et journalise une seule fois l'erreur inattendue.

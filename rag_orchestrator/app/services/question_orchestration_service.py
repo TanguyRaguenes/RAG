@@ -298,8 +298,8 @@ class QuestionOrchestrationService:
                 status=status,
                 duration_ms=duration_ms,
             )
-        except Exception as exception:  # noqa: BLE001 - secondary persistence must not mask the primary error
-            logger.error(
+        except Exception as exception:
+            logger.exception(
                 log_message,
                 extra={"error_type": type(exception).__name__},
             )
@@ -320,8 +320,8 @@ class QuestionOrchestrationService:
 
         try:
             await finish_usage_session(self.db_pool, session_id)
-        except Exception as exception:  # noqa: BLE001 - cleanup must not mask the request result
-            logger.error(
+        except Exception as exception:
+            logger.exception(
                 log_message,
                 extra={"error_type": type(exception).__name__},
             )

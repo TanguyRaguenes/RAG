@@ -29,7 +29,7 @@ current_user_dependency = Depends(get_current_user)
 db_pool_dependency = Depends(get_db_pool)
 
 
-@router.get("/quota/me", response_model=QuotaUsageResponse)
+@router.get("/quota/me")
 async def get_my_quota_usage(
     current_user: AuthenticatedUser = current_user_dependency,
     db_pool: asyncpg.Pool = db_pool_dependency,
@@ -46,7 +46,7 @@ async def get_my_quota_usage(
     return await get_current_user_quota_usage(current_user, db_pool)
 
 
-@router.post("/interactions/{interaction_id}/feedback", response_model=FeedbackResponse)
+@router.post("/interactions/{interaction_id}/feedback")
 async def save_interaction_feedback(
     interaction_id: int,
     body: FeedbackRequest,
@@ -74,7 +74,7 @@ async def save_interaction_feedback(
     )
 
 
-@router.get("/quota/admin/users", response_model=list[QuotaUsageResponse])
+@router.get("/quota/admin/users")
 async def list_user_quota_usages(
     current_user: AuthenticatedUser = current_user_dependency,
     db_pool: asyncpg.Pool = db_pool_dependency,
@@ -93,7 +93,7 @@ async def list_user_quota_usages(
     return await list_all_quota_usages(db_pool)
 
 
-@router.patch("/quota/admin/users/{user_id}", response_model=QuotaUsageResponse)
+@router.patch("/quota/admin/users/{user_id}")
 async def update_user_quota_usage(
     user_id: str,
     body: UpdateQuotaRequest,
@@ -122,10 +122,7 @@ async def update_user_quota_usage(
     )
 
 
-@router.get(
-    "/admin/interactions/feedbacks",
-    response_model=list[AdminInteractionFeedbackResponse],
-)
+@router.get("/admin/interactions/feedbacks")
 async def list_interaction_feedbacks(
     start_date: date,
     end_date: date,

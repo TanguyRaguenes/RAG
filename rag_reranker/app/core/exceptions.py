@@ -86,7 +86,7 @@ def register_exception_handlers(app: FastAPI) -> None:
     app.add_exception_handler(Exception, unexpected_exception_handler)
 
 
-async def reranker_exception_handler(
+def reranker_exception_handler(
     request: Request,
     exception: RerankerContainerCustomException,
 ) -> JSONResponse:
@@ -118,7 +118,7 @@ async def reranker_exception_handler(
     )
 
 
-async def unexpected_exception_handler(
+def unexpected_exception_handler(
     request: Request,
     exception: Exception,
 ) -> JSONResponse:
