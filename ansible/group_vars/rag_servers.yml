@@ -16,8 +16,12 @@ rag_ingest_logrotate_rotate: 5
 env_files:
   - src: "{{ project_root }}/.env.prod"
     dest: "{{ deploy_dir }}/.env"
+  - src: "{{ project_root }}/rag_retriever/.env.prod"
+    dest: "{{ deploy_dir }}/rag_retriever/.env.prod"
   - src: "{{ project_root }}/rag_embedder/.env.prod"
     dest: "{{ deploy_dir }}/rag_embedder/.env.prod"
+  - src: "{{ project_root }}/rag_reranker/.env.prod"
+    dest: "{{ deploy_dir }}/rag_reranker/.env.prod"
   - src: "{{ project_root }}/rag_orchestrator/.env.prod"
     dest: "{{ deploy_dir }}/rag_orchestrator/.env.prod"
   - src: "{{ project_root }}/rag_ihm/.env.prod"

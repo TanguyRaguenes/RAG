@@ -138,6 +138,8 @@
         - "{{ deploy_dir }}/rag_ihm"
         - "{{ deploy_dir }}/rag_mcp"
         - "{{ deploy_dir }}/rag_evaluator"
+        - "{{ deploy_dir }}/rag_retriever"
+        - "{{ deploy_dir }}/rag_reranker"
         - "{{ deploy_dir }}/pocket-id"
         - "{{ deploy_dir }}/database/postgres/init"
         - "{{ deploy_dir }}/observability"
