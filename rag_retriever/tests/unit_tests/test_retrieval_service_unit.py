@@ -38,7 +38,10 @@ class FakeVectorStoreRepository:
 
 def _config() -> dict:
     return {
-        "collection": {"name": "configured-wiki"},
+        "collections": {
+            "default": "configured-wiki",
+            "evaluation": "configured-gold",
+        },
         "retriever": {
             "top_k": 10,
             "minimum_similarity": 0.7,
@@ -67,6 +70,14 @@ def test_retrieve_chunks_uses_configured_collection_and_formats_results() -> Non
     assert repository.call_args == ("configured-wiki", [0.1, 0.2], 10)
     assert response.chunks[0].id == "guide | guide.md | 1"
     assert response.chunks[0].similarity == 0.8
+
+
+def test_retrieve_chunks_uses_evaluation_collection_when_requested() -> None:
+    repository = FakeVectorStoreRepository([])
+
+    retrieve_chunks(_config(), [0.1], repository, "evaluation")
+
+    assert repository.call_args == ("configured-gold", [0.1], 10)
 
 
 def test_retrieve_document_chunks_deduplicates_paths_and_orders_chunks() -> None:

@@ -93,8 +93,11 @@ services:
       - "8000"
     env_file:
       - ./rag_embedder/.env.prod
+    environment:
+      RAG_EVALUATION_WIKIS_DIR: /data/evaluation-wikis
     volumes:
       - ${RAG_WIKIS_PATH:-./wikis}:/data/wikis:ro
+      - ./rag_evaluator/data/wikis:/data/evaluation-wikis:ro
     depends_on:
       - ollama
       - rag_retriever
@@ -137,7 +140,7 @@ services:
     expose:
       - "8000"
     volumes:
-      - ${RAG_EVALUATOR_DATASET_PATH:-./rag_evaluator/dataset.json}:/data/dataset.json:ro
+      - ${RAG_EVALUATOR_DATA_PATH:-./rag_evaluator/data}:/data:ro
     depends_on:
       - rag_orchestrator
     restart: unless-stopped

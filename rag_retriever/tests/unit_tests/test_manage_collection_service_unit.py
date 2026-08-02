@@ -9,9 +9,34 @@ class FakeVectorStoreRepository:
         self.reset_collection_name = collection_name
 
 
-def test_delete_collection_recreates_configured_collection() -> None:
+def test_delete_collection_recreates_default_collection() -> None:
     repository = FakeVectorStoreRepository()
 
-    delete_collection({"collection": {"name": "wiki_chunks"}}, repository)
+    delete_collection(
+        {
+            "collections": {
+                "default": "wiki_chunks",
+                "evaluation": "evaluation_wiki_chunks",
+            }
+        },
+        repository,
+    )
 
     assert repository.reset_collection_name == "wiki_chunks"
+
+
+def test_delete_collection_recreates_evaluation_collection() -> None:
+    repository = FakeVectorStoreRepository()
+
+    delete_collection(
+        {
+            "collections": {
+                "default": "wiki_chunks",
+                "evaluation": "evaluation_wiki_chunks",
+            }
+        },
+        repository,
+        "evaluation",
+    )
+
+    assert repository.reset_collection_name == "evaluation_wiki_chunks"

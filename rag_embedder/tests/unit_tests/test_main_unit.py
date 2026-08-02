@@ -21,7 +21,8 @@ def _client() -> TestClient:
 def test_main_app_returns_safe_custom_error_and_logs_once(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    async def fail_ingestion(config: dict) -> None:
+    async def fail_ingestion(config: dict, profile: str) -> None:
+        assert profile == "default"
         raise MarkdownProcessingException(
             internal_details={
                 "relative_path": "private/wiki.md",

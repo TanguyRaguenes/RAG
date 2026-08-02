@@ -1,7 +1,9 @@
+import os
 import posixpath
 import re
 import time
 from datetime import UTC, datetime
+from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
 from app.core.config import EmbedderConfig
@@ -17,6 +19,7 @@ from app.schemas.document_to_ingest_schema import (
 from app.schemas.ingest_bulk_response_schema import IngestBulkResponseBase
 from app.schemas.save_items_response_schema import SaveItemsResponseBase
 from app.schemas.vector_store_items_schema import (
+    CollectionProfile,
     VectorMetadataBase,
     VectorStoreItemsBase,
 )
@@ -25,13 +28,16 @@ from app.services.load_documents_service import load_documents
 
 
 async def ingest_documents(
-    documents: DocumentsBase, config: EmbedderConfig
+    documents: DocumentsBase,
+    config: EmbedderConfig,
+    collection_profile: CollectionProfile = "default",
 ) -> SaveItemsResponseBase:
     """Charge, découpe, vectorise et sauvegarde les documents dans le retriever.
 
     Args:
         documents: Contenus textuels retournés par ChromaDB ou à ingérer.
         config: Configuration applicative contenant les URLs, modèles ou paramètres métier nécessaires.
+        collection_profile: Collection logique ciblée dans le retriever.
 
     Returns:
         Réponse de sauvegarde retournée par le retriever après ingestion.
@@ -58,8 +64,9 @@ async def ingest_documents(
         documents_to_ingest.documents.append(document_to_ingest)
 
     # On converti au format attendu par ChromaDB
-    vector_store_items: VectorStoreItemsBase = convert_to_chroma_format(
-        documents_to_ingest
+    vector_store_items = convert_to_chroma_format(
+        documents_to_ingest,
+        collection_profile,
     )
     if not vector_store_items.ids:
         raise MarkdownProcessingException(
@@ -72,24 +79,30 @@ async def ingest_documents(
 
     # On va contacter le container avec ChromaDB pour demander la sauvegarde des documents
     vector_store_items.delete_obsolete = True
+    vector_store_items.replace_collection = collection_profile == "evaluation"
     save_items_response = await client_save_items(vector_store_items)
 
     return save_items_response
 
 
-async def ingest_all_documents(config: EmbedderConfig) -> IngestBulkResponseBase:
+async def ingest_all_documents(
+    config: EmbedderConfig,
+    collection_profile: CollectionProfile = "default",
+) -> IngestBulkResponseBase:
     """Orchestre une ingestion complète depuis les fichiers jusqu'au retriever.
 
     Args:
         config: Configuration de chunking et d'embedding du service.
+        collection_profile: Profil déterminant le dossier source et la collection cible.
 
     Returns:
         Compteurs et horodatages conservant le contrat HTTP existant.
     """
     start = time.perf_counter()
     started_at = datetime.now(UTC).isoformat(timespec="seconds")
-    documents = await load_documents()
-    result = await ingest_documents(documents, config)
+    source_directory = _get_source_directory(collection_profile)
+    documents = await load_documents(source_directory)
+    result = await ingest_documents(documents, config, collection_profile)
     elapsed = time.perf_counter() - start
     minutes, seconds = divmod(int(elapsed), 60)
     return IngestBulkResponseBase(
@@ -103,11 +116,13 @@ async def ingest_all_documents(config: EmbedderConfig) -> IngestBulkResponseBase
 
 def convert_to_chroma_format(
     documents_to_ingest: DocumentsToIngest,
+    collection_profile: CollectionProfile = "default",
 ) -> VectorStoreItemsBase:
     """Convertit des documents préparés en structure compatible avec ChromaDB.
 
     Args:
         documents_to_ingest: Documents découpés et enrichis prêts à être transformés au format ChromaDB.
+        collection_profile: Collection logique jointe au lot vectoriel.
 
     Returns:
         Items vectoriels prêts à être envoyés au retriever.
@@ -131,7 +146,22 @@ def convert_to_chroma_format(
         documents=all_texts,
         embeddings=all_embeddings,
         metadatas=all_metadatas,
+        collection_profile=collection_profile,
     )
+
+
+def _get_source_directory(collection_profile: CollectionProfile) -> Path | None:
+    """Résout le dossier fixe correspondant au profil d'ingestion.
+
+    Args:
+        collection_profile: Profil `default` ou `evaluation` validé par FastAPI.
+
+    Returns:
+        Dossier explicite des wikis gold, ou `None` pour le dossier standard.
+    """
+    if collection_profile == "evaluation":
+        return Path(os.getenv("RAG_EVALUATION_WIKIS_DIR", "/data/evaluation-wikis"))
+    return None
 
 
 def clean_title(title: str) -> str:

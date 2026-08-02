@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Literal
 
 from opentelemetry import trace
 
@@ -15,12 +15,17 @@ from app.schemas.retrieve_chunks_response_schema import (
 tracer = trace.get_tracer(__name__)
 
 
-async def retrieve_chunks(question: str, config: dict) -> RetrieveChunksResponseBase:
+async def retrieve_chunks(
+    question: str,
+    config: dict,
+    collection_profile: Literal["default", "evaluation"] = "default",
+) -> RetrieveChunksResponseBase:
     """Récupère les chunks pertinents pour une question.
 
     Args:
         question: Question utilisateur, non loggée pour éviter l'exposition de contenu.
         config: Configuration applicative du pipeline RAG.
+        collection_profile: Profil fixe de collection à interroger.
 
     Returns:
         Réponse contenant les chunks récupérés et éventuellement étendus au document complet.
@@ -30,7 +35,9 @@ async def retrieve_chunks(question: str, config: dict) -> RetrieveChunksResponse
         KeyError: Si une clé de configuration attendue est absente.
     """
     with tracer.start_as_current_span("orchestrator.retrieve_chunks_service"):
-        reranked_chunks = await retrieve_and_rerank_chunks(question, config)
+        reranked_chunks = await retrieve_and_rerank_chunks(
+            question, config, collection_profile
+        )
 
         return RetrieveChunksResponseBase(
             retrieved_chunks=reranked_chunks,
@@ -40,12 +47,14 @@ async def retrieve_chunks(question: str, config: dict) -> RetrieveChunksResponse
 async def retrieve_and_rerank_chunks(
     question: str,
     config: dict,
+    collection_profile: Literal["default", "evaluation"] = "default",
 ) -> list[dict[str, Any]]:
     """Exécute embedding, retrieval, reranking puis extension documentaire optionnelle.
 
     Args:
         question: Question utilisateur à traiter.
         config: Configuration indiquant notamment si tous les chunks d'un document doivent être récupérés.
+        collection_profile: Profil fixe de collection à interroger.
 
     Returns:
         Chunks rerankés ou chunks complets des documents sélectionnés.
@@ -59,7 +68,8 @@ async def retrieve_and_rerank_chunks(
         embeded_question: list[float] = (await embed([question]))[0]
 
         retrieved_chunks: list[dict[str, Any]] = await retrieve_chunks_client(
-            embeded_question
+            embeded_question,
+            collection_profile,
         )
         span.set_attribute("retrieval.chunk_count", len(retrieved_chunks))
 
@@ -74,7 +84,8 @@ async def retrieve_and_rerank_chunks(
 
         paths = extract_unique_paths(reranked_chunks)
         document_chunks: list[dict[str, Any]] = await retrieve_document_chunks_client(
-            paths
+            paths,
+            collection_profile,
         )
         span.set_attribute("retrieval.document_path_count", len(paths))
         span.set_attribute("retrieval.document_chunk_count", len(document_chunks))

@@ -33,7 +33,8 @@ flowchart TD
 | `retriever.minimum_similarity` | Seuil minimal de similarité conservé. | `0.4` |
 | `retriever.minimum_number_of_chunks` | Nombre minimal de chunks retournés. | `1` |
 | `retriever.max_related_links` | Nombre maximal de liens internes suivis. | `10` |
-| `collection.name` | Collection ChromaDB utilisée. | `wiki_chunks` |
+| `collections.default` | Collection ChromaDB utilisée par le RAG courant. | `wiki_chunks` |
+| `collections.evaluation` | Collection figée utilisée par `rag_evaluator`. | `evaluation_wiki_chunks` |
 
 ## 5. API Endpoints
 

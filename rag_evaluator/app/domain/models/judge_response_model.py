@@ -1,8 +1,10 @@
 from langchain_core.output_parsers import PydanticOutputParser
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class JudgeOutput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     feedback: str = Field(
         description="Concise feedback on the answer quality, comparing it to the reference answer and evaluating based on the retrieved context"
     )

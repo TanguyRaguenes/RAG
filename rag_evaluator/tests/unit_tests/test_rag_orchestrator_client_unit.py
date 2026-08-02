@@ -118,6 +118,7 @@ async def test_client_verifies_identity_and_propagates_same_bearer(
                 "question": "Question",
                 "provider": "api",
                 "channel": "api",
+                "collection_profile": "evaluation",
             },
             "timeout": 180.0,
         },
@@ -164,6 +165,7 @@ async def test_client_sends_configured_local_rag_provider(
         "question": "Question",
         "provider": "local",
         "channel": "api",
+        "collection_profile": "evaluation",
     }
 
 

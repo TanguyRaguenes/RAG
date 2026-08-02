@@ -31,16 +31,30 @@ from app.services.evaluating_service import (
 def _config() -> EvaluatorConfig:
     return EvaluatorConfig.model_validate(
         {
+            "rag_provider": "api",
+            "judge_provider": "local",
             "llm": {
-                "provider": "ollama",
-                "url_provider": "http://ollama",
-                "model": "judge",
-                "temperature": 0.1,
-                "num_ctx": 1024,
-                "max_output_token": 128,
-                "timeout_seconds": 10,
+                "common": {
+                    "temperature": 0.1,
+                    "timeout_seconds": 10,
+                    "stream": False,
+                },
+                "local": {
+                    "provider": "Ollama",
+                    "endpoint": "http://ollama/v1/chat/completions",
+                    "model": "judge",
+                    "context_window_tokens": 1024,
+                    "max_output_tokens": 128,
+                    "max_prompt_chars": 2000,
+                },
+                "api": {
+                    "provider": "OpenAi",
+                    "endpoint": "https://api.openai.com/v1/responses",
+                    "model": "judge-api",
+                    "max_output_tokens": 128,
+                    "max_prompt_chars": 4000,
+                },
             },
-            "evaluation_method": {"use_api_openai": False},
         }
     )
 
@@ -119,8 +133,8 @@ def test_json_dataset_repository_validates_all_items(tmp_path: Path) -> None:
     dataset_path.write_text(
         json.dumps(
             [
-                {"question": "Q1", "reference_answer": "R1"},
-                {"question": "", "reference_answer": "R2"},
+                {"id": "Q001", "question": "Q1", "reference_answer": "R1"},
+                {"id": "Q002", "question": "", "reference_answer": "R2"},
             ]
         ),
         encoding="utf-8",
@@ -180,11 +194,25 @@ def test_quality_accumulator_and_average() -> None:
     accumulator = build_quality_accumulator()
     add_quality_score(
         accumulator,
-        AnswerEvaluationBase(feedback="ok", accuracy=4, completeness=3, relevance=5),
+        AnswerEvaluationBase(
+            feedback="ok",
+            accuracy=4,
+            completeness=3,
+            relevance=5,
+            faithfulness=4,
+            safe_refusal=5,
+        ),
     )
     add_quality_score(
         accumulator,
-        AnswerEvaluationBase(feedback="ok", accuracy=2, completeness=5, relevance=3),
+        AnswerEvaluationBase(
+            feedback="ok",
+            accuracy=2,
+            completeness=5,
+            relevance=3,
+            faithfulness=2,
+            safe_refusal=5,
+        ),
     )
 
     average = calculate_average_quality(accumulator, valid_judgements=2)
@@ -205,14 +233,23 @@ async def test_evaluation_service_averages_successful_results(
 ) -> None:
     repository = FakeDatasetRepository(
         [
-            EvaluationCase(question="Q1", reference_answer="R1", keywords=["keyword"]),
-            EvaluationCase(question="Q2", reference_answer="R2", keywords=["keyword"]),
+            EvaluationCase(
+                id="Q001", question="Q1", reference_answer="R1", keywords=["keyword"]
+            ),
+            EvaluationCase(
+                id="Q002", question="Q2", reference_answer="R2", keywords=["keyword"]
+            ),
         ]
     )
 
     async def fake_evaluate_answer(**kwargs: object) -> AnswerEvaluationBase:
         return AnswerEvaluationBase(
-            feedback="ok", accuracy=4, completeness=3, relevance=5
+            feedback="ok",
+            accuracy=4,
+            completeness=3,
+            relevance=5,
+            faithfulness=4,
+            safe_refusal=5,
         )
 
     monkeypatch.setattr(evaluating_service, "evaluate_answer", fake_evaluate_answer)
@@ -231,9 +268,41 @@ async def test_evaluation_service_averages_successful_results(
 
 
 @pytest.mark.asyncio
+async def test_evaluation_service_limits_questions_in_dataset_order(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repository = FakeDatasetRepository(
+        [
+            EvaluationCase(id="Q001", question="Q1", reference_answer="R1"),
+            EvaluationCase(id="Q002", question="Q2", reference_answer="R2"),
+        ]
+    )
+
+    async def fake_evaluate_answer(**kwargs: object) -> AnswerEvaluationBase:
+        return AnswerEvaluationBase(
+            feedback="ok",
+            accuracy=4,
+            completeness=4,
+            relevance=4,
+            faithfulness=4,
+            safe_refusal=5,
+        )
+
+    monkeypatch.setattr(evaluating_service, "evaluate_answer", fake_evaluate_answer)
+    orchestrator = FakeOrchestratorClient()
+
+    result = await _service(repository, orchestrator).evaluate(
+        "same-token", question_limit=1
+    )
+
+    assert result.total_questions == 1
+    assert orchestrator.question_calls == [("Q1", "same-token")]
+
+
+@pytest.mark.asyncio
 async def test_evaluation_rejects_user_without_admin_group() -> None:
     repository = FakeDatasetRepository(
-        [EvaluationCase(question="Q", reference_answer="R")]
+        [EvaluationCase(id="Q001", question="Q", reference_answer="R")]
     )
     orchestrator = FakeOrchestratorClient(groups=["developers"])
 
@@ -246,7 +315,7 @@ async def test_evaluation_rejects_user_without_admin_group() -> None:
 @pytest.mark.asyncio
 async def test_orchestrator_failure_aborts_evaluation() -> None:
     repository = FakeDatasetRepository(
-        [EvaluationCase(question="Q", reference_answer="R")]
+        [EvaluationCase(id="Q001", question="Q", reference_answer="R")]
     )
     orchestrator = FakeOrchestratorClient(EvaluatorClientError("rag down"))
 
@@ -259,7 +328,7 @@ async def test_judge_failure_aborts_evaluation(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     repository = FakeDatasetRepository(
-        [EvaluationCase(question="Q", reference_answer="R")]
+        [EvaluationCase(id="Q001", question="Q", reference_answer="R")]
     )
 
     async def failing_evaluate_answer(**kwargs: object) -> AnswerEvaluationBase:

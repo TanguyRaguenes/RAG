@@ -1,6 +1,6 @@
 import json
 from pathlib import Path
-from typing import TypedDict, cast
+from typing import Literal, TypedDict, cast
 
 # __file__ = chemin du fichier Python courant
 _CONFIG_PATH = Path(__file__).parent / "config.json"
@@ -15,17 +15,36 @@ class RetrievalConfig(TypedDict):
     max_related_links: int
 
 
-class CollectionConfig(TypedDict):
-    """Configuration de la collection ChromaDB active."""
+CollectionProfile = Literal["default", "evaluation"]
 
-    name: str
+
+class CollectionsConfig(TypedDict):
+    """Associe chaque profil autorisé à une collection ChromaDB fixe."""
+
+    default: str
+    evaluation: str
 
 
 class RetrieverConfig(TypedDict):
     """Configuration applicative complète du retriever."""
 
     retriever: RetrievalConfig
-    collection: CollectionConfig
+    collections: CollectionsConfig
+
+
+def get_collection_name(
+    config: RetrieverConfig, collection_profile: CollectionProfile
+) -> str:
+    """Retourne la collection fixe associée au profil validé.
+
+    Args:
+        config: Configuration complète du retriever.
+        collection_profile: Profil logique demandé par un service interne.
+
+    Returns:
+        Nom de collection ChromaDB configuré pour ce profil.
+    """
+    return config["collections"][collection_profile]
 
 
 def load_config() -> RetrieverConfig:

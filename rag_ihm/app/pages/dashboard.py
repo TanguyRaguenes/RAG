@@ -40,7 +40,7 @@ def _render_sidebar() -> None:
             st.rerun()
 
 
-def _run_evaluation(config: EvaluatorApiConfig) -> None:
+def _run_evaluation(config: EvaluatorApiConfig, question_limit: int) -> None:
     """Lance une évaluation RAG depuis le dashboard administrateur.
 
     Args:
@@ -48,7 +48,9 @@ def _run_evaluation(config: EvaluatorApiConfig) -> None:
     """
     with st.spinner("Évaluation du RAG en cours..."):
         try:
-            result = run_evaluation(config, get_access_token())
+            result = run_evaluation(
+                config, get_access_token(), question_limit=question_limit
+            )
             save_dashboard_result(result)
         except RagApiError as error:
             render_api_error(error)
@@ -97,8 +99,17 @@ render_page_header(
     "Lance une évaluation pour vérifier la qualité des sources récupérées et des réponses générées.",
 )
 
+question_limit = st.number_input(
+    "Nombre de questions à évaluer",
+    min_value=1,
+    max_value=50,
+    value=50,
+    step=1,
+    help="Les questions sont prises dans l'ordre stable du dataset gold, de Q001 à la limite choisie.",
+)
+
 if st.button("Lancer l'évaluation", type="primary", width="stretch"):
-    _run_evaluation(evaluator_config)
+    _run_evaluation(evaluator_config, question_limit)
 
 result = get_dashboard_result()
 if result:

@@ -7,3 +7,4 @@ class AskQuestionRequestBase(BaseModel):
     question: str
     provider: Literal["local", "api"]
     channel: Literal["streamlit", "mcp", "api"] = "api"
+    collection_profile: Literal["default", "evaluation"] = "default"

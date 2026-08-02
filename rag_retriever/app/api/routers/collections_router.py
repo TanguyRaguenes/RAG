@@ -3,7 +3,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends
 
 from app.api.dependencies import get_config, get_vector_store_repository
-from app.core.config import RetrieverConfig
+from app.core.config import CollectionProfile, RetrieverConfig
 from app.core.operation_observer import observe_retriever_operation
 from app.dal.repositories.vector_store_repository import VectorStoreRepository
 from app.schemas.retrieve_chunks_request_schema import (
@@ -64,6 +64,7 @@ def retrieve_chunk_route(
             config,
             request_data.embeded_question,
             vector_store_repository,
+            request_data.collection_profile,
         )
 
 
@@ -88,6 +89,7 @@ def retrieve_document_chunks_route(
             config,
             request_data.paths,
             vector_store_repository,
+            request_data.collection_profile,
         )
 
 
@@ -95,16 +97,18 @@ def retrieve_document_chunks_route(
 def delete_collection_route(
     config: ConfigDep,
     vector_store_repository: RepositoryDep,
+    profile: CollectionProfile = "default",
 ) -> str:
     """Délègue la réinitialisation de la collection configurée.
 
     Args:
         config: Configuration contenant la collection à réinitialiser.
         vector_store_repository: Repository injecté pour l'opération de gestion.
+        profile: Profil fixe de la collection à réinitialiser.
 
     Returns:
         Message de confirmation conservé pour compatibilité HTTP.
     """
     with observe_retriever_operation("delete_collection"):
-        delete_collection(config, vector_store_repository)
+        delete_collection(config, vector_store_repository, profile)
     return "Collection : bien supprimée."

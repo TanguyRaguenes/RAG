@@ -13,16 +13,30 @@ from app.core.exceptions import EvaluatorAuthenticationError
 
 def _raw_config() -> dict:
     return {
+        "rag_provider": "api",
+        "judge_provider": "local",
         "llm": {
-            "provider": "ollama",
-            "url_provider": "http://ollama",
-            "model": "test",
-            "temperature": 0.1,
-            "num_ctx": 1024,
-            "max_output_token": 128,
-            "timeout_seconds": 10,
+            "common": {
+                "temperature": 0.1,
+                "timeout_seconds": 10,
+                "stream": False,
+            },
+            "local": {
+                "provider": "Ollama",
+                "endpoint": "http://ollama/v1/chat/completions",
+                "model": "test-local",
+                "context_window_tokens": 1024,
+                "max_output_tokens": 128,
+                "max_prompt_chars": 2000,
+            },
+            "api": {
+                "provider": "OpenAi",
+                "endpoint": "https://api.openai.com/v1/responses",
+                "model": "test-api",
+                "max_output_tokens": 128,
+                "max_prompt_chars": 4000,
+            },
         },
-        "evaluation_method": {"use_api_openai": False},
     }
 
 
@@ -55,11 +69,9 @@ def test_load_config_reads_json_file(
 
     config = config_module.load_config()
 
-    assert config.llm.model == "test"
-    assert config.evaluation_method.openai_url == (
-        "https://api.openai.com/v1/chat/completions"
-    )
-    assert config.evaluation_method.openai_model == "gpt-4o"
+    assert config.llm.local.model == "test-local"
+    assert config.llm.api.endpoint == "https://api.openai.com/v1/responses"
+    assert config.judge_provider == "local"
     assert config.rag_provider == "api"
 
 

@@ -360,6 +360,8 @@ def run_evaluation(
     config: EvaluatorApiConfig,
     access_token: str | None,
     client: RagClient | None = None,
+    *,
+    question_limit: int | None = None,
 ) -> EvaluationResponse:
     """Déclenche l'évaluation en propageant l'identité si le service l'accepte.
 
@@ -367,6 +369,7 @@ def run_evaluation(
         config: Endpoints evaluator.
         access_token: Bearer token transmis à l'evaluator.
         client: Client externe injecté si nécessaire.
+        question_limit: Nombre de premières questions à évaluer.
 
     Returns:
         DTO des résultats d'évaluation.
@@ -379,6 +382,9 @@ def run_evaluation(
         config.evaluate_url,
         access_token,
         timeout=300,
+        payload=(
+            {"question_limit": question_limit} if question_limit is not None else None
+        ),
         client=client,
     )
     try:

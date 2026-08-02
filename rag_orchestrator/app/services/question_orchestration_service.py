@@ -150,11 +150,13 @@ class QuestionOrchestrationService:
                     answer = await ask_question_to_local_model(
                         body.question,
                         self.config,
+                        body.collection_profile,
                     )
                 else:
                     answer = await ask_question_to_api(
                         body.question,
                         self.config,
+                        body.collection_profile,
                     )
 
                 rag_completed = True
@@ -230,7 +232,11 @@ class QuestionOrchestrationService:
                 ) from exception
 
             try:
-                answer = await retrieve_chunks(body.question, self.config)
+                answer = await retrieve_chunks(
+                    body.question,
+                    self.config,
+                    body.collection_profile,
+                )
                 retrieval_completed = True
                 duration_ms = elapsed_ms(start)
                 await save_retrieval_usage(

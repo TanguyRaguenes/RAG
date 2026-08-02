@@ -1,3 +1,5 @@
+from typing import Literal
+
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.domain.models.vector_store_model import VectorMetadata, VectorStoreBatch
@@ -33,6 +35,8 @@ class VectorStoreItemsBase(BaseModel):
     embeddings: list[list[float]]
     metadatas: list[VectorMetadataBase]
     delete_obsolete: bool = False
+    replace_collection: bool = False
+    collection_profile: Literal["default", "evaluation"] = "default"
 
     @model_validator(mode="after")
     def validate_aligned_items(self) -> "VectorStoreItemsBase":
@@ -57,6 +61,8 @@ class VectorStoreItemsBase(BaseModel):
             )
         if len(set(self.ids)) != item_count:
             raise ValueError("ids must be unique")
+        if self.replace_collection and self.collection_profile != "evaluation":
+            raise ValueError("replace_collection is restricted to evaluation")
         if self.delete_obsolete and not self.ids:
             raise ValueError("delete_obsolete requires at least one id")
         if self.embeddings:

@@ -169,6 +169,7 @@ class HttpRagOrchestratorClient:
                 question=question,
                 provider=self._rag_provider,
                 channel="api",
+                collection_profile="evaluation",
             ).model_dump(),
         )
         try:

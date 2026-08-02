@@ -163,7 +163,23 @@ Expose les métriques Prometheus du service : requêtes, erreurs et durées d'em
 
 ### 5.3 POST `/ingest/bulk`
 
-Ingest tous les documents Markdown du dossier `wikis/` dans ChromaDB.
+Ingest un snapshot complet de documents Markdown dans la collection ChromaDB
+associée au profil demandé.
+
+| Paramètre query | Valeurs | Dossier source | Collection |
+|---|---|---|---|
+| `profile` | `default` (défaut) | `RAG_WIKIS_DIR` | `wiki_chunks` |
+| `profile` | `evaluation` | `RAG_EVALUATION_WIKIS_DIR` | `evaluation_wiki_chunks` |
+
+Exemples :
+
+```text
+POST /ingest/bulk
+POST /ingest/bulk?profile=evaluation
+```
+
+Le profil `evaluation` reconstruit exclusivement la collection d'évaluation.
+Le remplacement de la collection `default` est interdit par le contrat interne.
 
 **Corps de la requête :**
 ```
@@ -173,24 +189,11 @@ Aucun corps requis
 **Réponse :**
 ```json
 {
+    "started_at": "2026-08-02T09:00:00+00:00",
+    "finished_at": "2026-08-02T09:02:30+00:00",
     "duration": "02:30",
-    "savedItems": {
-        "collection_count_before": 100,
-        "collection_count_after": 150,
-        "saved_items": [
-            {
-                "id": "DocumentTitle#chunk_0#path/to/file.md",
-                "chunk": "Contenu du chunk...",
-                "metadatas": {
-                    "path": "path/to/file.md",
-                    "title": "Document Title",
-                    "chunk_index": 0,
-                    "related_links": "linked-page.md",
-                    "has_links": true
-                }
-            }
-        ]
-    }
+    "collection_count_before": 100,
+    "collection_count_after": 150
 }
 ```
 
@@ -209,8 +212,8 @@ sequenceDiagram
     participant Embed as Embedding Client
     participant ChromaDB as ChromaDB
 
-    Client->>API: POST /ingest/bulk
-    API->>Load: Charger documents Markdown
+    Client->>API: POST /ingest/bulk?profile=...
+    API->>Load: Charger le dossier associé au profil
     Load-->>API: Liste DocumentsBase
 
     Loop Pour chaque document

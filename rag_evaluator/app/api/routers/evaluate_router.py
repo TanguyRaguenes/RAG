@@ -1,7 +1,7 @@
 import time
 from typing import Annotated
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Body, Depends
 from opentelemetry import trace
 
 from app.api.dependencies import get_bearer_token, get_config
@@ -15,6 +15,7 @@ from app.core.metrics import (
     rag_request_duration_seconds,
     rag_requests_total,
 )
+from app.schemas.evaluate_request_schema import EvaluateRequest
 from app.schemas.evaluator_response_schema import EvaluatorResponseBase
 from app.services.evaluating_service import evaluate_rag
 
@@ -22,18 +23,21 @@ router = APIRouter()
 tracer = trace.get_tracer(__name__)
 ConfigDep = Annotated[EvaluatorConfig, Depends(get_config)]
 BearerTokenDep = Annotated[str, Depends(get_bearer_token)]
+EvaluateRequestBody = Annotated[EvaluateRequest | None, Body()]
 
 
 @router.post("/evaluate_rag", response_model=EvaluatorResponseBase)
 async def ask_question_route(
     config: ConfigDep,
     access_token: BearerTokenDep,
+    request: EvaluateRequestBody = None,
 ) -> EvaluatorResponseBase:
     """Lance une évaluation complète du RAG sur le dataset configuré.
 
     Args:
         config: Configuration applicative chargée au démarrage.
         access_token: Bearer extrait du header `Authorization`.
+        request: Limite optionnelle de questions à évaluer.
 
     Returns:
         Scores moyens de retrieval, qualité de réponse, durée et volume de questions.
@@ -47,7 +51,11 @@ async def ask_question_route(
 
     with tracer.start_as_current_span("evaluator.evaluate_rag_route"):
         try:
-            result = await evaluate_rag(config=config, access_token=access_token)
+            result = await evaluate_rag(
+                config=config,
+                access_token=access_token,
+                question_limit=request.question_limit if request else None,
+            )
         except Exception as exception:
             elapsed = time.perf_counter() - start
             evaluator_requests_total.labels(operation=operation, status="error").inc()

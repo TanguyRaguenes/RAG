@@ -49,8 +49,11 @@ async def test_ingest_bulk_route_delegates_to_ingestion_service(
         collection_count_after=1,
     )
 
-    async def fake_ingest_all_documents(config: dict) -> IngestBulkResponseBase:
+    async def fake_ingest_all_documents(
+        config: dict, profile: str
+    ) -> IngestBulkResponseBase:
         assert config == {"config": True}
+        assert profile == "evaluation"
         return expected
 
     monkeypatch.setattr(
@@ -59,6 +62,8 @@ async def test_ingest_bulk_route_delegates_to_ingestion_service(
         fake_ingest_all_documents,
     )
 
-    response = await embed_router.ingest_bulk_route({"config": True})
+    response = await embed_router.ingest_bulk_route(
+        {"config": True}, profile="evaluation"
+    )
 
     assert response is expected

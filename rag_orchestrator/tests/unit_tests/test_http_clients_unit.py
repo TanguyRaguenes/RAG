@@ -80,7 +80,10 @@ async def test_retrieve_chunks_posts_embedding_and_returns_chunks(
     assert FakeAsyncClient.calls == [
         {
             "url": "http://retriever/retrieve_chunks",
-            "json": {"embeded_question": [0.1]},
+            "json": {
+                "embeded_question": [0.1],
+                "collection_profile": "default",
+            },
             "timeout": 180,
         }
     ]
@@ -116,7 +119,7 @@ async def test_retrieve_document_chunks_posts_paths(
     assert FakeAsyncClient.calls == [
         {
             "url": "http://retriever/retrieve_document_chunks",
-            "json": {"paths": paths},
+            "json": {"paths": paths, "collection_profile": "default"},
             "timeout": 180,
         }
     ]

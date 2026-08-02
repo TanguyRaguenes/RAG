@@ -1,4 +1,4 @@
-from app.core.config import RetrieverConfig
+from app.core.config import CollectionProfile, RetrieverConfig, get_collection_name
 from app.core.exceptions import RetrievalFormatException
 from app.core.metrics import retriever_chunks_total
 from app.domain.models.vector_store_model import RetrievedChunk
@@ -14,6 +14,7 @@ def retrieve_chunks(
     config: RetrieverConfig,
     embeded_question: list[float],
     vector_store_repository: VectorStoreRepositoryProtocol,
+    collection_profile: CollectionProfile = "default",
 ) -> RetrievedChunksModelBase:
     """Recherche, filtre et classe les chunks pertinents pour une question.
 
@@ -21,6 +22,7 @@ def retrieve_chunks(
         config: Configuration de collection et règles de sélection du retriever.
         embeded_question: Embedding de la question utilisateur.
         vector_store_repository: Port chargé uniquement des accès au stockage.
+        collection_profile: Profil de collection fixe à interroger.
 
     Returns:
         Chunks respectant le seuil, le minimum et le tri métier.
@@ -28,7 +30,7 @@ def retrieve_chunks(
     Raises:
         RetrievalFormatException: Si un résultat métier ne peut pas être exposé.
     """
-    collection_name: str = config["collection"]["name"]
+    collection_name = get_collection_name(config, collection_profile)
     retrieval_config = config["retriever"]
     top_k: int = retrieval_config["top_k"]
     minimum_similarity: float = retrieval_config["minimum_similarity"]
@@ -55,6 +57,7 @@ def retrieve_document_chunks(
     config: RetrieverConfig,
     paths: list[str],
     vector_store_repository: VectorStoreRepositoryProtocol,
+    collection_profile: CollectionProfile = "default",
 ) -> RetrievedChunksModelBase:
     """Récupère les chunks complets de documents dans un ordre déterministe.
 
@@ -62,6 +65,7 @@ def retrieve_document_chunks(
         config: Configuration contenant le nom de la collection source.
         paths: Chemins demandés, potentiellement dupliqués.
         vector_store_repository: Port chargé uniquement des accès au stockage.
+        collection_profile: Profil de collection fixe à interroger.
 
     Returns:
         Chunks regroupés selon l'ordre des chemins puis leur index.
@@ -69,7 +73,7 @@ def retrieve_document_chunks(
     Raises:
         RetrievalFormatException: Si un résultat métier ne peut pas être exposé.
     """
-    collection_name: str = config["collection"]["name"]
+    collection_name = get_collection_name(config, collection_profile)
     unique_paths = list(dict.fromkeys(paths))
     document_chunks = vector_store_repository.get_chunks_by_paths(
         collection_name,

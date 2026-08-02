@@ -43,8 +43,10 @@ async def test_retrieve_chunks_service_embeds_retrieves_reranks_then_fetches_doc
         calls.append(("embed", texts))
         return [[0.1]]
 
-    async def fake_retrieve_chunks_client(embedding: list[float]) -> list[dict]:
-        calls.append(("retrieve", embedding))
+    async def fake_retrieve_chunks_client(
+        embedding: list[float], profile: str
+    ) -> list[dict]:
+        calls.append(("retrieve", embedding, profile))
         return [{"document": "doc"}]
 
     async def fake_rerank_chunks_client(
@@ -57,8 +59,10 @@ async def test_retrieve_chunks_service_embeds_retrieves_reranks_then_fetches_doc
             {"document": "reranked-b", "metadata": {"path": "b.md"}},
         ]
 
-    async def fake_retrieve_document_chunks_client(paths: list[str]) -> list[dict]:
-        calls.append(("documents", paths))
+    async def fake_retrieve_document_chunks_client(
+        paths: list[str], profile: str
+    ) -> list[dict]:
+        calls.append(("documents", paths, profile))
         return [{"document": "document chunks"}]
 
     monkeypatch.setattr(retrieve_chunks_service, "embed", fake_embed)
@@ -74,14 +78,16 @@ async def test_retrieve_chunks_service_embeds_retrieves_reranks_then_fetches_doc
         fake_retrieve_document_chunks_client,
     )
 
-    response = await retrieve_chunks_service.retrieve_chunks("Question", _config())
+    response = await retrieve_chunks_service.retrieve_chunks(
+        "Question", _config(), "evaluation"
+    )
 
     assert response.retrieved_chunks == [{"document": "document chunks"}]
     assert calls == [
         ("embed", ["Question"]),
-        ("retrieve", [0.1]),
+        ("retrieve", [0.1], "evaluation"),
         ("rerank", "Question", [{"document": "doc"}]),
-        ("documents", ["a.md", "b.md"]),
+        ("documents", ["a.md", "b.md"], "evaluation"),
     ]
 
 
@@ -96,7 +102,10 @@ async def test_retrieve_chunks_service_can_skip_fetching_all_chunks_by_path(
     async def fake_embed(texts: list[str]) -> list[list[float]]:
         return [[0.1]]
 
-    async def fake_retrieve_chunks_client(embedding: list[float]) -> list[dict]:
+    async def fake_retrieve_chunks_client(
+        embedding: list[float], profile: str
+    ) -> list[dict]:
+        assert profile == "default"
         return [{"document": "doc"}]
 
     async def fake_rerank_chunks_client(
@@ -104,7 +113,9 @@ async def test_retrieve_chunks_service_can_skip_fetching_all_chunks_by_path(
     ) -> list[dict]:
         return [{"document": "reranked", "metadata": {"path": "a.md"}}]
 
-    async def fake_retrieve_document_chunks_client(paths: list[str]) -> list[dict]:
+    async def fake_retrieve_document_chunks_client(
+        paths: list[str], profile: str
+    ) -> list[dict]:
         calls.append(("documents", paths))
         return [{"document": "document chunks"}]
 
@@ -145,10 +156,11 @@ async def test_ask_question_to_local_model_builds_payload_and_response(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     async def fake_retrieve_and_rerank_chunks(
-        question: str, config: dict
+        question: str, config: dict, profile: str
     ) -> list[dict]:
         assert question == "Question"
         assert config == _config()
+        assert profile == "default"
         return [{"document": "doc", "metadata": {"title": "Doc"}}]
 
     async def fake_llm_client(payload: dict, timeout_seconds: int, url: str) -> dict:
@@ -183,10 +195,11 @@ async def test_ask_question_to_api_builds_payload_and_tokens(
     calls = []
 
     async def fake_retrieve_and_rerank_chunks(
-        question: str, config: dict
+        question: str, config: dict, profile: str
     ) -> list[dict]:
         assert question == "Question"
         assert config == _config()
+        assert profile == "default"
         return [{"document": "doc", "metadata": {"title": "Doc"}}]
 
     async def fake_api_client(

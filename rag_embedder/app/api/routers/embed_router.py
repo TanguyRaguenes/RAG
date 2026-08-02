@@ -7,6 +7,7 @@ from app.core.config import EmbedderConfig
 from app.schemas.embed_request_schema import EmbedRequestBase
 from app.schemas.embed_text_response_schema import EmbedTextResponseBase
 from app.schemas.ingest_bulk_response_schema import IngestBulkResponseBase
+from app.schemas.vector_store_items_schema import CollectionProfile
 from app.services.embed_service import create_embeddings_response
 from app.services.ingest_documents_service import ingest_all_documents
 
@@ -33,13 +34,17 @@ async def embed_route(
 
 
 @router.post("/ingest/bulk")
-async def ingest_bulk_route(config: ConfigDep) -> IngestBulkResponseBase:
+async def ingest_bulk_route(
+    config: ConfigDep,
+    profile: CollectionProfile = "default",
+) -> IngestBulkResponseBase:
     """Expose l'endpoint HTTP d'ingestion complète des documents Markdown.
 
     Args:
         config: Configuration applicative contenant les URLs, modèles ou paramètres métier nécessaires.
+        profile: Profil fixe déterminant le dossier source et la collection cible.
 
     Returns:
         Réponse HTTP contenant la durée et le résultat de sauvegarde.
     """
-    return await ingest_all_documents(config)
+    return await ingest_all_documents(config, profile)

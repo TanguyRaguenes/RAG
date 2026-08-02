@@ -138,6 +138,21 @@ def test_run_evaluation_propagates_user_identity() -> None:
     ]
 
 
+def test_run_evaluation_sends_selected_question_limit() -> None:
+    payload = _evaluation_response()
+    client = FakeRagClient([payload])
+
+    result = service.run_evaluation(
+        EvaluatorApiConfig("http://health", "http://eval/evaluate"),
+        "user-token",
+        client,
+        question_limit=25,
+    )
+
+    assert result == payload
+    assert client.calls[0]["payload"] == {"question_limit": 25}
+
+
 @pytest.mark.parametrize(
     "payload",
     [

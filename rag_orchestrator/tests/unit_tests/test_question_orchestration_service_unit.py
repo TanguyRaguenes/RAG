@@ -56,8 +56,8 @@ async def test_ask_question_orchestration_saves_usage_and_finishes_session(
     async def fake_quota(db_pool, user_id):
         calls.append(("quota", user_id))
 
-    async def fake_ask(question, config):
-        calls.append(("rag", question))
+    async def fake_ask(question, config, profile):
+        calls.append(("rag", question, profile))
         return AskQuestionResponseBase(
             llm_response="answer",
             retrieved_chunks=[],
@@ -90,7 +90,12 @@ async def test_ask_question_orchestration_saves_usage_and_finishes_session(
     )
 
     response = await QuestionOrchestrationService(_config(), object()).ask_question(
-        AskQuestionRequestBase(question="Q", provider="local", channel="streamlit"),
+        AskQuestionRequestBase(
+            question="Q",
+            provider="local",
+            channel="streamlit",
+            collection_profile="evaluation",
+        ),
         _user(),
     )
 
@@ -99,7 +104,7 @@ async def test_ask_question_orchestration_saves_usage_and_finishes_session(
     assert calls == [
         ("start", "User-1", "streamlit"),
         ("quota", "hashed-user"),
-        ("rag", "Q"),
+        ("rag", "Q", "evaluation"),
         ("success", 42, "local-provider"),
         ("finish", 42),
     ]
@@ -230,8 +235,8 @@ async def test_retrieve_chunks_orchestration_persists_and_finishes(
         calls.append(("start", channel))
         return "hashed-user", 7
 
-    async def fake_retrieve(question, config):
-        calls.append(("retrieve", question))
+    async def fake_retrieve(question, config, profile):
+        calls.append(("retrieve", question, profile))
         return RetrieveChunksResponseBase(retrieved_chunks=[{"document": "doc"}])
 
     async def fake_save(**kwargs):
@@ -251,14 +256,14 @@ async def test_retrieve_chunks_orchestration_persists_and_finishes(
     )
 
     response = await QuestionOrchestrationService(_config(), object()).retrieve_chunks(
-        RetrieveChunksRequestBase(question="Q"),
+        RetrieveChunksRequestBase(question="Q", collection_profile="evaluation"),
         _user(),
     )
 
     assert response.retrieved_chunks == [{"document": "doc"}]
     assert calls == [
         ("start", "mcp"),
-        ("retrieve", "Q"),
+        ("retrieve", "Q", "evaluation"),
         ("usage", 7),
         ("finish", 7),
     ]

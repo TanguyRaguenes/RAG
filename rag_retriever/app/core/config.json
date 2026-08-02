@@ -5,7 +5,8 @@
         "minimum_number_of_chunks":1,
         "max_related_links":10
     },
-    "collection":{
-        "name":"wiki_chunks"
+    "collections":{
+        "default":"wiki_chunks",
+        "evaluation":"evaluation_wiki_chunks"
     }
 }

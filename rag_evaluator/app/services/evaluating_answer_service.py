@@ -50,7 +50,11 @@ async def evaluate_answer(
             retrieved_chunks=retrieved_chunks,
             expected_answer_points=expected_answer_points,
             expected_behavior=expected_behavior,
-            max_context_chars=12000,
+            max_context_chars=(
+                config.llm.api.max_prompt_chars
+                if config.judge_provider == "api"
+                else config.llm.local.max_prompt_chars
+            ),
         )
     ]
     client = judge_client or ConfiguredJudgeClient.from_config(config)

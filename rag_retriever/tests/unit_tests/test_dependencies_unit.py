@@ -8,7 +8,12 @@ from app.api.dependencies import (
 
 def test_dependencies_read_values_from_app_state() -> None:
     repository = object()
-    config = {"collection": {"name": "wiki_chunks"}}
+    config = {
+        "collections": {
+            "default": "wiki_chunks",
+            "evaluation": "evaluation_wiki_chunks",
+        }
+    }
     request = SimpleNamespace(
         app=SimpleNamespace(
             state=SimpleNamespace(config=config, vector_store_repository=repository)

@@ -1,6 +1,6 @@
 import os
 from collections import Counter
-from typing import Any
+from typing import Any, Literal
 
 from opentelemetry import trace
 from pydantic import ValidationError
@@ -25,13 +25,16 @@ tracer = trace.get_tracer(__name__)
 
 
 async def ask_question_to_local_model(
-    question: str, config: dict[str, Any]
+    question: str,
+    config: dict[str, Any],
+    collection_profile: Literal["default", "evaluation"] = "default",
 ) -> AskQuestionResponseBase:
     """Pose une question au modèle local après récupération du contexte.
 
     Args:
         question: Question utilisateur, jamais loggée telle quelle.
         config: Configuration applicative contenant LLM, retrieval et prompt.
+        collection_profile: Profil fixe de collection à interroger.
 
     Returns:
         Réponse RAG construite à partir du LLM local et des chunks récupérés.
@@ -55,7 +58,7 @@ async def ask_question_to_local_model(
         span.set_attribute("llm.model", model)
 
         retrieved_chunks: list[dict[str, Any]] = await retrieve_and_rerank_chunks(
-            question, config
+            question, config, collection_profile
         )
 
         prompt: list[dict[str, str]] = build_prompt(
@@ -93,12 +96,14 @@ async def ask_question_to_local_model(
 async def ask_question_to_api(
     question: str,
     config: dict[str, Any],
+    collection_profile: Literal["default", "evaluation"] = "default",
 ) -> AskQuestionResponseBase:
     """Pose une question à une API LLM externe après récupération du contexte.
 
     Args:
         question: Question utilisateur, jamais loggée telle quelle.
         config: Configuration applicative contenant LLM, retrieval et prompt.
+        collection_profile: Profil fixe de collection à interroger.
 
     Returns:
         Réponse RAG enrichie avec les compteurs de tokens.
@@ -121,7 +126,7 @@ async def ask_question_to_api(
         span.set_attribute("llm.model", model)
 
         retrieved_chunks: list[dict[str, Any]] = await retrieve_and_rerank_chunks(
-            question, config
+            question, config, collection_profile
         )
 
         prompt: list[dict[str, str]] = build_prompt(

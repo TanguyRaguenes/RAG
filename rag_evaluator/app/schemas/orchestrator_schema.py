@@ -19,6 +19,7 @@ class AskQuestionRequest(BaseModel):
     question: str = Field(min_length=1)
     provider: Literal["local", "api"]
     channel: Literal["api"] = "api"
+    collection_profile: Literal["evaluation"] = "evaluation"
 
 
 class AskQuestionResponse(BaseModel):

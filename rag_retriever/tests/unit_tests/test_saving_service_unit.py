@@ -33,6 +33,10 @@ class FakeVectorStoreRepository:
         self.calls.append(("delete", ids))
         self.ids.difference_update(ids)
 
+    def reset_collection(self, collection_name: str) -> None:
+        self.calls.append(("reset", collection_name))
+        self.ids.clear()
+
     def get_items(self, collection_name: str, ids: list[str]) -> list[StoredVectorItem]:
         self.calls.append(("get", ids))
         return [
@@ -49,14 +53,31 @@ class FakeVectorStoreRepository:
         ]
 
 
-def _items(*, delete_obsolete: bool, item_id: str = "kept-id") -> VectorStoreItemsBase:
+def _items(
+    *,
+    delete_obsolete: bool,
+    item_id: str = "kept-id",
+    collection_profile: str = "default",
+    replace_collection: bool = False,
+) -> VectorStoreItemsBase:
     return VectorStoreItemsBase(
         ids=[item_id],
         documents=["chunk"],
         embeddings=[[0.1, 0.2]],
         metadatas=[{"path": "doc.md", "title": "Doc", "chunk_index": 0}],
         delete_obsolete=delete_obsolete,
+        collection_profile=collection_profile,
+        replace_collection=replace_collection,
     )
+
+
+def _config() -> dict:
+    return {
+        "collections": {
+            "default": "configured-wiki",
+            "evaluation": "configured-gold",
+        }
+    }
 
 
 def test_save_items_uses_configured_collection_and_deletes_stale_ids() -> None:
@@ -64,7 +85,7 @@ def test_save_items_uses_configured_collection_and_deletes_stale_ids() -> None:
 
     response = save_items(
         _items(delete_obsolete=True),
-        {"collection": {"name": "configured-wiki"}},
+        _config(),
         repository,
     )
 
@@ -81,7 +102,7 @@ def test_save_items_does_not_delete_stale_ids_in_upsert_mode() -> None:
 
     save_items(
         _items(delete_obsolete=False),
-        {"collection": {"name": "wiki"}},
+        _config(),
         repository,
     )
 
@@ -111,7 +132,7 @@ def test_delete_obsolete_snapshots_are_serialized_in_process() -> None:
                     self.active_counts -= 1
 
     repository = SlowVectorStoreRepository()
-    config = {"collection": {"name": "wiki"}}
+    config = _config()
 
     with ThreadPoolExecutor(max_workers=2) as executor:
         futures = [
@@ -137,9 +158,29 @@ def test_save_items_never_deletes_old_items_when_upsert_fails() -> None:
     with pytest.raises(RuntimeError, match="write failed"):
         save_items(
             _items(delete_obsolete=True),
-            {"collection": {"name": "wiki"}},
+            _config(),
             repository,
         )
 
     assert not any(call[0] == "delete" for call in repository.calls)
     assert repository.ids == {"old-id", "kept-id"}
+
+
+def test_save_items_replaces_only_evaluation_collection() -> None:
+    repository = FakeVectorStoreRepository()
+
+    response = save_items(
+        _items(
+            delete_obsolete=True,
+            item_id="gold-id",
+            collection_profile="evaluation",
+            replace_collection=True,
+        ),
+        _config(),
+        repository,
+    )
+
+    assert ("reset", "configured-gold") in repository.calls
+    assert ("upsert", "configured-gold") in repository.calls
+    assert response.collection_count_before == 2
+    assert response.collection_count_after == 1

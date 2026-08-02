@@ -165,12 +165,12 @@
         mode: "0600"
       loop: "{{ env_files }}"
 
-    # Copie le dataset local attendu par le volume read-only du service rag_evaluator.
-    - name: Copy evaluator dataset
+    # Copie le dataset gold et ses wikis attendus par le volume read-only de l'evaluator.
+    - name: Copy evaluator data
       ansible.builtin.copy:
-        src: "{{ project_root }}/rag_evaluator/dataset.json"
-        dest: "{{ deploy_dir }}/rag_evaluator/dataset.json"
-        mode: "0644"
+        src: "{{ project_root }}/rag_evaluator/data/"
+        dest: "{{ deploy_dir }}/rag_evaluator/data/"
+        mode: preserve
 
     # Copie les scripts SQL executes au premier demarrage du conteneur Postgres.
     - name: Copy PostgreSQL init scripts

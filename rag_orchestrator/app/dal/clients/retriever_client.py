@@ -1,6 +1,6 @@
 import os
 import time
-from typing import Any
+from typing import Any, Literal
 
 import httpx
 from opentelemetry import trace
@@ -14,11 +14,15 @@ from app.core.metrics import (
 tracer = trace.get_tracer(__name__)
 
 
-async def retrieve_chunks(embeded_question: list[float]) -> list[dict[str, Any]]:
+async def retrieve_chunks(
+    embeded_question: list[float],
+    collection_profile: Literal["default", "evaluation"] = "default",
+) -> list[dict[str, Any]]:
     """Récupère les chunks candidats auprès du retriever.
 
     Args:
         embeded_question: Embedding de la question utilisateur.
+        collection_profile: Profil fixe de collection à interroger.
 
     Returns:
         Liste de chunks retournée par `rag_retriever`.
@@ -29,16 +33,23 @@ async def retrieve_chunks(embeded_question: list[float]) -> list[dict[str, Any]]
     """
     return await _post_retriever(
         env_var="RAG_RETRIEVER_RETRIEVE_CHUNKS_URL",
-        payload={"embeded_question": embeded_question},
+        payload={
+            "embeded_question": embeded_question,
+            "collection_profile": collection_profile,
+        },
         operation="retrieve_chunks",
     )
 
 
-async def retrieve_document_chunks(paths: list[str]) -> list[dict[str, Any]]:
+async def retrieve_document_chunks(
+    paths: list[str],
+    collection_profile: Literal["default", "evaluation"] = "default",
+) -> list[dict[str, Any]]:
     """Récupère tous les chunks des documents sélectionnés.
 
     Args:
         paths: Chemins de documents à récupérer.
+        collection_profile: Profil fixe de collection à interroger.
 
     Returns:
         Liste de chunks documentaires retournée par `rag_retriever`.
@@ -49,7 +60,7 @@ async def retrieve_document_chunks(paths: list[str]) -> list[dict[str, Any]]:
     """
     return await _post_retriever(
         env_var="RAG_RETRIEVER_RETRIEVE_DOCUMENT_CHUNKS_URL",
-        payload={"paths": paths},
+        payload={"paths": paths, "collection_profile": collection_profile},
         operation="retrieve_document_chunks",
     )
 

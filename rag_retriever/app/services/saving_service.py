@@ -1,7 +1,7 @@
 from contextlib import nullcontext
 from threading import Lock
 
-from app.core.config import RetrieverConfig
+from app.core.config import RetrieverConfig, get_collection_name
 from app.core.metrics import retriever_chunks_total, retriever_collection_size
 from app.domain.vector_store_repository import VectorStoreRepositoryProtocol
 from app.schemas.save_items_response_schema import SavedItemBase, SaveItemsResponseBase
@@ -34,21 +34,27 @@ def save_items(
         VectorStoreException: Si une opération de persistance échoue.
         KeyError: Si le nom de collection manque dans la configuration.
     """
-    collection_name: str = config["collection"]["name"]
+    collection_name = get_collection_name(config, items.collection_profile)
     synchronization_lock = (
-        _DELETE_OBSOLETE_LOCK if items.delete_obsolete else nullcontext()
+        _DELETE_OBSOLETE_LOCK
+        if items.delete_obsolete or items.replace_collection
+        else nullcontext()
     )
     with synchronization_lock:
         collection_count_before = vector_store_repository.count_items(collection_name)
-        existing_ids = (
-            set(vector_store_repository.list_item_ids(collection_name))
-            if items.delete_obsolete
-            else set()
-        )
+        if items.replace_collection:
+            vector_store_repository.reset_collection(collection_name)
+            existing_ids: set[str] = set()
+        else:
+            existing_ids = (
+                set(vector_store_repository.list_item_ids(collection_name))
+                if items.delete_obsolete
+                else set()
+            )
 
         vector_store_repository.upsert_items(collection_name, items.to_domain())
 
-        if items.delete_obsolete:
+        if items.delete_obsolete and not items.replace_collection:
             obsolete_ids = sorted(existing_ids.difference(items.ids))
             vector_store_repository.delete_items(collection_name, obsolete_ids)
 

@@ -65,11 +65,14 @@ class EvaluationService:
         self._judge_client = judge_client
         self._admin_groups = admin_groups
 
-    async def evaluate(self, access_token: str) -> EvaluatorResponseBase:
+    async def evaluate(
+        self, access_token: str, question_limit: int | None = None
+    ) -> EvaluatorResponseBase:
         """Évalue chaque cas après validation complète du dataset.
 
         Args:
             access_token: Bearer vérifié puis propagé à chaque appel orchestrator.
+            question_limit: Nombre maximal de cas pris dans l'ordre du dataset.
 
         Returns:
             Moyennes calculées uniquement à partir d'appels tous réussis.
@@ -82,6 +85,8 @@ class EvaluationService:
         with tracer.start_as_current_span("evaluator.evaluate_dataset") as span:
             await self._authorize(access_token)
             tests = self._dataset_repository.load()
+            if question_limit is not None:
+                tests = tests[:question_limit]
             total_questions = len(tests)
             span.set_attribute("evaluation.question_count", total_questions)
 
@@ -214,12 +219,14 @@ class EvaluationService:
 async def evaluate_rag(
     config: EvaluatorConfig | dict[str, Any],
     access_token: str,
+    question_limit: int | None = None,
 ) -> EvaluatorResponseBase:
     """Évalue le RAG sur toutes les questions du dataset.
 
     Args:
         config: Configuration applicative contenant le juge et la stratégie d'évaluation.
         access_token: Bearer de la requête HTTP à vérifier et propager.
+        question_limit: Nombre maximal de cas à évaluer dans l'ordre du dataset.
 
     Returns:
         Scores moyens de retrieval et de qualité de réponse.
@@ -237,7 +244,7 @@ async def evaluate_rag(
         judge_client=ConfiguredJudgeClient.from_config(typed_config),
         admin_groups=load_admin_groups(),
     )
-    return await service.evaluate(access_token)
+    return await service.evaluate(access_token, question_limit)
 
 
 def build_empty_evaluation_response() -> EvaluatorResponseBase:

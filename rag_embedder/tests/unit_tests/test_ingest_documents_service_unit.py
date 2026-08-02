@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import pytest
 
 from app.core.exceptions import MarkdownProcessingException
@@ -17,6 +19,15 @@ from app.services import ingest_documents_service as service
 
 def test_clean_title_decodes_path_name_and_normalizes_separators() -> None:
     assert service.clean_title("Guide%20API_interne-v2.md") == "Guide API interne v2"
+
+
+def test_evaluation_profile_uses_configured_gold_wiki_directory(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("RAG_EVALUATION_WIKIS_DIR", "gold/wikis")
+
+    assert service._get_source_directory("evaluation") == Path("gold/wikis")
+    assert service._get_source_directory("default") is None
 
 
 def test_convert_to_chroma_format_flattens_all_document_chunks() -> None:
@@ -168,6 +179,17 @@ async def test_ingest_documents_saves_vector_store_items(
     assert len(response.saved_items) == 2
     assert saved_payloads[0].ids == ["a.md#chunk_0", "b.md#chunk_0"]
     assert saved_payloads[0].delete_obsolete is True
+    assert saved_payloads[0].collection_profile == "default"
+    assert saved_payloads[0].replace_collection is False
+
+    await service.ingest_documents(
+        DocumentsBase(documents=[DocumentBase(path="gold.md", content="Gold")]),
+        {},
+        "evaluation",
+    )
+
+    assert saved_payloads[1].collection_profile == "evaluation"
+    assert saved_payloads[1].replace_collection is True
 
 
 @pytest.mark.asyncio

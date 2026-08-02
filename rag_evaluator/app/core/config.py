@@ -8,38 +8,52 @@ from pydantic import BaseModel, Field
 # __file__ = chemin du fichier Python courant
 _CONFIG_PATH = Path(__file__).parent / "config.json"
 RagProvider = Literal["local", "api"]
+JudgeProvider = Literal["local", "api"]
+
+
+class CommonLlmConfig(BaseModel):
+    """Paramètres partagés par les fournisseurs du LLM judge."""
+
+    timeout_seconds: float = Field(gt=0)
+    stream: bool = False
+    temperature: float = Field(ge=0)
+
+
+class LocalLlmConfig(BaseModel):
+    """Configuration du LLM judge local compatible chat completions."""
+
+    provider: str = Field(min_length=1)
+    endpoint: str = Field(min_length=1)
+    model: str = Field(min_length=1)
+    context_window_tokens: int = Field(gt=0)
+    max_output_tokens: int = Field(gt=0)
+    max_prompt_chars: int = Field(gt=0)
+
+
+class ApiLlmConfig(BaseModel):
+    """Configuration du LLM judge externe compatible Responses API."""
+
+    provider: str = Field(min_length=1)
+    endpoint: str = Field(min_length=1)
+    model: str = Field(min_length=1)
+    max_output_tokens: int = Field(gt=0)
+    max_prompt_chars: int = Field(gt=0)
 
 
 class LlmConfig(BaseModel):
-    """Configuration commune aux fournisseurs de juge LLM."""
+    """Regroupe les paramètres communs, locaux et API du LLM judge."""
 
-    provider: str
-    url_provider: str
-    model: str
-    temperature: float = Field(ge=0)
-    num_ctx: int = Field(gt=0)
-    max_output_token: int = Field(gt=0)
-    timeout_seconds: float = Field(gt=0)
-    stream: bool = False
-
-
-class EvaluationMethodConfig(BaseModel):
-    """Sélectionne le fournisseur utilisé pour juger les réponses."""
-
-    use_api_openai: bool = False
-    openai_url: str = Field(
-        default="https://api.openai.com/v1/chat/completions",
-        min_length=1,
-    )
-    openai_model: str = Field(default="gpt-4o", min_length=1)
+    common: CommonLlmConfig
+    local: LocalLlmConfig
+    api: ApiLlmConfig
 
 
 class EvaluatorConfig(BaseModel):
     """Configuration typée du microservice evaluator."""
 
     llm: LlmConfig
-    evaluation_method: EvaluationMethodConfig
     rag_provider: RagProvider = "api"
+    judge_provider: JudgeProvider = "api"
 
 
 def load_config() -> EvaluatorConfig:

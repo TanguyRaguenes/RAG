@@ -1,4 +1,8 @@
+from typing import Literal
+
 from pydantic import BaseModel, ConfigDict, Field
+
+CollectionProfile = Literal["default", "evaluation"]
 
 
 class RetrieveChunksRequestBase(BaseModel):
@@ -7,6 +11,7 @@ class RetrieveChunksRequestBase(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     embeded_question: list[float] = Field(min_length=1)
+    collection_profile: CollectionProfile = "default"
 
 
 class RetrieveDocumentChunksRequestBase(BaseModel):
@@ -15,3 +20,4 @@ class RetrieveDocumentChunksRequestBase(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     paths: list[str]
+    collection_profile: CollectionProfile = "default"

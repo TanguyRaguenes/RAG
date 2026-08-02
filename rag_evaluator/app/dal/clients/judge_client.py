@@ -1,5 +1,6 @@
 import os
 import time
+from collections.abc import Callable
 from typing import Protocol
 
 import httpx
@@ -12,7 +13,12 @@ from app.core.metrics import (
     evaluator_errors_total,
     evaluator_external_call_duration_seconds,
 )
-from app.schemas.judge_schema import ChatCompletionResponse, JudgeMessage
+from app.domain.models.judge_response_model import JudgeOutput
+from app.schemas.judge_schema import (
+    ChatCompletionResponse,
+    JudgeMessage,
+    ResponsesApiResponse,
+)
 
 tracer = trace.get_tracer(__name__)
 
@@ -36,7 +42,7 @@ class JudgeClient(Protocol):
 
 
 class OpenAIJudgeClient:
-    """Client du contrat OpenAI `POST /v1/chat/completions`."""
+    """Client du contrat OpenAI `POST /v1/responses`."""
 
     def __init__(self, config: EvaluatorConfig, api_key: str | None) -> None:
         """Configure le transport OpenAI.
@@ -60,17 +66,27 @@ class OpenAIJudgeClient:
         Raises:
             EvaluatorClientError: Si l'appel ou la réponse OpenAI est invalide.
         """
+        llm = self._config.llm
         payload: dict[str, object] = {
-            "model": self._config.evaluation_method.openai_model,
-            "messages": [message.model_dump() for message in messages],
-            "temperature": self._config.llm.temperature,
-            "max_completion_tokens": self._config.llm.max_output_token,
+            "model": llm.api.model,
+            "input": [message.model_dump() for message in messages],
+            "stream": llm.common.stream,
+            "max_output_tokens": llm.api.max_output_tokens,
+            "text": {
+                "format": {
+                    "type": "json_schema",
+                    "name": "rag_judge_evaluation",
+                    "strict": True,
+                    "schema": JudgeOutput.model_json_schema(),
+                }
+            },
         }
         return await _post_json(
-            url=self._config.evaluation_method.openai_url,
+            url=llm.api.endpoint,
             payload=payload,
-            timeout_seconds=self._config.llm.timeout_seconds,
+            timeout_seconds=llm.common.timeout_seconds,
             headers=_build_auth_headers(self._api_key),
+            response_parser=_parse_responses_api_content,
         )
 
 
@@ -99,16 +115,17 @@ class LocalJudgeClient:
         """
         llm = self._config.llm
         payload: dict[str, object] = {
-            "model": llm.model,
+            "model": llm.local.model,
             "messages": [message.model_dump() for message in messages],
-            "temperature": llm.temperature,
-            "max_tokens": llm.max_output_token,
-            "stream": llm.stream,
+            "temperature": llm.common.temperature,
+            "max_tokens": llm.local.max_output_tokens,
+            "stream": llm.common.stream,
         }
         return await _post_json(
-            url=f"{llm.url_provider.rstrip('/')}/v1/chat/completions",
+            url=llm.local.endpoint,
             payload=payload,
-            timeout_seconds=llm.timeout_seconds,
+            timeout_seconds=llm.common.timeout_seconds,
+            response_parser=_parse_chat_completion_content,
         )
 
 
@@ -133,7 +150,7 @@ class ConfiguredJudgeClient:
         Returns:
             Façade de jugement prête à être injectée dans le service métier.
         """
-        if config.evaluation_method.use_api_openai:
+        if config.judge_provider == "api":
             delegate: JudgeClient = OpenAIJudgeClient(
                 config=config,
                 api_key=os.getenv("OPEN_API_KEY"),
@@ -172,7 +189,7 @@ def _build_auth_headers(api_key: str | None) -> dict[str, str]:
     return headers
 
 
-def _parse_judge_content(data: object) -> str:
+def _parse_chat_completion_content(data: object) -> str:
     """Valide la réponse chat completions et extrait son contenu.
 
     Args:
@@ -194,11 +211,40 @@ def _parse_judge_content(data: object) -> str:
     return response.choices[0].message.content
 
 
+def _parse_responses_api_content(data: object) -> str:
+    """Valide une réponse de l'API Responses et extrait son premier texte.
+
+    Args:
+        data: JSON brut retourné par le fournisseur externe.
+
+    Returns:
+        Premier contenu textuel non vide de la réponse.
+
+    Raises:
+        EvaluatorClientError: Si la réponse ne respecte pas le contrat attendu.
+    """
+    try:
+        response = ResponsesApiResponse.model_validate(data)
+    except ValidationError as exception:
+        raise EvaluatorClientError(
+            message="Réponse du juge LLM invalide",
+            details={"validation_errors": exception.error_count()},
+        ) from exception
+
+    for output in response.output:
+        for content in output.content:
+            if content.text and content.text.strip():
+                return content.text
+
+    raise EvaluatorClientError(message="Réponse du juge LLM invalide")
+
+
 async def _post_json(
     *,
     url: str,
     payload: dict[str, object],
     timeout_seconds: float,
+    response_parser: Callable[[object], str],
     headers: dict[str, str] | None = None,
 ) -> str:
     """Exécute l'appel HTTP instrumenté vers le juge.
@@ -207,6 +253,7 @@ async def _post_json(
         url: Endpoint chat completions cible.
         payload: Corps JSON conforme au fournisseur sélectionné.
         timeout_seconds: Délai maximal validé de l'appel.
+        response_parser: Fonction validant et extrayant le texte du fournisseur.
         headers: Headers HTTP optionnels, dont l'authentification OpenAI.
 
     Returns:
@@ -250,7 +297,7 @@ async def _post_json(
         ) from exception
 
     try:
-        content = _parse_judge_content(data)
+        content = response_parser(data)
     except EvaluatorClientError:
         _record_external_error("judge", "judge", "invalid_format", start)
         raise

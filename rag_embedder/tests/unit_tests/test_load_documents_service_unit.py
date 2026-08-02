@@ -10,7 +10,8 @@ async def test_load_documents_returns_markdown_reader_documents(
 ) -> None:
     expected = DocumentsBase(documents=[DocumentBase(path="doc.md", content="content")])
 
-    async def fake_read_markdown_documents() -> DocumentsBase:
+    async def fake_read_markdown_documents(root: object) -> DocumentsBase:
+        assert root is None
         return expected
 
     monkeypatch.setattr(

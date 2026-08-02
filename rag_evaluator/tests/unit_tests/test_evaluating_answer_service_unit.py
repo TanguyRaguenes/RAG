@@ -9,16 +9,30 @@ from app.services import evaluating_answer_service as service
 def _config() -> EvaluatorConfig:
     return EvaluatorConfig.model_validate(
         {
+            "rag_provider": "api",
+            "judge_provider": "local",
             "llm": {
-                "provider": "ollama",
-                "url_provider": "http://ollama",
-                "model": "judge",
-                "temperature": 0.1,
-                "num_ctx": 1024,
-                "max_output_token": 128,
-                "timeout_seconds": 10,
+                "common": {
+                    "temperature": 0.1,
+                    "timeout_seconds": 10,
+                    "stream": False,
+                },
+                "local": {
+                    "provider": "Ollama",
+                    "endpoint": "http://ollama/v1/chat/completions",
+                    "model": "judge",
+                    "context_window_tokens": 1024,
+                    "max_output_tokens": 128,
+                    "max_prompt_chars": 2000,
+                },
+                "api": {
+                    "provider": "OpenAi",
+                    "endpoint": "https://api.openai.com/v1/responses",
+                    "model": "judge-api",
+                    "max_output_tokens": 128,
+                    "max_prompt_chars": 4000,
+                },
             },
-            "evaluation_method": {"use_api_openai": False},
         }
     )
 

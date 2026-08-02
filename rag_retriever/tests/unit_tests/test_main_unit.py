@@ -10,7 +10,7 @@ from app.core.exceptions import RetrievalFormatException
 def _client() -> TestClient:
     """Construit un client de l'application réelle avec dépendances isolées."""
     main_module.app.dependency_overrides[get_config] = lambda: {
-        "collection": {"name": "wiki"},
+        "collections": {"default": "wiki", "evaluation": "gold"},
         "retriever": {
             "top_k": 3,
             "minimum_similarity": 0.5,
@@ -25,8 +25,9 @@ def test_main_app_returns_safe_custom_error_and_logs_once(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     def fail_retrieval(
-        config: dict, embedding: list[float], repository: object
+        config: dict, embedding: list[float], repository: object, profile: str
     ) -> None:
+        assert profile == "default"
         raise RetrievalFormatException(
             internal_details={
                 "path": "private/wiki.md",

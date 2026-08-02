@@ -7,25 +7,55 @@ from app.core.config import EvaluatorConfig
 from app.core.exceptions import EvaluatorClientError
 from app.dal.clients import judge_client as client
 from app.dal.clients.judge_client import LocalJudgeClient, OpenAIJudgeClient
+from app.domain.models.judge_response_model import JudgeOutput
 from app.schemas.judge_schema import JudgeMessage
 
 
-def _config(*, use_openai: bool = False) -> EvaluatorConfig:
+def _config(*, judge_provider: str = "local") -> EvaluatorConfig:
     return EvaluatorConfig.model_validate(
         {
+            "rag_provider": "api",
+            "judge_provider": judge_provider,
             "llm": {
-                "provider": "ollama",
-                "url_provider": "http://ollama:11434",
-                "model": "judge-model",
-                "stream": False,
-                "temperature": 0.1,
-                "num_ctx": 4096,
-                "max_output_token": 512,
-                "timeout_seconds": 10,
+                "common": {
+                    "stream": False,
+                    "temperature": 0.1,
+                    "timeout_seconds": 10,
+                },
+                "local": {
+                    "provider": "Ollama",
+                    "endpoint": "http://ollama:11434/v1/chat/completions",
+                    "model": "judge-local",
+                    "context_window_tokens": 4096,
+                    "max_output_tokens": 512,
+                    "max_prompt_chars": 8000,
+                },
+                "api": {
+                    "provider": "OpenAi",
+                    "endpoint": "https://api.openai.com/v1/responses",
+                    "model": "judge-api",
+                    "max_output_tokens": 512,
+                    "max_prompt_chars": 12000,
+                },
             },
-            "evaluation_method": {"use_api_openai": use_openai},
         }
     )
+
+
+def test_judge_output_json_schema_is_strict_and_bounded() -> None:
+    schema = JudgeOutput.model_json_schema()
+
+    assert schema["additionalProperties"] is False
+    assert set(schema["required"]) == {
+        "feedback",
+        "accuracy",
+        "completeness",
+        "relevance",
+        "faithfulness",
+        "safe_refusal",
+    }
+    assert schema["properties"]["accuracy"]["minimum"] == 1
+    assert schema["properties"]["accuracy"]["maximum"] == 5
 
 
 class FakeResponse:
@@ -72,25 +102,44 @@ class FakeAsyncClient:
 
 
 @pytest.mark.asyncio
-async def test_openai_client_respects_chat_completions_contract(
+async def test_openai_client_respects_responses_api_contract(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     FakeAsyncClient.calls = []
+    FakeAsyncClient.response = FakeResponse(
+        {
+            "output": [
+                {"type": "reasoning"},
+                {
+                    "type": "message",
+                    "content": [{"type": "output_text", "text": "judgement"}],
+                },
+            ]
+        }
+    )
     monkeypatch.setattr(client.httpx, "AsyncClient", FakeAsyncClient)
 
-    result = await OpenAIJudgeClient(_config(use_openai=True), "secret").judge(
+    result = await OpenAIJudgeClient(_config(judge_provider="api"), "secret").judge(
         [JudgeMessage(role="user", content="judge")]
     )
 
     assert result == "judgement"
     assert FakeAsyncClient.calls == [
         {
-            "url": "https://api.openai.com/v1/chat/completions",
+            "url": "https://api.openai.com/v1/responses",
             "json": {
-                "model": "gpt-4o",
-                "messages": [{"role": "user", "content": "judge"}],
-                "temperature": 0.1,
-                "max_completion_tokens": 512,
+                "model": "judge-api",
+                "input": [{"role": "user", "content": "judge"}],
+                "stream": False,
+                "max_output_tokens": 512,
+                "text": {
+                    "format": {
+                        "type": "json_schema",
+                        "name": "rag_judge_evaluation",
+                        "strict": True,
+                        "schema": JudgeOutput.model_json_schema(),
+                    }
+                },
             },
             "headers": {
                 "Content-Type": "application/json",
@@ -106,11 +155,9 @@ async def test_openai_client_uses_configured_url_and_model(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     FakeAsyncClient.calls = []
-    config = _config(use_openai=True)
-    config.evaluation_method.openai_url = (
-        "https://openai-proxy.example/v1/chat/completions"
-    )
-    config.evaluation_method.openai_model = "gpt-5-mini"
+    config = _config(judge_provider="api")
+    config.llm.api.endpoint = "https://openai-proxy.example/v1/responses"
+    config.llm.api.model = "gpt-5-mini"
     monkeypatch.setattr(client.httpx, "AsyncClient", FakeAsyncClient)
 
     await OpenAIJudgeClient(config, "secret").judge(
@@ -118,7 +165,7 @@ async def test_openai_client_uses_configured_url_and_model(
     )
 
     assert FakeAsyncClient.calls[0]["url"] == (
-        "https://openai-proxy.example/v1/chat/completions"
+        "https://openai-proxy.example/v1/responses"
     )
     assert FakeAsyncClient.calls[0]["json"]["model"] == "gpt-5-mini"
 
@@ -128,6 +175,9 @@ async def test_local_client_uses_openai_compatible_payload(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     FakeAsyncClient.calls = []
+    FakeAsyncClient.response = FakeResponse(
+        {"choices": [{"message": {"content": "judgement"}}]}
+    )
     monkeypatch.setattr(client.httpx, "AsyncClient", FakeAsyncClient)
 
     await LocalJudgeClient(_config()).judge(

@@ -1,4 +1,8 @@
+from typing import Literal
+
 from pydantic import BaseModel, ConfigDict, Field, model_validator
+
+CollectionProfile = Literal["default", "evaluation"]
 
 
 class VectorMetadataBase(BaseModel):
@@ -23,6 +27,8 @@ class VectorStoreItemsBase(BaseModel):
     embeddings: list[list[float]]
     metadatas: list[VectorMetadataBase]
     delete_obsolete: bool = False
+    replace_collection: bool = False
+    collection_profile: CollectionProfile = "default"
 
     @model_validator(mode="after")
     def validate_aligned_items(self) -> "VectorStoreItemsBase":
@@ -47,6 +53,8 @@ class VectorStoreItemsBase(BaseModel):
             )
         if len(set(self.ids)) != item_count:
             raise ValueError("ids must be unique")
+        if self.replace_collection and self.collection_profile != "evaluation":
+            raise ValueError("replace_collection is restricted to evaluation")
         if self.embeddings:
             dimensions = {len(embedding) for embedding in self.embeddings}
             if 0 in dimensions or len(dimensions) != 1:
