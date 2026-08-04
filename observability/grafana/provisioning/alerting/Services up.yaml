@@ -79,10 +79,10 @@ groups:
             datasourceUid: prometheus
             model:
               editorMode: code
-              expr: sum(rate({__name__=~".*_errors_total"}[5m]))
+              expr: (sum(increase(rag_requests_total{service="rag_orchestrator",operation="ask_question",status="error"}[5m])) or vector(0)) / clamp_min((sum(increase(rag_requests_total{service="rag_orchestrator",operation="ask_question"}[5m])) or vector(0)), 1)
               instant: true
               intervalMs: 1000
-              legendFormat: errors/s
+              legendFormat: error rate
               maxDataPoints: 43200
               range: false
               refId: A

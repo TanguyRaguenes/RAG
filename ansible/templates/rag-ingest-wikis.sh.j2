@@ -5,7 +5,8 @@ ENV_FILE="{{ deploy_dir }}/.env"
 RAG_WIKIS_PATH_FROM_ENV=""
 
 if [ -f "$ENV_FILE" ]; then
-    RAG_WIKIS_PATH_FROM_ENV=$(sed -n 's/^RAG_WIKIS_PATH=//p' "$ENV_FILE" | tail -n 1)
+    # Ansible can copy .env files created on Windows, whose CRLF line endings add a trailing \r.
+    RAG_WIKIS_PATH_FROM_ENV=$(sed -n 's/^RAG_WIKIS_PATH=//p' "$ENV_FILE" | tr -d '\r' | tail -n 1)
 fi
 
 WIKIS_DIR=${RAG_WIKIS_PATH:-${RAG_WIKIS_PATH_FROM_ENV:-{{ deploy_dir }}/wikis}}
