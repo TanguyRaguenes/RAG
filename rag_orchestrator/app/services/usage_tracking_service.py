@@ -112,9 +112,12 @@ async def check_user_token_quota(db_pool: asyncpg.Pool, user_id: str) -> None:
         QuotaExceededError: Si la consommation mensuelle atteint ou dépasse le plafond autorisé.
     """
     usage_repository = UsageRepository(db_pool)
-    max_tokens, consumed_tokens, active, unlimited = (
-        await usage_repository.get_active_quota_usage(user_id)
-    )
+    (
+        max_tokens,
+        consumed_tokens,
+        active,
+        unlimited,
+    ) = await usage_repository.get_active_quota_usage(user_id)
 
     if not active:
         raise QuotaInactiveError()

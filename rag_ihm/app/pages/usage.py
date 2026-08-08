@@ -65,7 +65,9 @@ def _render_quota_progress(quota: dict[str, object]) -> None:
     col_max.metric(
         "Enveloppe mensuelle", "Illimitée" if unlimited else _format_tokens(maximum)
     )
-    col_remaining.metric("Restants", "Illimités" if unlimited else _format_tokens(remaining))
+    col_remaining.metric(
+        "Restants", "Illimités" if unlimited else _format_tokens(remaining)
+    )
 
     if unlimited:
         st.caption("Aucune limite mensuelle de tokens n'est appliquée.")

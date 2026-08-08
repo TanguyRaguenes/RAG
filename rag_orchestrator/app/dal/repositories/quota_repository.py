@@ -39,9 +39,7 @@ class QuotaRepository:
         async with self._acquire() as connection:
             await connection.execute(query, user_id, max_tokens_per_month)
 
-    async def get_active_quota_usage(
-        self, user_id: str
-    ) -> tuple[int, int, bool, bool]:
+    async def get_active_quota_usage(self, user_id: str) -> tuple[int, int, bool, bool]:
         """Calcule l'usage mensuel actif d'un utilisateur et son plafond de tokens.
 
         Args:

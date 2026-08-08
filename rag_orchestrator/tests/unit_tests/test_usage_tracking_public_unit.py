@@ -122,21 +122,15 @@ async def test_check_user_token_quota_raises_when_inactive_or_exceeded() -> None
     await service.check_user_token_quota({"quota": (100, 10, True, False)}, "user")
 
     with pytest.raises(service.QuotaInactiveError):
-        await service.check_user_token_quota(
-            {"quota": (100, 10, False, False)}, "user"
-        )
+        await service.check_user_token_quota({"quota": (100, 10, False, False)}, "user")
 
     with pytest.raises(service.QuotaExceededError):
-        await service.check_user_token_quota(
-            {"quota": (100, 100, True, False)}, "user"
-        )
+        await service.check_user_token_quota({"quota": (100, 100, True, False)}, "user")
 
 
 @pytest.mark.asyncio
 async def test_check_user_token_quota_allows_unlimited_active_user() -> None:
-    await service.check_user_token_quota(
-        {"quota": (100, 1000, True, True)}, "user"
-    )
+    await service.check_user_token_quota({"quota": (100, 1000, True, True)}, "user")
 
     with pytest.raises(service.QuotaInactiveError):
         await service.check_user_token_quota(
