@@ -137,7 +137,7 @@ def test_run_evaluation_propagates_user_identity() -> None:
         {
             "method": "POST",
             "url": "http://eval/evaluate",
-            "timeout": 300,
+            "timeout": None,
             "access_token": "user-token",
             "params": None,
             "payload": None,

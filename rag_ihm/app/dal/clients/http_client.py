@@ -23,7 +23,7 @@ class HttpClientProtocol(Protocol):
         method: str,
         url: str,
         *,
-        timeout: int,
+        timeout: int | None,
         headers: Mapping[str, str] | None = None,
         params: Mapping[str, Any] | None = None,
         data: Mapping[str, Any] | None = None,
@@ -41,7 +41,7 @@ class RequestsHttpClient:
         method: str,
         url: str,
         *,
-        timeout: int,
+        timeout: int | None,
         headers: Mapping[str, str] | None = None,
         params: Mapping[str, Any] | None = None,
         data: Mapping[str, Any] | None = None,
@@ -52,7 +52,7 @@ class RequestsHttpClient:
         Args:
             method: Méthode HTTP à exécuter.
             url: Endpoint externe cible.
-            timeout: Durée maximale de l'appel en secondes.
+            timeout: Durée maximale de l'appel en secondes, ou aucune limite.
             headers: En-têtes HTTP, dont le bearer token éventuel.
             params: Paramètres de query string.
             data: Corps de formulaire.

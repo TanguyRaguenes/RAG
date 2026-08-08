@@ -29,7 +29,7 @@ class RagClient:
         method: str,
         url: str,
         *,
-        timeout: int,
+        timeout: int | None,
         access_token: str | None = None,
         params: Mapping[str, Any] | None = None,
         payload: Mapping[str, Any] | None = None,
@@ -39,7 +39,7 @@ class RagClient:
         Args:
             method: Méthode HTTP cible.
             url: Endpoint API complet.
-            timeout: Durée maximale de l'appel.
+            timeout: Durée maximale de l'appel, ou aucune limite.
             access_token: Bearer token à transmettre s'il est fourni.
             params: Paramètres de query string.
             payload: Corps JSON.

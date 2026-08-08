@@ -387,7 +387,7 @@ def run_evaluation(
         "POST",
         config.evaluate_url,
         access_token,
-        timeout=300,
+        timeout=None,
         payload=(
             {"question_limit": question_limit} if question_limit is not None else None
         ),
