@@ -33,7 +33,7 @@ jobs:
     steps:
       # 1. Recupere le code du depot dans la VM GitHub
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       # 2. Installe uv pour gerer Python et les dependances
       - name: Install uv
@@ -79,7 +79,7 @@ jobs:
     steps:
       # 1. Recupere le code du depot dans la VM GitHub
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       # 2. Prepare les fichiers attendus par docker-compose
       # Les vrais fichiers .env ne sont pas versionnes dans GitHub.
