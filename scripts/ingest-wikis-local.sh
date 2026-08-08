@@ -15,17 +15,31 @@ if [ ! -d "$WIKIS_DIR" ]; then
 fi
 
 if [ -z "$(find "$WIKIS_DIR" -type f -name '*.md' ! -path '*/.git/*' -print -quit)" ]; then
-    log "RAG wiki ingestion failed: ingestion not triggered because wiki directory is empty or contains no Markdown files: $WIKIS_DIR"
-    exit 1
+    log "RAG wiki ingestion skipped: wiki directory is empty or contains no Markdown files: $WIKIS_DIR"
+    exit 0
 fi
 
 log "RAG wiki ingestion started"
+RESPONSE_FILE=$(mktemp)
+trap 'rm -f "$RESPONSE_FILE"' EXIT
 
-if ! curl -fsS -X POST http://localhost:8002/ingest/bulk; then
+if ! HTTP_STATUS=$(curl -sS -o "$RESPONSE_FILE" -w '%{http_code}' -X POST http://localhost:8002/ingest/bulk); then
     printf '\n'
-    log "RAG wiki ingestion failed: bulk ingestion request failed"
+    log "RAG wiki ingestion failed: rag_embedder is unreachable"
     exit 1
 fi
+
+cat "$RESPONSE_FILE"
 printf '\n'
 
+case "$HTTP_STATUS" in
+    2??) ;;
+    *)
+        log "RAG wiki ingestion failed: bulk ingestion request returned HTTP $HTTP_STATUS"
+        exit 1
+        ;;
+esac
+
+find "$WIKIS_DIR" -mindepth 1 -delete
+log "RAG wiki source directory cleared after successful ingestion: $WIKIS_DIR"
 log "RAG wiki ingestion finished"

@@ -25,9 +25,9 @@ if [ ! -d "$WIKIS_DIR" ]; then
 fi
 
 if [ -z "$(find "$WIKIS_DIR" -type f -name '*.md' ! -path '*/.git/*' -print -quit)" ]; then
-    log "RAG wiki ingestion failed: ingestion not triggered because wiki directory is empty or contains no Markdown files: $WIKIS_DIR"
+    log "RAG wiki ingestion skipped: wiki directory is empty or contains no Markdown files: $WIKIS_DIR"
     echo "============================================================"
-    exit 1
+    exit 0
 fi
 
 echo "Ingesting wiki documents"
@@ -53,5 +53,7 @@ case "$HTTP_STATUS" in
         ;;
 esac
 
+find "$WIKIS_DIR" -mindepth 1 -delete
+log "RAG wiki source directory cleared after successful ingestion: $WIKIS_DIR"
 log "RAG wiki ingestion finished"
 echo "============================================================"
