@@ -112,14 +112,14 @@ async def check_user_token_quota(db_pool: asyncpg.Pool, user_id: str) -> None:
         QuotaExceededError: Si la consommation mensuelle atteint ou dépasse le plafond autorisé.
     """
     usage_repository = UsageRepository(db_pool)
-    max_tokens, consumed_tokens, active = await usage_repository.get_active_quota_usage(
-        user_id
+    max_tokens, consumed_tokens, active, unlimited = (
+        await usage_repository.get_active_quota_usage(user_id)
     )
 
     if not active:
         raise QuotaInactiveError()
 
-    if consumed_tokens >= max_tokens:
+    if not unlimited and consumed_tokens >= max_tokens:
         raise QuotaExceededError(max_tokens, consumed_tokens)
 
 
@@ -164,6 +164,7 @@ async def update_user_quota(
     user_id: str,
     max_tokens_per_month: int,
     active: bool,
+    unlimited: bool,
 ) -> QuotaUsageResponse:
     """Met à jour la règle de quota appliquée à un utilisateur.
 
@@ -172,6 +173,7 @@ async def update_user_quota(
         user_id: Identifiant interne ou pseudonymisé de l'utilisateur ciblé.
         max_tokens_per_month: Nouveau plafond mensuel de tokens à appliquer à l'utilisateur.
         active: Indique si la règle de quota doit autoriser la consommation de tokens.
+        unlimited: Indique si le plafond mensuel doit être ignoré.
 
     Returns:
         Quota utilisateur recalculé après modification de la règle active.
@@ -182,6 +184,7 @@ async def update_user_quota(
             user_id=user_id,
             max_tokens_per_month=max_tokens_per_month,
             active=active,
+            unlimited=unlimited,
         )
     except ValueError as exception:
         raise ResourceNotFoundError("User quota is unknown") from exception
@@ -440,6 +443,7 @@ def _quota_row_to_response(row: asyncpg.Record) -> QuotaUsageResponse:
         remaining_tokens=remaining_tokens,
         usage_ratio=min(usage_ratio, 1.0),
         actif=bool(row["actif"]),
+        illimite=bool(row["illimite"]),
         date_debut=row["date_debut"],
         date_fin=row["date_fin"],
     )

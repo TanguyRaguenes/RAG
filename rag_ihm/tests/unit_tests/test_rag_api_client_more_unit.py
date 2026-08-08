@@ -56,6 +56,7 @@ def _quota_response() -> dict[str, object]:
         "remaining_tokens": 90,
         "usage_ratio": 0.1,
         "actif": True,
+        "illimite": False,
         "date_debut": "2026-08-01T00:00:00Z",
         "date_fin": None,
     }
@@ -101,7 +102,9 @@ def test_quota_and_feedback_endpoints_use_injected_client() -> None:
         _quota_response()
     ]
     assert (
-        service.update_admin_quota_usage(config, "token", "user", 100, True, client)
+        service.update_admin_quota_usage(
+            config, "token", "user", 100, True, True, client
+        )
         == _quota_response()
     )
     assert service.submit_interaction_feedback(config, "token", 1, 1, "ok", client) == {
@@ -111,7 +114,11 @@ def test_quota_and_feedback_endpoints_use_injected_client() -> None:
     }
 
     assert client.calls[2]["method"] == "PATCH"
-    assert client.calls[2]["payload"] == {"max_tokens_par_mois": 100, "actif": True}
+    assert client.calls[2]["payload"] == {
+        "max_tokens_par_mois": 100,
+        "actif": True,
+        "illimite": True,
+    }
     assert client.calls[-1]["payload"] == {"note": 1, "commentaire": "ok"}
 
 
@@ -223,7 +230,7 @@ def test_quota_and_feedback_operations_reject_malformed_contracts(
             service.list_admin_quota_usages(config, "token", client)
         elif operation == "quota_update":
             service.update_admin_quota_usage(
-                config, "token", "user-id", 100, True, client
+                config, "token", "user-id", 100, True, False, client
             )
         elif operation == "feedback":
             service.submit_interaction_feedback(

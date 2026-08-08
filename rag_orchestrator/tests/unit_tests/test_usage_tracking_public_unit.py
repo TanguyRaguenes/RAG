@@ -26,7 +26,7 @@ class FakeUsageRepository:
         self.calls.append(("finish_session", session_id))
 
     async def get_active_quota_usage(self, user_id: str):
-        return self.db_pool.get("quota", (100, 10, True))
+        return self.db_pool.get("quota", (100, 10, True, False))
 
     async def get_quota_usage_details(self, user_id: str):
         return {
@@ -37,6 +37,7 @@ class FakeUsageRepository:
             "max_tokens_par_mois": 100,
             "consumed_tokens": 25,
             "actif": True,
+            "illimite": False,
             "date_debut": date(2026, 1, 1),
             "date_fin": date(2026, 1, 31),
         }
@@ -118,13 +119,29 @@ async def test_usage_user_id_is_stable_when_email_is_missing() -> None:
 
 @pytest.mark.asyncio
 async def test_check_user_token_quota_raises_when_inactive_or_exceeded() -> None:
-    await service.check_user_token_quota({"quota": (100, 10, True)}, "user")
+    await service.check_user_token_quota({"quota": (100, 10, True, False)}, "user")
 
     with pytest.raises(service.QuotaInactiveError):
-        await service.check_user_token_quota({"quota": (100, 10, False)}, "user")
+        await service.check_user_token_quota(
+            {"quota": (100, 10, False, False)}, "user"
+        )
 
     with pytest.raises(service.QuotaExceededError):
-        await service.check_user_token_quota({"quota": (100, 100, True)}, "user")
+        await service.check_user_token_quota(
+            {"quota": (100, 100, True, False)}, "user"
+        )
+
+
+@pytest.mark.asyncio
+async def test_check_user_token_quota_allows_unlimited_active_user() -> None:
+    await service.check_user_token_quota(
+        {"quota": (100, 1000, True, True)}, "user"
+    )
+
+    with pytest.raises(service.QuotaInactiveError):
+        await service.check_user_token_quota(
+            {"quota": (100, 1000, False, True)}, "user"
+        )
 
 
 @pytest.mark.asyncio

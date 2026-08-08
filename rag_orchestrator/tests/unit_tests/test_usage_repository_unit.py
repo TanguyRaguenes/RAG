@@ -68,6 +68,7 @@ async def test_update_quota_rule_closes_then_inserts_version() -> None:
         user_id="user-1",
         max_tokens_per_month=200,
         active=True,
+        unlimited=True,
     )
 
     assert len(connection.calls) == 2
@@ -75,7 +76,7 @@ async def test_update_quota_rule_closes_then_inserts_version() -> None:
     assert "date_fin = now()" in connection.calls[0][0]
     assert connection.calls[0][1] == ("user-1",)
     assert "INSERT INTO quota_utilisateur" in connection.calls[1][0]
-    assert connection.calls[1][1] == ("user-1", 200, True)
+    assert connection.calls[1][1] == ("user-1", 200, True, True)
 
 
 @pytest.mark.asyncio
@@ -87,6 +88,7 @@ async def test_update_quota_rule_rejects_unknown_user() -> None:
             user_id="missing",
             max_tokens_per_month=200,
             active=True,
+            unlimited=False,
         )
 
 

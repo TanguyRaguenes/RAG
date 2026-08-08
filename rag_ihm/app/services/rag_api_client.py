@@ -254,6 +254,7 @@ def update_admin_quota_usage(
     user_id: str,
     max_tokens_par_mois: int,
     actif: bool,
+    illimite: bool,
     client: RagClient | None = None,
 ) -> QuotaUsageResponse:
     """Met à jour le quota d'un utilisateur via l'orchestrator.
@@ -264,6 +265,7 @@ def update_admin_quota_usage(
         user_id: Identifiant stable de l'utilisateur ciblé.
         max_tokens_par_mois: Nouveau plafond mensuel.
         actif: État d'activation du quota.
+        illimite: Indique si le plafond mensuel doit être ignoré.
         client: Client externe injecté si nécessaire.
 
     Returns:
@@ -273,7 +275,11 @@ def update_admin_quota_usage(
         "PATCH",
         _orchestrator_url(config, f"/usage/quota/admin/users/{user_id}"),
         access_token,
-        payload={"max_tokens_par_mois": max_tokens_par_mois, "actif": actif},
+        payload={
+            "max_tokens_par_mois": max_tokens_par_mois,
+            "actif": actif,
+            "illimite": illimite,
+        },
         client=client,
     )
     try:

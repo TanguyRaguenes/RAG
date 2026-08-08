@@ -13,6 +13,7 @@ class QuotaUsageResponse(BaseModel):
     remaining_tokens: int
     usage_ratio: float
     actif: bool
+    illimite: bool
     date_debut: datetime
     date_fin: datetime | None = None
 
@@ -20,3 +21,4 @@ class QuotaUsageResponse(BaseModel):
 class UpdateQuotaRequest(BaseModel):
     max_tokens_par_mois: int = Field(gt=0)
     actif: bool
+    illimite: bool = False

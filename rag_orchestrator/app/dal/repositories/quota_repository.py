@@ -39,14 +39,16 @@ class QuotaRepository:
         async with self._acquire() as connection:
             await connection.execute(query, user_id, max_tokens_per_month)
 
-    async def get_active_quota_usage(self, user_id: str) -> tuple[int, int, bool]:
+    async def get_active_quota_usage(
+        self, user_id: str
+    ) -> tuple[int, int, bool, bool]:
         """Calcule l'usage mensuel actif d'un utilisateur et son plafond de tokens.
 
         Args:
             user_id: Identifiant interne ou pseudonymisé de l'utilisateur ciblé.
 
         Returns:
-            Tuple contenant plafond, consommation mensuelle et état actif du quota.
+            Tuple contenant plafond, consommation mensuelle, état actif et mode illimité.
 
         Raises:
             ValueError: Si une valeur obligatoire est absente ou invalide.
@@ -58,6 +60,7 @@ class QuotaRepository:
                     utilisateur_id,
                     max_tokens_par_mois,
                     actif,
+                    illimite,
                     date_debut,
                     date_fin
                 FROM quota_utilisateur
@@ -74,6 +77,7 @@ class QuotaRepository:
             SELECT
                 active_quota.max_tokens_par_mois,
                 active_quota.actif,
+                active_quota.illimite,
                 COALESCE(SUM(consommation_tokens.total_tokens), 0)::bigint AS consumed_tokens
             FROM active_quota
             CROSS JOIN current_month
@@ -85,7 +89,10 @@ class QuotaRepository:
                AND interaction_rag.cree_le < current_month.date_fin
             LEFT JOIN consommation_tokens
                 ON consommation_tokens.interaction_id = interaction_rag.id
-            GROUP BY active_quota.max_tokens_par_mois, active_quota.actif
+            GROUP BY
+                active_quota.max_tokens_par_mois,
+                active_quota.actif,
+                active_quota.illimite
         """
 
         async with self._acquire() as connection:
@@ -94,7 +101,12 @@ class QuotaRepository:
         if row is None:
             raise ValueError("No active quota found for user")
 
-        return row["max_tokens_par_mois"], row["consumed_tokens"], row["actif"]
+        return (
+            row["max_tokens_par_mois"],
+            row["consumed_tokens"],
+            row["actif"],
+            row["illimite"],
+        )
 
     async def get_quota_usage_details(self, user_id: str) -> asyncpg.Record:
         """Récupère le détail d'usage et de quota pour un utilisateur donné.
@@ -121,6 +133,7 @@ class QuotaRepository:
                 quota_utilisateur.utilisateur_id,
                 quota_utilisateur.max_tokens_par_mois,
                 quota_utilisateur.actif,
+                quota_utilisateur.illimite,
                 quota_utilisateur.date_debut,
                 quota_utilisateur.date_fin,
                 COALESCE(SUM(consommation_tokens.total_tokens), 0)::bigint AS consumed_tokens
@@ -149,6 +162,7 @@ class QuotaRepository:
                 quota_utilisateur.utilisateur_id,
                 quota_utilisateur.max_tokens_par_mois,
                 quota_utilisateur.actif,
+                quota_utilisateur.illimite,
                 quota_utilisateur.date_debut,
                 quota_utilisateur.date_fin
             ORDER BY quota_utilisateur.date_debut DESC
@@ -182,6 +196,7 @@ class QuotaRepository:
                 utilisateur.preferred_username,
                 quota_utilisateur.max_tokens_par_mois,
                 quota_utilisateur.actif,
+                quota_utilisateur.illimite,
                 quota_utilisateur.date_debut,
                 quota_utilisateur.date_fin,
                 COALESCE(SUM(consommation_tokens.total_tokens), 0)::bigint AS consumed_tokens
@@ -209,6 +224,7 @@ class QuotaRepository:
                 utilisateur.preferred_username,
                 quota_utilisateur.max_tokens_par_mois,
                 quota_utilisateur.actif,
+                quota_utilisateur.illimite,
                 quota_utilisateur.date_debut,
                 quota_utilisateur.date_fin
             ORDER BY consumed_tokens DESC, utilisateur.id
@@ -223,6 +239,7 @@ class QuotaRepository:
         user_id: str,
         max_tokens_per_month: int,
         active: bool,
+        unlimited: bool,
     ) -> None:
         """Crée une nouvelle version de règle de quota pour un utilisateur.
 
@@ -230,6 +247,7 @@ class QuotaRepository:
             user_id: Identifiant interne ou pseudonymisé de l'utilisateur ciblé.
             max_tokens_per_month: Nouveau plafond mensuel de tokens à appliquer à l'utilisateur.
             active: Indique si la règle de quota doit autoriser la consommation de tokens.
+            unlimited: Indique si le plafond mensuel doit être ignoré.
 
         Raises:
             ValueError: Si une valeur obligatoire est absente ou invalide.
@@ -254,10 +272,11 @@ class QuotaRepository:
                 utilisateur_id,
                 max_tokens_par_mois,
                 actif,
+                illimite,
                 date_debut,
                 date_fin
             )
-            VALUES ($1, $2, $3, now(), NULL)
+            VALUES ($1, $2, $3, $4, now(), NULL)
         """
 
         async with self._acquire() as connection, connection.transaction():
@@ -270,4 +289,5 @@ class QuotaRepository:
                 user_id,
                 max_tokens_per_month,
                 active,
+                unlimited,
             )

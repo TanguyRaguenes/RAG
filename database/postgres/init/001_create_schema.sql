@@ -210,6 +210,7 @@ CREATE TABLE quota_utilisateur (
     utilisateur_id TEXT NOT NULL,
     max_tokens_par_mois BIGINT NOT NULL,
     actif BOOLEAN NOT NULL DEFAULT true,
+    illimite BOOLEAN NOT NULL DEFAULT false,
     date_debut TIMESTAMPTZ NOT NULL DEFAULT now(),
     date_fin TIMESTAMPTZ NULL,
 

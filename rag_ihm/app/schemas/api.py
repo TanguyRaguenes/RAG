@@ -38,6 +38,7 @@ class QuotaUsageResponse(TypedDict):
     remaining_tokens: int
     usage_ratio: float
     actif: bool
+    illimite: bool
     date_debut: str
     date_fin: str | None
 
@@ -204,6 +205,8 @@ def validate_quota_usage_response(payload: object) -> QuotaUsageResponse:
         raise ResponseContractError("quota_usage.usage_ratio est invalide")
     if not isinstance(data.get("actif"), bool):
         raise ResponseContractError("quota_usage.actif est invalide")
+    if not isinstance(data.get("illimite"), bool):
+        raise ResponseContractError("quota_usage.illimite est invalide")
     for field in ("email", "display_name", "preferred_username", "date_fin"):
         value = data.get(field)
         if value is not None and not isinstance(value, str):

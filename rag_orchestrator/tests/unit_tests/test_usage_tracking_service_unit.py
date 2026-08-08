@@ -44,6 +44,7 @@ def test_quota_row_to_response_calculates_remaining_tokens_and_ratio() -> None:
         "max_tokens_par_mois": 100,
         "consumed_tokens": 125,
         "actif": True,
+        "illimite": False,
         "date_debut": start,
         "date_fin": None,
     }
@@ -55,6 +56,7 @@ def test_quota_row_to_response_calculates_remaining_tokens_and_ratio() -> None:
     assert response.date_debut == start
     assert response.display_name == "User Example"
     assert response.preferred_username == "user.example"
+    assert response.illimite is False
 
 
 def test_normalize_groups_trims_and_lowercases_values() -> None:

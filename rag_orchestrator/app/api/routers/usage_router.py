@@ -119,6 +119,7 @@ async def update_user_quota_usage(
         user_id=user_id,
         max_tokens_per_month=body.max_tokens_par_mois,
         active=body.actif,
+        unlimited=body.illimite,
     )
 
 

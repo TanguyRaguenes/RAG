@@ -54,6 +54,7 @@ def _render_quota_progress(quota: dict[str, object]) -> None:
     remaining = int(quota["remaining_tokens"])
     ratio = float(quota["usage_ratio"])
     active = bool(quota["actif"])
+    unlimited = bool(quota["illimite"])
 
     status_label = "Actif" if active else "Désactivé"
     status_method = st.success if active else st.warning
@@ -61,15 +62,20 @@ def _render_quota_progress(quota: dict[str, object]) -> None:
 
     col_used, col_max, col_remaining = st.columns(3)
     col_used.metric("Consommés", _format_tokens(consumed))
-    col_max.metric("Enveloppe mensuelle", _format_tokens(maximum))
-    col_remaining.metric("Restants", _format_tokens(remaining))
+    col_max.metric(
+        "Enveloppe mensuelle", "Illimitée" if unlimited else _format_tokens(maximum)
+    )
+    col_remaining.metric("Restants", "Illimités" if unlimited else _format_tokens(remaining))
 
-    st.progress(min(max(ratio, 0.0), 1.0))
-    st.caption(f"{ratio * 100:.1f}% de l'enveloppe mensuelle utilisée.")
+    if unlimited:
+        st.caption("Aucune limite mensuelle de tokens n'est appliquée.")
+    else:
+        st.progress(min(max(ratio, 0.0), 1.0))
+        st.caption(f"{ratio * 100:.1f}% de l'enveloppe mensuelle utilisée.")
 
     if not active:
         st.info("Ton accès est désactivé. Rapproche-toi de ton administrateur.")
-    elif ratio >= 0.9:
+    elif not unlimited and ratio >= 0.9:
         st.warning("Tu approches de la limite mensuelle.")
 
 
@@ -127,6 +133,11 @@ def _render_admin_panel(config: ChatApiConfig, access_token: str | None) -> None
             index=0 if bool(selected_quota["actif"]) else 1,
         )
         active = active_label == "Actif"
+        unlimited = st.checkbox(
+            "Tokens illimités",
+            value=bool(selected_quota["illimite"]),
+            help="Ignore le plafond mensuel tout en continuant à mesurer la consommation.",
+        )
         submitted = st.form_submit_button("Enregistrer", type="primary")
 
     if not submitted:
@@ -139,6 +150,7 @@ def _render_admin_panel(config: ChatApiConfig, access_token: str | None) -> None
             selected_user_id,
             int(max_tokens),
             active,
+            unlimited,
         )
     except RagApiError as error:
         render_api_error(error, debug_enabled=True)
@@ -160,14 +172,15 @@ def _quota_to_table_row(quota: dict[str, object]) -> dict[str, object]:
         Ligne de tableau représentant un quota utilisateur.
     """
     ratio = float(quota["usage_ratio"]) * 100
+    unlimited = bool(quota["illimite"])
 
     return {
         "Utilisateur": _quota_label(quota),
         "Actif": "Oui" if quota["actif"] else "Non",
         "Consommés": int(quota["consumed_tokens"]),
-        "Max / mois": int(quota["max_tokens_par_mois"]),
-        "Utilisation": f"{ratio:.1f}%",
-        "Restants": int(quota["remaining_tokens"]),
+        "Max / mois": "Illimité" if unlimited else int(quota["max_tokens_par_mois"]),
+        "Utilisation": "Illimitée" if unlimited else f"{ratio:.1f}%",
+        "Restants": "Illimités" if unlimited else int(quota["remaining_tokens"]),
     }
 
 
