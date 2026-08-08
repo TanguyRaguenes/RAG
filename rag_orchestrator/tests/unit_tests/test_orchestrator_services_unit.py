@@ -203,11 +203,12 @@ async def test_ask_question_to_api_builds_payload_and_tokens(
         return [{"document": "doc", "metadata": {"title": "Doc"}}]
 
     async def fake_api_client(
-        payload: dict, endpoint: str, api_key: str | None
+        payload: dict, endpoint: str, api_key: str | None, timeout_seconds: int
     ) -> dict:
         calls.append(("llm", payload["model"]))
         assert payload["model"] == "api-model"
         assert endpoint == "http://api/v1/responses"
+        assert timeout_seconds == 30
         return {
             "output": [
                 {

@@ -83,7 +83,7 @@ async def ask_question_to_llm(
 
 
 async def ask_question_to_api(
-    payload: dict[str, Any], url: str, api_key: str | None
+    payload: dict[str, Any], url: str, api_key: str | None, timeout_seconds: int
 ) -> dict[str, Any]:
     """Appelle une API LLM externe compatible avec le provider configuré.
 
@@ -91,6 +91,7 @@ async def ask_question_to_api(
         payload: Corps JSON envoyé à l'API LLM.
         url: Endpoint HTTP de l'API LLM.
         api_key: Clé API optionnelle, jamais loggée.
+        timeout_seconds: Délai maximal configuré pour l'appel.
 
     Returns:
         Réponse JSON décodée du LLM.
@@ -106,7 +107,7 @@ async def ask_question_to_api(
 
     with tracer.start_as_current_span("orchestrator.call_api_llm"):
         try:
-            async with httpx.AsyncClient(timeout=120) as client:
+            async with httpx.AsyncClient(timeout=timeout_seconds) as client:
                 response = await client.post(url, json=payload, headers=headers)
                 response.raise_for_status()
                 data = response.json()

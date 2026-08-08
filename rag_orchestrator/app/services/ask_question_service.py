@@ -115,6 +115,7 @@ async def ask_question_to_api(
     with tracer.start_as_current_span("orchestrator.ask_api_model") as span:
         api_key: str | None = os.getenv("OPEN_API_KEY")
 
+        timeout_seconds: int = config["llm"]["common"]["timeout_seconds"]
         stream: bool = config["llm"]["common"]["stream"]
 
         provider: str = config["llm"]["api"]["provider"]
@@ -140,7 +141,9 @@ async def ask_question_to_api(
             "max_output_tokens": max_output_tokens,
         }
 
-        raw_llm_response = await ask_question_to_api_client(payload, endpoint, api_key)
+        raw_llm_response = await ask_question_to_api_client(
+            payload, endpoint, api_key, timeout_seconds
+        )
         llm_response = _validate_api_llm_response(raw_llm_response)
 
         sources: dict[str, int] = design_source(retrieved_chunks)

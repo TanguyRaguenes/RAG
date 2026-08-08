@@ -90,13 +90,16 @@ async def test_ask_question_to_api_sends_bearer_header(
     FakeAsyncClient.response = FakeResponse({"output": []})
     monkeypatch.setattr(llm_client.httpx, "AsyncClient", FakeAsyncClient)
 
-    result = await llm_client.ask_question_to_api({"model": "m"}, "http://api", "key")
+    result = await llm_client.ask_question_to_api(
+        {"model": "m"}, "http://api", "key", 360
+    )
 
     assert result == {"output": []}
     assert FakeAsyncClient.calls[0]["headers"] == {
         "Content-Type": "application/json",
         "Authorization": "Bearer key",
     }
+    assert FakeAsyncClient.calls[0]["timeout"] == 360
 
 
 @pytest.mark.asyncio
@@ -128,7 +131,7 @@ async def test_ask_question_to_api_does_not_store_upstream_http_data(
     with pytest.raises(
         LlmApiException, match="LLM API returned an HTTP error"
     ) as error:
-        await llm_client.ask_question_to_api({}, "http://private-api", "key")
+        await llm_client.ask_question_to_api({}, "http://private-api", "key", 360)
 
     assert error.value.details == {"status_code": 429, "error_type": "http_status"}
     assert error.value.original_exception is None
@@ -163,7 +166,7 @@ async def test_llm_clients_wrap_successful_non_json_response_and_record_metric(
         if operation == "local":
             await llm_client.ask_question_to_llm({}, 12, "http://llm")
         else:
-            await llm_client.ask_question_to_api({}, "http://api", "key")
+            await llm_client.ask_question_to_api({}, "http://api", "key", 360)
 
     assert error.value.details == {
         "dependency": "llm",
