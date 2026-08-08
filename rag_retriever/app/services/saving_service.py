@@ -58,7 +58,11 @@ def save_items(
             obsolete_ids = sorted(existing_ids.difference(items.ids))
             vector_store_repository.delete_items(collection_name, obsolete_ids)
 
-        stored_items = vector_store_repository.get_items(collection_name, items.ids)
+        stored_items = (
+            vector_store_repository.get_items(collection_name, items.ids)
+            if items.include_saved_items
+            else []
+        )
         collection_count_after = vector_store_repository.count_items(collection_name)
 
     retriever_chunks_total.labels(operation="save_items").inc(len(items.ids))

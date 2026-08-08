@@ -44,6 +44,7 @@ async def embed(
 
     url: str = config["embedding"]["url"]
     model: str = config["embedding"]["model"]
+    batch_size: int = config["embedding"]["batch_size"]
     prefix_query: str = config["embedding"]["prefixes"]["query"]
     prefix_document: str = config["embedding"]["prefixes"]["document"]
 
@@ -61,8 +62,6 @@ async def embed(
 
     prefix = prefix_query if is_query else prefix_document
     texts_to_embed = [f"{prefix}{text}" for text in texts]
-    payload = {"model": model, "input": texts_to_embed}
-
     try:
         with tracer.start_as_current_span("embedding.call_model") as span:
             span.set_attribute("embedding.model", model)
@@ -74,10 +73,22 @@ async def embed(
             )
             span.set_attribute("http.url", url)
 
+            embeddings: list[list[float]] = []
             async with httpx.AsyncClient(timeout=120) as client:
-                response = await client.post(url, json=payload)
-                response.raise_for_status()
-                data = response.json()
+                for start in range(0, len(texts_to_embed), batch_size):
+                    batch = texts_to_embed[start : start + batch_size]
+                    response = await client.post(
+                        url,
+                        json={"model": model, "input": batch},
+                    )
+                    response.raise_for_status()
+                    data = response.json()
+                    embeddings.extend(
+                        _validate_embeddings(data["embeddings"], len(batch))
+                    )
+
+            if len({len(embedding) for embedding in embeddings}) != 1:
+                raise ValueError("embedding dimensions are inconsistent across batches")
 
     except httpx.HTTPStatusError as e:
         embedding_errors_total.inc()
@@ -111,18 +122,6 @@ async def embed(
             internal_details={"operation": "embed", "error_type": "request_error"},
         ) from e
 
-    except (TypeError, ValueError) as exception:
-        embedding_errors_total.inc()
-        _record_request_error(operation, "invalid_response", start_time)
-        raise EmbeddingServiceException(
-            internal_details={
-                "operation": "embed",
-                "error_type": "invalid_response",
-            },
-        ) from exception
-
-    try:
-        embeddings = _validate_embeddings(data["embeddings"], len(texts))
     except (KeyError, TypeError, ValueError) as exception:
         embedding_errors_total.inc()
         _record_request_error(operation, "invalid_response", start_time)

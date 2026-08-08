@@ -146,6 +146,7 @@ def convert_to_chroma_format(
         documents=all_texts,
         embeddings=all_embeddings,
         metadatas=all_metadatas,
+        include_saved_items=False,
         collection_profile=collection_profile,
     )
 

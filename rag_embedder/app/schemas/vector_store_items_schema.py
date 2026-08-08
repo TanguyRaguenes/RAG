@@ -28,6 +28,7 @@ class VectorStoreItemsBase(BaseModel):
     metadatas: list[VectorMetadataBase]
     delete_obsolete: bool = False
     replace_collection: bool = False
+    include_saved_items: bool = True
     collection_profile: CollectionProfile = "default"
 
     @model_validator(mode="after")

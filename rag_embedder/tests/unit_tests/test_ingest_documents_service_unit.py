@@ -179,6 +179,7 @@ async def test_ingest_documents_saves_vector_store_items(
     assert len(response.saved_items) == 2
     assert saved_payloads[0].ids == ["a.md#chunk_0", "b.md#chunk_0"]
     assert saved_payloads[0].delete_obsolete is True
+    assert saved_payloads[0].include_saved_items is False
     assert saved_payloads[0].collection_profile == "default"
     assert saved_payloads[0].replace_collection is False
 

@@ -194,6 +194,7 @@
         src: rag-ingest-wikis.sh.j2
         dest: "{{ rag_ingest_script_path }}"
         mode: "0755"
+        newline_sequence: "\n"
 
     # Cree le fichier de log avec des droits lisibles par les administrateurs du VPS.
     - name: Ensure wiki ingestion log file exists
@@ -221,6 +222,13 @@
     # Lance ou met a jour les conteneurs en arriere-plan.
     - name: Start Docker Compose stack
       ansible.builtin.command: docker compose -f docker-compose.prod.yml up -d
+      args:
+        chdir: "{{ deploy_dir }}"
+      changed_when: true
+
+    # Grafana ne recharge les alertes provisionnees qu'au demarrage du conteneur.
+    - name: Reload Grafana provisioned configuration
+      ansible.builtin.command: docker compose -f docker-compose.prod.yml restart grafana
       args:
         chdir: "{{ deploy_dir }}"
       changed_when: true

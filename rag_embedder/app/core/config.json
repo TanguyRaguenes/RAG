@@ -3,6 +3,7 @@
         "provider" : "ollama",
         "url": "http://ollama:11434/api/embed",
         "model": "bge-m3:567m",
+        "batch_size": 16,
         "prefixes": {
             "query": "query: ",
             "document": "document: "

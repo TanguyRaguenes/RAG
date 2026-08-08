@@ -59,6 +59,7 @@ def _items(
     item_id: str = "kept-id",
     collection_profile: str = "default",
     replace_collection: bool = False,
+    include_saved_items: bool = True,
 ) -> VectorStoreItemsBase:
     return VectorStoreItemsBase(
         ids=[item_id],
@@ -68,6 +69,7 @@ def _items(
         delete_obsolete=delete_obsolete,
         collection_profile=collection_profile,
         replace_collection=replace_collection,
+        include_saved_items=include_saved_items,
     )
 
 
@@ -108,6 +110,19 @@ def test_save_items_does_not_delete_stale_ids_in_upsert_mode() -> None:
 
     assert not any(call[0] == "delete" for call in repository.calls)
     assert repository.ids == {"old-id", "kept-id"}
+
+
+def test_save_items_skips_full_collection_read_when_details_are_not_requested() -> None:
+    repository = FakeVectorStoreRepository()
+
+    response = save_items(
+        _items(delete_obsolete=True, include_saved_items=False),
+        _config(),
+        repository,
+    )
+
+    assert not any(call[0] == "get" for call in repository.calls)
+    assert response.saved_items == []
 
 
 def test_delete_obsolete_snapshots_are_serialized_in_process() -> None:

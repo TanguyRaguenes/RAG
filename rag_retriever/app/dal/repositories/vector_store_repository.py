@@ -18,6 +18,7 @@ from app.domain.models.vector_store_model import (
 )
 
 T = TypeVar("T")
+_MAX_UPSERT_BATCH_SIZE = 500
 
 
 class VectorStoreRepository:
@@ -93,14 +94,29 @@ class VectorStoreRepository:
         """
         if not items.ids:
             return
+
+        def upsert_batches() -> None:
+            collection = self._get_collection(collection_name)
+            max_batch_size = min(
+                self._client.get_max_batch_size(),
+                _MAX_UPSERT_BATCH_SIZE,
+            )
+            if max_batch_size <= 0:
+                raise ValueError("ChromaDB returned an invalid maximum batch size")
+
+            metadatas = [metadata.to_storage_dict() for metadata in items.metadatas]
+            for start in range(0, len(items.ids), max_batch_size):
+                end = start + max_batch_size
+                collection.upsert(
+                    ids=items.ids[start:end],
+                    documents=items.documents[start:end],
+                    embeddings=items.embeddings[start:end],
+                    metadatas=metadatas[start:end],
+                )
+
         self._execute(
             "upsert",
-            lambda: self._get_collection(collection_name).upsert(
-                ids=items.ids,
-                documents=items.documents,
-                embeddings=items.embeddings,
-                metadatas=[metadata.to_storage_dict() for metadata in items.metadatas],
-            ),
+            upsert_batches,
             {"item_count": len(items.ids)},
         )
 

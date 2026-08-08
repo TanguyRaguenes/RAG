@@ -47,6 +47,7 @@ async def test_embed_raises_exception_when_service_is_unreachable() -> None:
         "embedding": {
             "url": "http://127.0.0.1:1/embeddings",
             "model": "test-model",
+            "batch_size": 16,
             "prefixes": {"query": "Q: ", "document": "D: "},
         }
     }
@@ -75,6 +76,7 @@ async def test_embed_posts_prefixed_texts_and_returns_embeddings(
         "embedding": {
             "url": "http://embedder/embeddings",
             "model": "test-model",
+            "batch_size": 16,
             "prefixes": {"query": "Q: ", "document": "D: "},
         }
     }
@@ -94,6 +96,64 @@ async def test_embed_posts_prefixed_texts_and_returns_embeddings(
 
 
 @pytest.mark.asyncio
+async def test_embed_splits_large_input_into_configured_batches(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    FakeAsyncClient.calls = []
+    config = {
+        "embedding": {
+            "url": "http://embedder/embeddings",
+            "model": "test-model",
+            "batch_size": 1,
+            "prefixes": {"query": "Q: ", "document": "D: "},
+        }
+    }
+    monkeypatch.setattr(embedding_client.httpx, "AsyncClient", FakeAsyncClient)
+    monkeypatch.setattr(FakeResponse, "payload", {"embeddings": [[0.1, 0.2]]})
+
+    result = await embed(["first", "second"], config=config, is_query=False)
+
+    assert result == [[0.1, 0.2], [0.1, 0.2]]
+    assert [call["json"]["input"] for call in FakeAsyncClient.calls] == [
+        ["D: first"],
+        ["D: second"],
+    ]
+
+
+@pytest.mark.asyncio
+async def test_embed_rejects_inconsistent_dimensions_across_batches(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class VariableResponseClient(FakeAsyncClient):
+        response_payloads = iter(
+            [
+                {"embeddings": [[0.1, 0.2]]},
+                {"embeddings": [[0.3, 0.4, 0.5]]},
+            ]
+        )
+
+        async def post(self, url: str, json: dict) -> FakeResponse:
+            response = await super().post(url, json)
+            response.payload = next(self.response_payloads)
+            return response
+
+    config = {
+        "embedding": {
+            "url": "http://embedder/embeddings",
+            "model": "test-model",
+            "batch_size": 1,
+            "prefixes": {"query": "Q: ", "document": "D: "},
+        }
+    }
+    monkeypatch.setattr(embedding_client.httpx, "AsyncClient", VariableResponseClient)
+
+    with pytest.raises(EmbeddingServiceException) as exc_info:
+        await embed(["first", "second"], config=config, is_query=False)
+
+    assert exc_info.value.internal_details["error_type"] == "invalid_response"
+
+
+@pytest.mark.asyncio
 @pytest.mark.parametrize(
     "invalid_coordinate",
     [True, "0.1", float("nan"), float("inf"), float("-inf")],
@@ -107,6 +167,7 @@ async def test_embed_rejects_invalid_coordinates_before_success_metric(
         "embedding": {
             "url": "http://embedder/embeddings",
             "model": "test-model",
+            "batch_size": 16,
             "prefixes": {"query": "Q: ", "document": "D: "},
         }
     }
@@ -137,6 +198,7 @@ async def test_embed_accepts_integer_coordinates_as_real_numbers(
         "embedding": {
             "url": "http://embedder/embeddings",
             "model": "test-model",
+            "batch_size": 16,
             "prefixes": {"query": "Q: ", "document": "D: "},
         }
     }

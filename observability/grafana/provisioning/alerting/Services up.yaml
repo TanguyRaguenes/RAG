@@ -79,7 +79,7 @@ groups:
             datasourceUid: prometheus
             model:
               editorMode: code
-              expr: (sum(increase(rag_requests_total{service="rag_orchestrator",operation="ask_question",status="error"}[5m])) or vector(0)) / clamp_min((sum(increase(rag_requests_total{service="rag_orchestrator",operation="ask_question"}[5m])) or vector(0)), 1)
+              expr: sum(increase(rag_requests_total{service="rag_orchestrator",operation="ask_question",status="error"}[5m])) / clamp_min(sum(increase(rag_requests_total{service="rag_orchestrator",operation="ask_question"}[5m])), 1)
               instant: true
               intervalMs: 1000
               legendFormat: error rate

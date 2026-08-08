@@ -31,13 +31,27 @@ if [ -z "$(find "$WIKIS_DIR" -type f -name '*.md' ! -path '*/.git/*' -print -qui
 fi
 
 echo "Ingesting wiki documents"
-if ! curl -fsS -X POST http://127.0.0.1:8002/ingest/bulk; then
+RESPONSE_FILE=$(mktemp)
+trap 'rm -f "$RESPONSE_FILE"' EXIT
+
+if ! HTTP_STATUS=$(curl -sS -o "$RESPONSE_FILE" -w '%{http_code}' -X POST http://127.0.0.1:8002/ingest/bulk); then
     printf '\n'
-    log "RAG wiki ingestion failed: bulk ingestion request failed"
+    log "RAG wiki ingestion failed: rag_embedder is unreachable"
     echo "============================================================"
     exit 1
 fi
+
+cat "$RESPONSE_FILE"
 printf '\n'
+
+case "$HTTP_STATUS" in
+    2??) ;;
+    *)
+        log "RAG wiki ingestion failed: bulk ingestion request returned HTTP $HTTP_STATUS"
+        echo "============================================================"
+        exit 1
+        ;;
+esac
 
 log "RAG wiki ingestion finished"
 echo "============================================================"

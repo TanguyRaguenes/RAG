@@ -54,8 +54,12 @@ class FakeCollection:
 class FakeChromaClient:
     def __init__(self, collection: FakeCollection | None = None) -> None:
         self.collection = collection or FakeCollection()
+        self.max_batch_size = 100
         self.get_or_create_calls: list[dict] = []
         self.delete_calls: list[dict] = []
+
+    def get_max_batch_size(self) -> int:
+        return self.max_batch_size
 
     def get_or_create_collection(self, **kwargs: object) -> FakeCollection:
         self.get_or_create_calls.append(kwargs)
@@ -135,6 +139,32 @@ def test_repository_upserts_domain_batch_in_named_collection() -> None:
             "embeddings": [[0.1, 0.2]],
             "metadatas": [_metadata()],
         }
+    ]
+
+
+def test_repository_splits_upsert_using_chroma_maximum_batch_size() -> None:
+    collection = FakeCollection()
+    repository = _repository(collection)
+    repository._client.max_batch_size = 2
+    batch = VectorStoreBatch(
+        ids=["id-1", "id-2", "id-3"],
+        documents=["one", "two", "three"],
+        embeddings=[[0.1], [0.2], [0.3]],
+        metadatas=[
+            VectorMetadata(path=f"doc-{index}.md", title="Doc", chunk_index=0)
+            for index in range(1, 4)
+        ],
+    )
+
+    repository.upsert_items("configured-wiki", batch)
+
+    assert [call["ids"] for call in collection.upsert_calls] == [
+        ["id-1", "id-2"],
+        ["id-3"],
+    ]
+    assert [call["documents"] for call in collection.upsert_calls] == [
+        ["one", "two"],
+        ["three"],
     ]
 
 

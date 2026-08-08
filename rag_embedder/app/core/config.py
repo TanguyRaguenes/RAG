@@ -18,6 +18,7 @@ class EmbeddingConfig(TypedDict):
     provider: str
     url: str
     model: str
+    batch_size: int
     prefixes: EmbeddingPrefixesConfig
 
 
