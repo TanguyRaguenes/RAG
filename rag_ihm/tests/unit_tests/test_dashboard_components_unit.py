@@ -1,4 +1,11 @@
-from app.components.dashboard import _as_float, _average, _clamp, _format_score
+from app.components.dashboard import (
+    _as_float,
+    _average,
+    _clamp,
+    _format_percentage,
+    _format_score,
+    _format_seconds,
+)
 
 
 def test_as_float_accepts_numbers_and_preserves_missing_values() -> None:
@@ -22,3 +29,9 @@ def test_format_score_uses_percent_or_absolute_scale() -> None:
     assert _format_score(0.876, 1.0) == "88%"
     assert _format_score(4.2, 5.0) == "4.2/5"
     assert _format_score(None, 5.0) == "N/A"
+
+
+def test_execution_metrics_format_percentages_and_seconds() -> None:
+    assert _format_percentage(0.02) == "2.0%"
+    assert _format_seconds(8.341) == "8.34 s"
+    assert _format_seconds(None) == "N/A"

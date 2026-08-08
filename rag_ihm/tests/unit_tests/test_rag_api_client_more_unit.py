@@ -42,6 +42,11 @@ def _evaluation_response() -> dict[str, object]:
         },
         "total_duration": "00:01",
         "total_questions": 1,
+        "successful_questions": 1,
+        "error_rate": 0.0,
+        "average_latency_seconds": 1.2,
+        "p95_latency_seconds": 1.4,
+        "p99_latency_seconds": 1.5,
     }
 
 
@@ -165,6 +170,9 @@ def test_run_evaluation_sends_selected_question_limit() -> None:
     [
         {"total_questions": 1},
         {**_evaluation_response(), "total_questions": True},
+        {**_evaluation_response(), "successful_questions": 2},
+        {**_evaluation_response(), "error_rate": 1.1},
+        {**_evaluation_response(), "p95_latency_seconds": -1.0},
         {**_evaluation_response(), "average_retrieval": {}},
         {
             **_evaluation_response(),

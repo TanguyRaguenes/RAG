@@ -8,6 +8,7 @@ from app.components.common import (
 from app.components.dashboard import (
     render_answer_scores,
     render_dashboard_empty_state,
+    render_execution_metrics,
     render_retrieval_scores,
     render_summary_cards,
 )
@@ -67,6 +68,7 @@ def _render_results(result: EvaluationResponse) -> None:
     """
     st.caption("Dernière évaluation terminée.")
     render_summary_cards(result)
+    render_execution_metrics(result)
 
     retrieval_tab, answer_tab = st.tabs(["Recherche documentaire", "Réponse générée"])
 

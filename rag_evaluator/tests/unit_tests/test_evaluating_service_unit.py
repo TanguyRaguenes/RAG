@@ -25,6 +25,7 @@ from app.services.evaluating_service import (
     build_retrieval_accumulator,
     calculate_average_quality,
     calculate_average_retrieval,
+    calculate_percentile,
 )
 
 
@@ -167,8 +168,19 @@ def test_build_empty_evaluation_response_returns_zero_scores() -> None:
     response = build_empty_evaluation_response()
 
     assert response.total_questions == 0
+    assert response.successful_questions == 0
+    assert response.error_rate == 0.0
+    assert response.average_latency_seconds == 0.0
     assert response.average_retrieval.mrr == 0.0
     assert response.average_answer_quality.feedback == "Aucune évaluation"
+
+
+def test_calculate_percentile_uses_nearest_rank() -> None:
+    values = [1.0, 2.0, 3.0, 4.0, 5.0]
+
+    assert calculate_percentile(values, 0.50) == 3.0
+    assert calculate_percentile(values, 0.95) == 5.0
+    assert calculate_percentile([], 0.99) == 0.0
 
 
 def test_retrieval_accumulator_and_average() -> None:
@@ -253,11 +265,21 @@ async def test_evaluation_service_averages_successful_results(
         )
 
     monkeypatch.setattr(evaluating_service, "evaluate_answer", fake_evaluate_answer)
+    monkeypatch.setattr(
+        evaluating_service.time,
+        "perf_counter",
+        iter([0.0, 1.0, 1.0, 4.0]).__next__,
+    )
 
     orchestrator = FakeOrchestratorClient(groups=["RAG_ADMIN"])
     result = await _service(repository, orchestrator).evaluate("same-token")
 
     assert result.total_questions == 2
+    assert result.successful_questions == 2
+    assert result.error_rate == 0.0
+    assert result.average_latency_seconds == 2.0
+    assert result.p95_latency_seconds == 3.0
+    assert result.p99_latency_seconds == 3.0
     assert result.average_retrieval.mrr == 1
     assert result.average_answer_quality.accuracy == 4
     assert orchestrator.auth_tokens == ["same-token"]

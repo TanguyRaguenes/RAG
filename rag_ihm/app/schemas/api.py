@@ -121,6 +121,11 @@ class EvaluationResponse(TypedDict):
     average_answer_quality: AnswerEvaluation
     total_duration: str
     total_questions: int
+    successful_questions: int
+    error_rate: float
+    average_latency_seconds: float
+    p95_latency_seconds: float
+    p99_latency_seconds: float
 
 
 class ResponseContractError(ValueError):
@@ -342,7 +347,27 @@ def validate_evaluation_response(payload: object) -> EvaluationResponse:
     """
     data = _require_dict(payload, "evaluation")
     _require_string_fields(data, "total_duration")
-    _require_integer_fields(data, "total_questions")
+    _require_integer_fields(data, "total_questions", "successful_questions")
+    _require_number_fields(
+        data,
+        "error_rate",
+        "average_latency_seconds",
+        "p95_latency_seconds",
+        "p99_latency_seconds",
+    )
+    if data["total_questions"] < 0 or data["successful_questions"] < 0:
+        raise ResponseContractError("Les compteurs d'évaluation sont invalides")
+    if data["successful_questions"] > data["total_questions"]:
+        raise ResponseContractError("successful_questions dépasse total_questions")
+    if not 0 <= data["error_rate"] <= 1:
+        raise ResponseContractError("evaluation.error_rate est invalide")
+    for field in (
+        "average_latency_seconds",
+        "p95_latency_seconds",
+        "p99_latency_seconds",
+    ):
+        if data[field] < 0:
+            raise ResponseContractError(f"evaluation.{field} est invalide")
 
     retrieval = _require_dict_field(data, "average_retrieval")
     _require_number_fields(

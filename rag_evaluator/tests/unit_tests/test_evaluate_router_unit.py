@@ -61,6 +61,11 @@ async def test_ask_question_route_sets_total_duration(
             ),
             total_duration="ignored",
             total_questions=2,
+            successful_questions=2,
+            error_rate=0.0,
+            average_latency_seconds=2.5,
+            p95_latency_seconds=4.0,
+            p99_latency_seconds=4.5,
         )
 
     monkeypatch.setattr(evaluate_router, "evaluate_rag", fake_evaluate_rag)
@@ -74,4 +79,8 @@ async def test_ask_question_route_sets_total_duration(
 
     assert response.total_duration == "01:01"
     assert response.total_questions == 2
+    assert response.successful_questions == 2
+    assert response.average_latency_seconds == 2.5
+    assert response.p95_latency_seconds == 4.0
+    assert response.p99_latency_seconds == 4.5
     assert response.average_retrieval.mrr == 1

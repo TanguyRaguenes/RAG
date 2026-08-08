@@ -1,3 +1,5 @@
+import math
+import time
 from typing import Any
 
 from opentelemetry import trace
@@ -95,8 +97,10 @@ class EvaluationService:
 
             retrieval_scores = build_retrieval_accumulator()
             quality_scores = build_quality_accumulator()
+            question_latencies: list[float] = []
 
             for test in tests:
+                question_start = time.perf_counter()
                 rag_response = await self._ask_question(test.question, access_token)
                 retrieved_chunks = [
                     chunk.model_dump() for chunk in rag_response.retrieved_chunks
@@ -115,6 +119,7 @@ class EvaluationService:
                     retrieved_chunks=retrieved_chunks,
                 )
                 add_quality_score(quality_scores, answer_evaluation)
+                question_latencies.append(time.perf_counter() - question_start)
 
             response = EvaluatorResponseBase(
                 average_retrieval=calculate_average_retrieval(
@@ -125,6 +130,11 @@ class EvaluationService:
                 ),
                 total_duration="00:00",
                 total_questions=total_questions,
+                successful_questions=total_questions,
+                error_rate=0.0,
+                average_latency_seconds=sum(question_latencies) / total_questions,
+                p95_latency_seconds=calculate_percentile(question_latencies, 0.95),
+                p99_latency_seconds=calculate_percentile(question_latencies, 0.99),
             )
             _record_scores(response)
             return response
@@ -271,7 +281,29 @@ def build_empty_evaluation_response() -> EvaluatorResponseBase:
         ),
         total_duration="00:00",
         total_questions=0,
+        successful_questions=0,
+        error_rate=0.0,
+        average_latency_seconds=0.0,
+        p95_latency_seconds=0.0,
+        p99_latency_seconds=0.0,
     )
+
+
+def calculate_percentile(values: list[float], percentile: float) -> float:
+    """Calcule un percentile par rang le plus proche.
+
+    Args:
+        values: Durées individuelles en secondes.
+        percentile: Quantile compris entre zéro et un.
+
+    Returns:
+        Valeur observée au rang demandé, ou zéro pour une liste vide.
+    """
+    if not values:
+        return 0.0
+    ordered_values = sorted(values)
+    index = max(0, math.ceil(percentile * len(ordered_values)) - 1)
+    return ordered_values[index]
 
 
 def build_retrieval_accumulator() -> RetrievalAccumulator:

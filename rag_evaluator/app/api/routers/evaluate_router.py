@@ -98,4 +98,9 @@ async def ask_question_route(
         average_answer_quality=result.average_answer_quality,
         total_duration=duration,
         total_questions=result.total_questions,
+        successful_questions=result.successful_questions,
+        error_rate=result.error_rate,
+        average_latency_seconds=result.average_latency_seconds,
+        p95_latency_seconds=result.p95_latency_seconds,
+        p99_latency_seconds=result.p99_latency_seconds,
     )

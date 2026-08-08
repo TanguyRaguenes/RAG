@@ -19,12 +19,17 @@ RETRIEVAL_HELP = {
     "nDCG": "Mesure si les meilleurs extraits sont bien classés.",
     "Recall": "Mesure si les informations attendues ont été retrouvées.",
     "Precision": "Mesure la proportion d'extraits utiles parmi ceux retournés.",
+    "Bon document dans le top 5": (
+        "Mesure si au moins une source attendue apparaît dans les cinq premiers résultats."
+    ),
 }
 
 ANSWER_HELP = {
     "Accuracy": "Mesure l'exactitude factuelle de la réponse.",
     "Completeness": "Mesure si la réponse couvre les informations attendues.",
     "Relevance": "Mesure si la réponse répond directement à la question.",
+    "Fidélité aux sources": "Mesure si la réponse reste étayée par les sources récupérées.",
+    "Qualité des refus": "Mesure si le système refuse correctement les demandes inappropriées.",
 }
 
 
@@ -69,6 +74,28 @@ def render_summary_cards(result: dict) -> None:
     col4.metric("Réponse", _format_average(answer_average))
 
 
+def render_execution_metrics(result: dict) -> None:
+    """Affiche les indicateurs de réussite et de latence de l'évaluation."""
+    st.subheader("Exécution de l'évaluation")
+    st.caption("Ces indicateurs mesurent la fiabilité et le temps de traitement.")
+    columns = st.columns(5)
+    columns[0].metric(
+        "Questions réussies",
+        f"{result.get('successful_questions', 0)}/{result.get('total_questions', 0)}",
+    )
+    columns[1].metric("Taux d'erreur", _format_percentage(result.get("error_rate")))
+    columns[2].metric(
+        "Temps moyen / question",
+        _format_seconds(result.get("average_latency_seconds")),
+    )
+    columns[3].metric(
+        "Latence p95 / question", _format_seconds(result.get("p95_latency_seconds"))
+    )
+    columns[4].metric(
+        "Latence p99 / question", _format_seconds(result.get("p99_latency_seconds"))
+    )
+
+
 def render_retrieval_scores(retrieval: dict) -> None:
     """Affiche les scores de retrieval dans le dashboard Streamlit.
 
@@ -91,6 +118,12 @@ def render_retrieval_scores(retrieval: dict) -> None:
             _as_float(retrieval.get("precision")),
             1.0,
             RETRIEVAL_HELP["Precision"],
+        ),
+        ScoreMetric(
+            "Bon document dans le top 5",
+            _as_float(retrieval.get("source_hit_at_5")),
+            1.0,
+            RETRIEVAL_HELP["Bon document dans le top 5"],
         ),
     ]
     _render_score_grid(metrics)
@@ -120,6 +153,18 @@ def render_answer_scores(answer: dict) -> None:
             _as_float(answer.get("relevance")),
             5.0,
             ANSWER_HELP["Relevance"],
+        ),
+        ScoreMetric(
+            "Fidélité aux sources",
+            _as_float(answer.get("faithfulness")),
+            5.0,
+            ANSWER_HELP["Fidélité aux sources"],
+        ),
+        ScoreMetric(
+            "Qualité des refus",
+            _as_float(answer.get("safe_refusal")),
+            5.0,
+            ANSWER_HELP["Qualité des refus"],
         ),
     ]
     _render_score_grid(metrics)
@@ -182,6 +227,18 @@ def _scaled_score(value: object, scale_max: float) -> float | None:
 def _format_average(value: float | None) -> str:
     """Affiche une moyenne disponible ou une absence explicite."""
     return f"{value:.0%}" if value is not None else "N/A"
+
+
+def _format_percentage(value: object) -> str:
+    """Affiche une proportion sous forme de pourcentage."""
+    parsed_value = _as_float(value)
+    return f"{parsed_value:.1%}" if parsed_value is not None else "N/A"
+
+
+def _format_seconds(value: object) -> str:
+    """Affiche une durée en secondes avec une précision lisible."""
+    parsed_value = _as_float(value)
+    return f"{parsed_value:.2f} s" if parsed_value is not None else "N/A"
 
 
 def _clamp(value: float) -> float:
