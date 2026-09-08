@@ -39,7 +39,7 @@ jobs:
 
       # 2. Installe uv pour gerer Python et les dependances
       - name: Install uv
-        uses: astral-sh/setup-uv@3d2d7c2fbc7c13e9124bb1fe0ae936b5d018199d # v5.4.0
+        uses: astral-sh/setup-uv@22695119d769bdb6f7032ad67b9bca0ef8c4a174 # v5.4.0
 
       # 3. Installe Python 3.12 dans la VM
       - name: Install Python
@@ -119,7 +119,7 @@ jobs:
 
       # 3. Installe uv pour lancer les tests d'integration Python
       - name: Install uv
-        uses: astral-sh/setup-uv@3d2d7c2fbc7c13e9124bb1fe0ae936b5d018199d # v5.4.0
+        uses: astral-sh/setup-uv@22695119d769bdb6f7032ad67b9bca0ef8c4a174 # v5.4.0
 
       # 4. Installe Python 3.12 dans la VM
       - name: Install Python
@@ -131,7 +131,7 @@ jobs:
 
       # 6. Scanne l'image Docker du microservice rag_embedder
       - name: Scan rag_embedder image with Trivy
-        uses: aquasecurity/trivy-action@b6644d0a981f5d54e00710d75c3ac2e2a0c1dcec # v0.33.1
+        uses: aquasecurity/trivy-action@b6643a29fecd7f34b3597bc6acb0a98b03d33ff8 # v0.33.1
         with:
           image-ref: rag-rag_embedder:latest
           format: table
@@ -140,7 +140,7 @@ jobs:
 
       # 7. Scanne l'image Docker du microservice rag_retriever
       - name: Scan rag_retriever image with Trivy
-        uses: aquasecurity/trivy-action@b6644d0a981f5d54e00710d75c3ac2e2a0c1dcec # v0.33.1
+        uses: aquasecurity/trivy-action@b6643a29fecd7f34b3597bc6acb0a98b03d33ff8 # v0.33.1
         with:
           image-ref: rag-rag_retriever:latest
           format: table
@@ -149,7 +149,7 @@ jobs:
 
       # 8. Scanne l'image Docker du microservice rag_reranker
       - name: Scan rag_reranker image with Trivy
-        uses: aquasecurity/trivy-action@b6644d0a981f5d54e00710d75c3ac2e2a0c1dcec # v0.33.1
+        uses: aquasecurity/trivy-action@b6643a29fecd7f34b3597bc6acb0a98b03d33ff8 # v0.33.1
         with:
           image-ref: rag-rag_reranker:latest
           format: table
@@ -158,7 +158,7 @@ jobs:
 
       # 9. Scanne l'image Docker du microservice rag_orchestrator
       - name: Scan rag_orchestrator image with Trivy
-        uses: aquasecurity/trivy-action@b6644d0a981f5d54e00710d75c3ac2e2a0c1dcec # v0.33.1
+        uses: aquasecurity/trivy-action@b6643a29fecd7f34b3597bc6acb0a98b03d33ff8 # v0.33.1
         with:
           image-ref: rag-rag_orchestrator:latest
           format: table
@@ -167,7 +167,7 @@ jobs:
 
       # 10. Scanne l'image Docker du microservice rag_evaluator
       - name: Scan rag_evaluator image with Trivy
-        uses: aquasecurity/trivy-action@b6644d0a981f5d54e00710d75c3ac2e2a0c1dcec # v0.33.1
+        uses: aquasecurity/trivy-action@b6643a29fecd7f34b3597bc6acb0a98b03d33ff8 # v0.33.1
         with:
           image-ref: rag-rag_evaluator:latest
           format: table
@@ -176,7 +176,7 @@ jobs:
 
       # 11. Scanne l'image Docker du microservice rag_ihm
       - name: Scan rag_ihm image with Trivy
-        uses: aquasecurity/trivy-action@b6644d0a981f5d54e00710d75c3ac2e2a0c1dcec # v0.33.1
+        uses: aquasecurity/trivy-action@b6643a29fecd7f34b3597bc6acb0a98b03d33ff8 # v0.33.1
         with:
           image-ref: rag-rag_ihm:latest
           format: table
@@ -185,7 +185,7 @@ jobs:
 
       # 12. Scanne l'image Docker du microservice rag_mcp
       - name: Scan rag_mcp image with Trivy
-        uses: aquasecurity/trivy-action@b6644d0a981f5d54e00710d75c3ac2e2a0c1dcec # v0.33.1
+        uses: aquasecurity/trivy-action@b6643a29fecd7f34b3597bc6acb0a98b03d33ff8 # v0.33.1
         with:
           image-ref: rag-rag_mcp:latest
           format: table
