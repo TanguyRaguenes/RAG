@@ -131,7 +131,7 @@ jobs:
 
       # 6. Scanne l'image Docker du microservice rag_embedder
       - name: Scan rag_embedder image with Trivy
-        uses: aquasecurity/trivy-action@b6643a29fecd7f34b3597bc6acb0a98b03d33ff8 # v0.33.1
+        uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8 # v0.36.0
         with:
           image-ref: rag-rag_embedder:latest
           format: table
@@ -140,8 +140,9 @@ jobs:
 
       # 7. Scanne l'image Docker du microservice rag_retriever
       - name: Scan rag_retriever image with Trivy
-        uses: aquasecurity/trivy-action@b6643a29fecd7f34b3597bc6acb0a98b03d33ff8 # v0.33.1
+        uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8 # v0.36.0
         with:
+          skip-setup-trivy: true
           image-ref: rag-rag_retriever:latest
           format: table
           severity: CRITICAL,HIGH
@@ -149,8 +150,9 @@ jobs:
 
       # 8. Scanne l'image Docker du microservice rag_reranker
       - name: Scan rag_reranker image with Trivy
-        uses: aquasecurity/trivy-action@b6643a29fecd7f34b3597bc6acb0a98b03d33ff8 # v0.33.1
+        uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8 # v0.36.0
         with:
+          skip-setup-trivy: true
           image-ref: rag-rag_reranker:latest
           format: table
           severity: CRITICAL,HIGH
@@ -158,8 +160,9 @@ jobs:
 
       # 9. Scanne l'image Docker du microservice rag_orchestrator
       - name: Scan rag_orchestrator image with Trivy
-        uses: aquasecurity/trivy-action@b6643a29fecd7f34b3597bc6acb0a98b03d33ff8 # v0.33.1
+        uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8 # v0.36.0
         with:
+          skip-setup-trivy: true
           image-ref: rag-rag_orchestrator:latest
           format: table
           severity: CRITICAL,HIGH
@@ -167,8 +170,9 @@ jobs:
 
       # 10. Scanne l'image Docker du microservice rag_evaluator
       - name: Scan rag_evaluator image with Trivy
-        uses: aquasecurity/trivy-action@b6643a29fecd7f34b3597bc6acb0a98b03d33ff8 # v0.33.1
+        uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8 # v0.36.0
         with:
+          skip-setup-trivy: true
           image-ref: rag-rag_evaluator:latest
           format: table
           severity: CRITICAL,HIGH
@@ -176,8 +180,9 @@ jobs:
 
       # 11. Scanne l'image Docker du microservice rag_ihm
       - name: Scan rag_ihm image with Trivy
-        uses: aquasecurity/trivy-action@b6643a29fecd7f34b3597bc6acb0a98b03d33ff8 # v0.33.1
+        uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8 # v0.36.0
         with:
+          skip-setup-trivy: true
           image-ref: rag-rag_ihm:latest
           format: table
           severity: CRITICAL,HIGH
@@ -185,8 +190,9 @@ jobs:
 
       # 12. Scanne l'image Docker du microservice rag_mcp
       - name: Scan rag_mcp image with Trivy
-        uses: aquasecurity/trivy-action@b6643a29fecd7f34b3597bc6acb0a98b03d33ff8 # v0.33.1
+        uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8 # v0.36.0
         with:
+          skip-setup-trivy: true
           image-ref: rag-rag_mcp:latest
           format: table
           severity: CRITICAL,HIGH
