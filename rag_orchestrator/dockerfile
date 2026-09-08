@@ -11,22 +11,25 @@ WORKDIR /workspace
 ENV PYTHONPATH=/workspace
 
 # 3. Installer uv dans l'image
-RUN pip install --no-cache-dir uv
+RUN pip install --no-cache-dir --only-binary :all: uv
 
 # 4. Copier les fichiers de config du projet (sans le code pour l'instant)
-COPY pyproject.toml uv.lock* ./
+COPY pyproject.toml uv.lock ./
 
 # 5. Installer les dépendances du projet dans l'image (FastAPI, etc.)
 ENV UV_HTTP_TIMEOUT=300
 ARG DEBUG=0
 RUN if [ "$DEBUG" = "1" ]; then \
-      uv sync --dev; \
+      uv sync --frozen --dev; \
     else \
-      uv sync --no-dev; \
+      uv sync --frozen --no-dev; \
     fi
 
 # 6. Copier le reste du code dans l'image
-COPY . .
+COPY app ./app
+
+RUN useradd --create-home --uid 10001 appuser && chown -R appuser:appuser /workspace /opt/venv
+USER appuser
 
 # 7. Commande exécutée au démarrage du conteneur
 CMD ["sh", "-lc", "\

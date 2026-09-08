@@ -10,5 +10,8 @@ RUN pip install --no-cache-dir \
 COPY mkdocs.yml ./
 COPY docs ./docs
 
+RUN useradd --create-home --uid 10001 appuser && chown -R appuser:appuser /app
+USER appuser
+
 EXPOSE 8000
 CMD ["mkdocs", "serve", "-a", "0.0.0.0:8000"]

@@ -47,7 +47,7 @@
       ansible.builtin.file:
         path: /etc/apt/keyrings
         state: directory
-        mode: "0755"
+        mode: "0750"
 
     # Ajoute la cle officielle Docker pour verifier les paquets installes par apt.
     - name: Download Docker apt GPG key
@@ -193,7 +193,7 @@
       ansible.builtin.template:
         src: rag-ingest-wikis.sh.j2
         dest: "{{ rag_ingest_script_path }}"
-        mode: "0755"
+        mode: "0750"
         newline_sequence: "\n"
 
     # Cree le fichier de log avec des droits lisibles par les administrateurs du VPS.
@@ -201,7 +201,7 @@
       ansible.builtin.file:
         path: "{{ rag_ingest_log_file }}"
         state: touch
-        mode: "0644"
+        mode: "0640"
         access_time: preserve
         modification_time: preserve
 
@@ -210,7 +210,7 @@
       ansible.builtin.template:
         src: rag-ingest-wikis.logrotate.j2
         dest: /etc/logrotate.d/rag-ingest-wikis
-        mode: "0644"
+        mode: "0640"
 
     # Telecharge les images depuis Docker Hub sur le VPS, sans build local.
     - name: Pull Docker images
