@@ -194,12 +194,24 @@ def test_retrieval_accumulator_and_average() -> None:
         RetrievalEvaluationBase(mrr=0, ndcg=0.5, recall=0.75, precision=0.25),
     )
 
-    average = calculate_average_retrieval(accumulator, total_questions=2)
+    average = calculate_average_retrieval(accumulator, evaluated_questions=2)
 
     assert average.mrr == 0.5
     assert average.ndcg == 0.5
     assert average.recall == 0.5
     assert average.precision == 0.5
+
+
+def test_retrieval_average_returns_zero_without_answer_questions() -> None:
+    average = calculate_average_retrieval(
+        build_retrieval_accumulator(), evaluated_questions=0
+    )
+
+    assert average.mrr == 0.0
+    assert average.ndcg == 0.0
+    assert average.recall == 0.0
+    assert average.precision == 0.0
+    assert average.source_hit_at_5 == 0.0
 
 
 def test_quality_accumulator_and_average() -> None:
@@ -287,6 +299,49 @@ async def test_evaluation_service_averages_successful_results(
         ("Q1", "same-token"),
         ("Q2", "same-token"),
     ]
+
+
+@pytest.mark.asyncio
+async def test_evaluation_service_excludes_refusals_from_retrieval_average(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repository = FakeDatasetRepository(
+        [
+            EvaluationCase(
+                id="Q001",
+                question="Q1",
+                reference_answer="R1",
+                keywords=["keyword"],
+                expected_behavior="answer",
+            ),
+            EvaluationCase(
+                id="Q002",
+                question="Q2",
+                reference_answer="R2",
+                expected_behavior="refuse",
+            ),
+        ]
+    )
+
+    async def fake_evaluate_answer(**kwargs: object) -> AnswerEvaluationBase:
+        return AnswerEvaluationBase(
+            feedback="ok",
+            accuracy=5,
+            completeness=5,
+            relevance=5,
+            faithfulness=5,
+            safe_refusal=5,
+        )
+
+    monkeypatch.setattr(evaluating_service, "evaluate_answer", fake_evaluate_answer)
+
+    result = await _service(repository, FakeOrchestratorClient()).evaluate("token")
+
+    assert result.total_questions == 2
+    assert result.average_retrieval.mrr == 1.0
+    assert result.average_retrieval.ndcg == 1.0
+    assert result.average_retrieval.recall == 1.0
+    assert result.average_retrieval.precision == 1.0
 
 
 @pytest.mark.asyncio

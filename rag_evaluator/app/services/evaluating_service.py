@@ -96,6 +96,7 @@ class EvaluationService:
                 return build_empty_evaluation_response()
 
             retrieval_scores = build_retrieval_accumulator()
+            retrieval_question_count = 0
             quality_scores = build_quality_accumulator()
             question_latencies: list[float] = []
 
@@ -105,13 +106,15 @@ class EvaluationService:
                 retrieved_chunks = [
                     chunk.model_dump() for chunk in rag_response.retrieved_chunks
                 ]
-                retrieval_evaluation = evaluate_retrieval(
-                    keywords=test.keywords,
-                    retrieved_chunks=retrieved_chunks,
-                    k=5,
-                    expected_sources=test.expected_sources,
-                )
-                add_retrieval_score(retrieval_scores, retrieval_evaluation)
+                if test.expected_behavior == "answer":
+                    retrieval_evaluation = evaluate_retrieval(
+                        keywords=test.keywords,
+                        retrieved_chunks=retrieved_chunks,
+                        k=5,
+                        expected_sources=test.expected_sources,
+                    )
+                    add_retrieval_score(retrieval_scores, retrieval_evaluation)
+                    retrieval_question_count += 1
 
                 answer_evaluation = await self._evaluate_answer(
                     test=test,
@@ -123,7 +126,7 @@ class EvaluationService:
 
             response = EvaluatorResponseBase(
                 average_retrieval=calculate_average_retrieval(
-                    retrieval_scores, total_questions
+                    retrieval_scores, retrieval_question_count
                 ),
                 average_answer_quality=calculate_average_quality(
                     quality_scores, total_questions
@@ -378,26 +381,32 @@ def add_quality_score(
 
 def calculate_average_retrieval(
     accumulator: RetrievalAccumulator,
-    total_questions: int,
+    evaluated_questions: int,
 ) -> RetrievalEvaluationBase:
     """Calcule les moyennes des scores de retrieval.
 
     Args:
         accumulator: Sommes des scores retrieval.
-        total_questions: Nombre total de questions évaluées.
+        evaluated_questions: Nombre de questions auxquelles le RAG devait répondre.
 
     Returns:
         Scores moyens de retrieval arrondis.
-
-    Raises:
-        ZeroDivisionError: Si `total_questions` vaut zéro.
     """
+    if evaluated_questions <= 0:
+        return RetrievalEvaluationBase(
+            mrr=0.0,
+            ndcg=0.0,
+            recall=0.0,
+            precision=0.0,
+            source_hit_at_5=0.0,
+        )
+
     return RetrievalEvaluationBase(
-        mrr=round(accumulator["mrr"] / total_questions, 4),
-        ndcg=round(accumulator["ndcg"] / total_questions, 4),
-        recall=round(accumulator["recall"] / total_questions, 4),
-        precision=round(accumulator["precision"] / total_questions, 4),
-        source_hit_at_5=round(accumulator["source_hit_at_5"] / total_questions, 4),
+        mrr=round(accumulator["mrr"] / evaluated_questions, 4),
+        ndcg=round(accumulator["ndcg"] / evaluated_questions, 4),
+        recall=round(accumulator["recall"] / evaluated_questions, 4),
+        precision=round(accumulator["precision"] / evaluated_questions, 4),
+        source_hit_at_5=round(accumulator["source_hit_at_5"] / evaluated_questions, 4),
     )
 
 
