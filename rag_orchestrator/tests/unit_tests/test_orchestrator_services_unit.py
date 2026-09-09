@@ -12,7 +12,7 @@ from app.services.user_identity_service import (
 
 def _config() -> dict:
     return {
-        "retrieval": {"fetch_all_chunks_by_path": True},
+        "retrieval": {"use_reranker": True, "fetch_all_chunks_by_path": True},
         "llm": {
             "common": {"timeout_seconds": 30, "temperature": 0.2, "stream": False},
             "local": {
@@ -39,9 +39,9 @@ async def test_retrieve_chunks_service_embeds_retrieves_reranks_then_fetches_doc
 ) -> None:
     calls = []
 
-    async def fake_embed(texts: list[str]) -> list[list[float]]:
+    async def fake_embed(texts: list[str]) -> tuple[list[list[float]], bool]:
         calls.append(("embed", texts))
-        return [[0.1]]
+        return [[0.1]], True
 
     async def fake_retrieve_chunks_client(
         embedding: list[float], profile: str
@@ -99,8 +99,8 @@ async def test_retrieve_chunks_service_can_skip_fetching_all_chunks_by_path(
     config = _config()
     config["retrieval"]["fetch_all_chunks_by_path"] = False
 
-    async def fake_embed(texts: list[str]) -> list[list[float]]:
-        return [[0.1]]
+    async def fake_embed(texts: list[str]) -> tuple[list[list[float]], bool]:
+        return [[0.1]], True
 
     async def fake_retrieve_chunks_client(
         embedding: list[float], profile: str
@@ -140,6 +140,45 @@ async def test_retrieve_chunks_service_can_skip_fetching_all_chunks_by_path(
     assert calls == []
 
 
+@pytest.mark.asyncio
+async def test_retrieve_chunks_service_can_skip_reranker(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls = []
+    config = _config()
+    config["retrieval"]["use_reranker"] = False
+    config["retrieval"]["fetch_all_chunks_by_path"] = False
+
+    async def fake_embed(texts: list[str]) -> tuple[list[list[float]], bool]:
+        return [[0.1]], False
+
+    async def fake_retrieve_chunks_client(
+        embedding: list[float], profile: str
+    ) -> tuple[list[dict], bool]:
+        return [{"document": "retrieved", "metadata": {"path": "a.md"}}]
+
+    async def fake_rerank_chunks_client(
+        question: str, chunks: list[dict]
+    ) -> list[dict]:
+        calls.append((question, chunks))
+        return [{"document": "reranked"}]
+
+    monkeypatch.setattr(retrieve_chunks_service, "embed", fake_embed)
+    monkeypatch.setattr(
+        retrieve_chunks_service, "retrieve_chunks_client", fake_retrieve_chunks_client
+    )
+    monkeypatch.setattr(
+        retrieve_chunks_service, "rerank_chunks_client", fake_rerank_chunks_client
+    )
+
+    response = await retrieve_chunks_service.retrieve_chunks("Question", config)
+
+    assert response.retrieved_chunks == [
+        {"document": "retrieved", "metadata": {"path": "a.md"}}
+    ]
+    assert calls == []
+
+
 def test_extract_unique_paths_keeps_first_occurrence_order() -> None:
     chunks = [
         {"metadata": {"path": "a.md"}},
@@ -161,7 +200,7 @@ async def test_ask_question_to_local_model_builds_payload_and_response(
         assert question == "Question"
         assert config == _config()
         assert profile == "default"
-        return [{"document": "doc", "metadata": {"title": "Doc"}}]
+        return [{"document": "doc", "metadata": {"title": "Doc"}}], False
 
     async def fake_llm_client(payload: dict, timeout_seconds: int, url: str) -> dict:
         assert payload["model"] == "local-model"
@@ -186,6 +225,8 @@ async def test_ask_question_to_local_model_builds_payload_and_response(
     assert response.llm_response == "answer"
     assert response.retrieved_documents == {"Doc": 1}
     assert response.model == "local-model"
+    assert response.chunking_enabled is False
+    assert response.use_reranker is True
 
 
 @pytest.mark.asyncio
@@ -196,11 +237,11 @@ async def test_ask_question_to_api_builds_payload_and_tokens(
 
     async def fake_retrieve_and_rerank_chunks(
         question: str, config: dict, profile: str
-    ) -> list[dict]:
+    ) -> tuple[list[dict], bool]:
         assert question == "Question"
         assert config == _config()
         assert profile == "default"
-        return [{"document": "doc", "metadata": {"title": "Doc"}}]
+        return [{"document": "doc", "metadata": {"title": "Doc"}}], True
 
     async def fake_api_client(
         payload: dict, endpoint: str, api_key: str | None, timeout_seconds: int
@@ -233,6 +274,8 @@ async def test_ask_question_to_api_builds_payload_and_tokens(
     assert response.llm_response == "api answer"
     assert response.input_tokens == 10
     assert response.output_tokens == 5
+    assert response.chunking_enabled is True
+    assert response.use_reranker is True
     assert calls == [("llm", "api-model")]
 
 

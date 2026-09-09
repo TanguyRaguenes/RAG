@@ -20,11 +20,17 @@ def chunk_text(text: str, config: EmbedderConfig) -> list[str]:
     Returns:
         Chunks Markdown nettoyés et enrichis avec leur contexte de titres.
     """
-    size_chars = config["chunking"]["size_chars"]
-    overlap_chars = config["chunking"]["overlap_chars"]
-
     text = text.replace("[[_TOC_]]", "").strip()
     text = re.sub(r"!\[.*?\]\(.*?\)", "", text)
+
+    if not text.strip():
+        return []
+
+    if not config["chunking"]["enabled"]:
+        return [text]
+
+    size_chars = config["chunking"]["size_chars"]
+    overlap_chars = config["chunking"]["overlap_chars"]
 
     # 1° Découpage du document par section
     header_splitter = MarkdownHeaderTextSplitter(

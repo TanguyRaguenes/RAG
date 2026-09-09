@@ -14,7 +14,7 @@ FEEDBACK_TOAST_PREFIX = "chat_feedback_toast_"
 EXAMPLE_QUESTIONS = [
     "Quelles sont les bonnes pratiques pour un développeur ?",
     "Comment rédiger un commentaire ?",
-    "Donne moi les url des VM ?",
+    "Donne moi les noms et url des VM ?",
 ]
 
 
@@ -51,6 +51,8 @@ def build_assistant_message(response: AskQuestionResponse) -> ChatMessage:
         "duration": response.get("duration"),
         "total_tokens": response.get("total_tokens"),
         "generated_prompt": response.get("generated_prompt"),
+        "chunking_enabled": response.get("chunking_enabled"),
+        "use_reranker": response.get("use_reranker"),
     }
 
 
@@ -71,7 +73,13 @@ def render_chat_message(
 
         _render_assistant_metadata(message)
         _render_source_summary(message.get("retrieved_documents"))
-        _render_sources(message.get("retrieved_chunks"), debug_enabled=debug_enabled)
+        if debug_enabled:
+            _render_pipeline_configuration(message)
+        _render_sources(
+            message.get("retrieved_chunks"),
+            debug_enabled=debug_enabled,
+            use_reranker=message.get("use_reranker", True),
+        )
 
         if debug_enabled and message.get("generated_prompt"):
             with st.expander("Prompt généré"):
@@ -137,18 +145,32 @@ def _render_source_summary(documents: object) -> None:
             st.markdown(f"- **{title}** : {count} extrait(s)")
 
 
-def _render_sources(chunks: object, debug_enabled: bool) -> None:
+def _render_pipeline_configuration(message: ChatMessage) -> None:
+    """Affiche les paramètres actifs du pipeline pour la réponse."""
+    with st.expander("Paramétrage"):
+        st.markdown(
+            f"- Chunking : **{_format_activation(message.get('chunking_enabled'))}**\n"
+            f"- Reranking : **{_format_activation(message.get('use_reranker'))}**"
+        )
+
+
+def _render_sources(
+    chunks: object,
+    debug_enabled: bool,
+    use_reranker: bool = True,
+) -> None:
     """Affiche le détail des chunks sources associés à une réponse.
 
     Args:
         chunks: Chunks documentaires manipulés par le pipeline RAG.
         debug_enabled: Indique si les détails techniques doivent être affichés dans l'interface.
+        use_reranker: Indique si les chunks ont été rerankés.
     """
     if not isinstance(chunks, list) or not chunks:
         st.caption("Le RAG n'a retourné aucune source.")
         return
 
-    sorted_chunks = _sort_chunks_by_rerank_score(chunks)
+    sorted_chunks = _sort_chunks_by_rerank_score(chunks) if use_reranker else chunks
 
     with st.expander(f"Extraits pertinents ({len(sorted_chunks)})"):
         for index, chunk in enumerate(sorted_chunks, start=1):
@@ -164,10 +186,16 @@ def _render_sources(chunks: object, debug_enabled: bool) -> None:
             document = chunk.get("document", "") if isinstance(chunk, dict) else ""
             excerpt = _shorten_text(str(document), limit=700)
 
-            line = (
-                f"[{index}] {title} · score reranker {_format_score(rerank_score)} "
-                f"(score retriever {_format_score(retriever_score)})"
-            )
+            if use_reranker:
+                line = (
+                    f"[{index}] {title} · score reranker {_format_score(rerank_score)} "
+                    f"(score retriever {_format_score(retriever_score)})"
+                )
+            else:
+                line = (
+                    f"[{index}] {title} · score retriever "
+                    f"{_format_score(retriever_score)}"
+                )
             st.markdown(f"**{line}**")
             if excerpt:
                 st.markdown(excerpt)
@@ -284,3 +312,10 @@ def _format_score(value: object) -> str:
         return f"{float(value):.2f}"
     except (TypeError, ValueError):
         return "non disponible"
+
+
+def _format_activation(value: object) -> str:
+    """Formate l'état d'activation d'un paramètre technique."""
+    if not isinstance(value, bool):
+        return "non disponible"
+    return "activé" if value else "désactivé"

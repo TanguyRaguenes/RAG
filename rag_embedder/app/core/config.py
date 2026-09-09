@@ -25,6 +25,7 @@ class EmbeddingConfig(TypedDict):
 class ChunkingConfig(TypedDict):
     """Paramètres de découpage des documents Markdown."""
 
+    enabled: bool
     size_chars: int
     overlap_chars: int
 

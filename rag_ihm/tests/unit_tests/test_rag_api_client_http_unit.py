@@ -44,6 +44,8 @@ def _ask_question_response() -> dict[str, object]:
         "output_tokens": 2,
         "total_tokens": 3,
         "generated_prompt": [],
+        "chunking_enabled": True,
+        "use_reranker": True,
     }
 
 
@@ -116,6 +118,8 @@ def test_response_boundary_rejects_non_dict_payload() -> None:
         ("total_tokens", True),
         ("retrieved_chunks", {}),
         ("generated_prompt", ["invalid"]),
+        ("chunking_enabled", 1),
+        ("use_reranker", None),
     ],
 )
 def test_ask_question_rejects_missing_or_invalid_contract_fields(

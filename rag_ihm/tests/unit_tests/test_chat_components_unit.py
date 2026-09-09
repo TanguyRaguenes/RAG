@@ -57,6 +57,19 @@ def test_build_assistant_message_uses_defaults_when_optional_fields_are_missing(
     assert result["retrieved_chunks"] == []
 
 
+def test_build_assistant_message_keeps_pipeline_configuration() -> None:
+    result = build_assistant_message(
+        {
+            "llm_response": "Réponse",
+            "chunking_enabled": False,
+            "use_reranker": True,
+        }
+    )
+
+    assert result["chunking_enabled"] is False
+    assert result["use_reranker"] is True
+
+
 def test_shorten_text_normalizes_whitespace_and_truncates() -> None:
     assert _shorten_text("un\n\tdeux   trois", limit=20) == "un deux trois"
     assert _shorten_text("abcdef", limit=4) == "abcd..."
@@ -124,6 +137,23 @@ def test_render_sources_displays_sorted_scores_and_separate_json(
     assert fake_streamlit.json_values == [[chunks[1], chunks[0]]]
 
 
+def test_render_sources_displays_only_retriever_score_without_reranker(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fake_streamlit = FakeStreamlit()
+    monkeypatch.setattr(chat, "st", fake_streamlit)
+    chunks = [
+        {"document": "Premier", "similarity": 0.6},
+        {"document": "Second", "similarity": 0.4},
+    ]
+
+    chat._render_sources(chunks, debug_enabled=False, use_reranker=False)
+
+    score_lines = [line for line in fake_streamlit.markdowns if line.startswith("**[")]
+    assert "score retriever 0.60" in score_lines[0]
+    assert "reranker" not in score_lines[0]
+
+
 def test_render_message_separates_formatted_and_json_prompt(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -137,9 +167,18 @@ def test_render_message_separates_formatted_and_json_prompt(
             "content": "Réponse",
             "retrieved_chunks": [],
             "generated_prompt": prompt,
+            "chunking_enabled": True,
+            "use_reranker": False,
         },
         debug_enabled=True,
     )
 
-    assert fake_streamlit.expanders == ["Prompt généré", "Prompt généré - JSON"]
+    assert fake_streamlit.expanders == [
+        "Paramétrage",
+        "Prompt généré",
+        "Prompt généré - JSON",
+    ]
+    assert "- Chunking : **activé**\n- Reranking : **désactivé**" in (
+        fake_streamlit.markdowns
+    )
     assert fake_streamlit.json_values == [prompt]

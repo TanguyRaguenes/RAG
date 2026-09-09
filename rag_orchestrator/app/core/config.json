@@ -1,5 +1,6 @@
 {
     "retrieval": {
+        "use_reranker": true,
         "fetch_all_chunks_by_path": false
     },
     "llm":{

@@ -10,6 +10,7 @@
         }
     },
     "chunking":{
+        "enabled": true,
         "size_chars": 1400, 
         "overlap_chars": 240
     }

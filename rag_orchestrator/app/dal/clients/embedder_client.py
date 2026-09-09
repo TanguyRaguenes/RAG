@@ -13,14 +13,14 @@ from app.core.metrics import (
 tracer = trace.get_tracer(__name__)
 
 
-async def embed(texts: list[str]) -> list[list[float]]:
+async def embed(texts: list[str]) -> tuple[list[list[float]], bool]:
     """Génère les embeddings via le service embedder.
 
     Args:
         texts: Textes à vectoriser sans les logger.
 
     Returns:
-        Liste d'embeddings retournés par `rag_embedder`.
+        Embeddings et état actuel du chunking retournés par `rag_embedder`.
 
     Raises:
         EmbedderContainerException: Si l'URL manque, si le service échoue, ou si l'appel HTTP échoue.
@@ -75,7 +75,7 @@ async def embed(texts: list[str]) -> list[list[float]]:
             ) from exception
 
     try:
-        embeddings = _extract_embeddings(data)
+        embeddings, chunking_enabled = _extract_embedding_result(data)
     except DependencyResponseError:
         _record_external_error("embedder", "embed", "invalid_response", start)
         raise
@@ -83,17 +83,17 @@ async def embed(texts: list[str]) -> list[list[float]]:
     orchestrator_external_call_duration_seconds.labels(
         dependency="embedder", operation="embed", status="success"
     ).observe(time.perf_counter() - start)
-    return embeddings
+    return embeddings, chunking_enabled
 
 
-def _extract_embeddings(data: object) -> list[list[float]]:
-    """Valide la collection minimale attendue du service embedder.
+def _extract_embedding_result(data: object) -> tuple[list[list[float]], bool]:
+    """Valide les embeddings et la configuration retournés par l'embedder.
 
     Args:
         data: JSON décodé retourné par la dépendance.
 
     Returns:
-        Liste non vide d'embeddings numériques.
+        Liste non vide d'embeddings numériques et état actuel du chunking.
 
     Raises:
         DependencyResponseError: Si la structure de réponse est absente ou malformée.
@@ -106,9 +106,10 @@ def _extract_embeddings(data: object) -> list[list[float]]:
 
     try:
         embeddings = data["embeded_texts"]
+        chunking_enabled = data["chunking_enabled"]
     except (KeyError, TypeError) as exception:
         raise DependencyResponseError(
-            "Embedder response is missing embeded_texts",
+            "Embedder response is missing required fields",
             details={"dependency": "embedder", "operation": "embed"},
         ) from exception
 
@@ -129,7 +130,12 @@ def _extract_embeddings(data: object) -> list[list[float]]:
             "Embedder response contains malformed embeddings",
             details={"dependency": "embedder", "operation": "embed"},
         )
-    return embeddings
+    if not isinstance(chunking_enabled, bool):
+        raise DependencyResponseError(
+            "Embedder response contains invalid chunking configuration",
+            details={"dependency": "embedder", "operation": "embed"},
+        )
+    return embeddings, chunking_enabled
 
 
 def _record_external_error(

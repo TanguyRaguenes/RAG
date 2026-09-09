@@ -57,7 +57,7 @@ async def ask_question_to_local_model(
         max_prompt_chars = config["llm"]["local"]["max_prompt_chars"]
         span.set_attribute("llm.model", model)
 
-        retrieved_chunks: list[dict[str, Any]] = await retrieve_and_rerank_chunks(
+        retrieved_chunks, chunking_enabled = await retrieve_and_rerank_chunks(
             question, config, collection_profile
         )
 
@@ -90,6 +90,8 @@ async def ask_question_to_local_model(
             model=model,
             generated_prompt=prompt,
             duration="",
+            chunking_enabled=chunking_enabled,
+            use_reranker=config["retrieval"]["use_reranker"],
         )
 
 
@@ -126,7 +128,7 @@ async def ask_question_to_api(
         span.set_attribute("llm.provider", provider)
         span.set_attribute("llm.model", model)
 
-        retrieved_chunks: list[dict[str, Any]] = await retrieve_and_rerank_chunks(
+        retrieved_chunks, chunking_enabled = await retrieve_and_rerank_chunks(
             question, config, collection_profile
         )
 
@@ -160,6 +162,8 @@ async def ask_question_to_api(
             input_tokens=llm_response.usage.input_tokens,
             output_tokens=llm_response.usage.output_tokens,
             total_tokens=llm_response.usage.total_tokens,
+            chunking_enabled=chunking_enabled,
+            use_reranker=config["retrieval"]["use_reranker"],
         )
 
 

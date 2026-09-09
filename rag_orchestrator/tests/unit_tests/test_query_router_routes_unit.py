@@ -34,6 +34,8 @@ class FakeQuestionOrchestrationService:
             model="model",
             generated_prompt=[],
             duration="00:01",
+            chunking_enabled=True,
+            use_reranker=True,
         )
 
     async def retrieve_chunks(

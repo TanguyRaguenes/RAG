@@ -36,7 +36,9 @@ class FakeAsyncClient:
     async def post(self, url: str, json: dict) -> FakeResponse:
         self.calls.append({"url": url, "json": json, "timeout": self.timeout})
         if "embed" in url:
-            return FakeResponse({"embeded_texts": [[0.1, 0.2]]})
+            return FakeResponse(
+                {"embeded_texts": [[0.1, 0.2]], "chunking_enabled": True}
+            )
         if "rerank" in url:
             return FakeResponse({"reranked_chunks": [{"document": "reranked"}]})
         if "document_chunks" in url:
@@ -54,7 +56,7 @@ async def test_embed_posts_texts_and_returns_embeddings(
 
     result = await embedder_client.embed(["Question"])
 
-    assert result == [[0.1, 0.2]]
+    assert result == ([[0.1, 0.2]], True)
     assert FakeAsyncClient.calls == [
         {
             "url": "http://embedder/embed",

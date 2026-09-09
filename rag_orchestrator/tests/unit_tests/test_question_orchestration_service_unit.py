@@ -65,6 +65,8 @@ async def test_ask_question_orchestration_saves_usage_and_finishes_session(
             model="model",
             generated_prompt=[],
             duration="",
+            chunking_enabled=True,
+            use_reranker=True,
         )
 
     async def fake_save_success(**kwargs):

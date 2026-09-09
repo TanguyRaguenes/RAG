@@ -14,3 +14,5 @@ class AskQuestionResponseBase(BaseModel):
     input_tokens: int = 0
     output_tokens: int = 0
     total_tokens: int = 0
+    chunking_enabled: bool
+    use_reranker: bool

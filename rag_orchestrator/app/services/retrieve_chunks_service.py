@@ -35,12 +35,12 @@ async def retrieve_chunks(
         KeyError: Si une clé de configuration attendue est absente.
     """
     with tracer.start_as_current_span("orchestrator.retrieve_chunks_service"):
-        reranked_chunks = await retrieve_and_rerank_chunks(
+        selected_chunks, _ = await retrieve_and_rerank_chunks(
             question, config, collection_profile
         )
 
         return RetrieveChunksResponseBase(
-            retrieved_chunks=reranked_chunks,
+            retrieved_chunks=selected_chunks,
         )
 
 
@@ -48,16 +48,16 @@ async def retrieve_and_rerank_chunks(
     question: str,
     config: dict,
     collection_profile: Literal["default", "evaluation"] = "default",
-) -> list[dict[str, Any]]:
-    """Exécute embedding, retrieval, reranking puis extension documentaire optionnelle.
+) -> tuple[list[dict[str, Any]], bool]:
+    """Exécute embedding, retrieval, reranking optionnel et extension documentaire.
 
     Args:
         question: Question utilisateur à traiter.
-        config: Configuration indiquant notamment si tous les chunks d'un document doivent être récupérés.
+        config: Configuration du reranking et de l'extension documentaire.
         collection_profile: Profil fixe de collection à interroger.
 
     Returns:
-        Chunks rerankés ou chunks complets des documents sélectionnés.
+        Chunks sélectionnés et état actuel du chunking de l'embedder.
 
     Raises:
         OrchestratorContainerCustomException: Si un client interservice échoue.
@@ -65,7 +65,8 @@ async def retrieve_and_rerank_chunks(
         KeyError: Si une clé de configuration attendue est absente.
     """
     with tracer.start_as_current_span("orchestrator.retrieve_and_rerank") as span:
-        embeded_question: list[float] = (await embed([question]))[0]
+        embeddings, chunking_enabled = await embed([question])
+        embeded_question: list[float] = embeddings[0]
 
         retrieved_chunks: list[dict[str, Any]] = await retrieve_chunks_client(
             embeded_question,
@@ -73,16 +74,20 @@ async def retrieve_and_rerank_chunks(
         )
         span.set_attribute("retrieval.chunk_count", len(retrieved_chunks))
 
-        reranked_chunks: list[dict[str, Any]] = await rerank_chunks_client(
-            question,
-            retrieved_chunks,
-        )
-        span.set_attribute("reranking.chunk_count", len(reranked_chunks))
+        selected_chunks = retrieved_chunks
+        use_reranker: bool = config["retrieval"]["use_reranker"]
+        span.set_attribute("reranking.enabled", use_reranker)
+        if use_reranker:
+            selected_chunks = await rerank_chunks_client(
+                question,
+                retrieved_chunks,
+            )
+            span.set_attribute("reranking.chunk_count", len(selected_chunks))
 
         if not config["retrieval"]["fetch_all_chunks_by_path"]:
-            return reranked_chunks
+            return selected_chunks, chunking_enabled
 
-        paths = extract_unique_paths(reranked_chunks)
+        paths = extract_unique_paths(selected_chunks)
         document_chunks: list[dict[str, Any]] = await retrieve_document_chunks_client(
             paths,
             collection_profile,
@@ -90,7 +95,7 @@ async def retrieve_and_rerank_chunks(
         span.set_attribute("retrieval.document_path_count", len(paths))
         span.set_attribute("retrieval.document_chunk_count", len(document_chunks))
 
-        return document_chunks
+        return document_chunks, chunking_enabled
 
 
 def extract_unique_paths(chunks: list[dict[str, Any]]) -> list[str]:

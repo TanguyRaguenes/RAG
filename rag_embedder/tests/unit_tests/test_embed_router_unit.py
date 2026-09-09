@@ -4,6 +4,7 @@ from app.api.routers import embed_router
 from app.schemas.embed_request_schema import EmbedRequestBase
 from app.schemas.embed_text_response_schema import EmbedTextResponseBase
 from app.schemas.ingest_bulk_response_schema import IngestBulkResponseBase
+from app.services import embed_service
 
 
 @pytest.mark.asyncio
@@ -14,6 +15,7 @@ async def test_embed_route_delegates_to_embedding_service(
         duration_ms=12.0,
         duration_human="00:00",
         embeded_texts=[[0.1, 0.2]],
+        chunking_enabled=True,
     )
 
     async def fake_create_embeddings_response(
@@ -35,6 +37,23 @@ async def test_embed_route_delegates_to_embedding_service(
     )
 
     assert response is expected
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("chunking_enabled", [True, False])
+async def test_embedding_response_exposes_current_chunking_configuration(
+    monkeypatch: pytest.MonkeyPatch,
+    chunking_enabled: bool,
+) -> None:
+    async def fake_embed(texts: list[str], config: dict) -> list[list[float]]:
+        return [[0.1, 0.2]]
+
+    monkeypatch.setattr(embed_service, "embed", fake_embed)
+    config = {"chunking": {"enabled": chunking_enabled}}
+
+    response = await embed_service.create_embeddings_response(["question"], config)
+
+    assert response.chunking_enabled is chunking_enabled
 
 
 @pytest.mark.asyncio

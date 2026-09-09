@@ -76,6 +76,8 @@ class AskQuestionResponse(TypedDict):
     output_tokens: int
     total_tokens: int
     generated_prompt: list[dict[str, Any]]
+    chunking_enabled: bool
+    use_reranker: bool
 
 
 class ChatMessage(TypedDict, total=False):
@@ -90,6 +92,8 @@ class ChatMessage(TypedDict, total=False):
     duration: str
     total_tokens: int
     generated_prompt: list[dict[str, Any]]
+    chunking_enabled: bool
+    use_reranker: bool
     feedback: dict[str, Any]
 
 
@@ -311,6 +315,9 @@ def validate_ask_question_response(payload: object) -> AskQuestionResponse:
     data = _require_dict(payload, "ask_question")
     _require_string_fields(data, "llm_response", "model", "duration")
     _require_integer_fields(data, "input_tokens", "output_tokens", "total_tokens")
+    for field in ("chunking_enabled", "use_reranker"):
+        if not isinstance(data.get(field), bool):
+            raise ResponseContractError(f"ask_question.{field} est invalide")
 
     interaction_id = data.get("interaction_id")
     if (

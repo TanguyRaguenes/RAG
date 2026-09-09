@@ -40,4 +40,5 @@ async def create_embeddings_response(
         duration_ms=round(elapsed * 1000, 2),
         duration_human=f"{minutes:02d}:{seconds:02d}",
         embeded_texts=embedded_texts,
+        chunking_enabled=config["chunking"]["enabled"],
     )
