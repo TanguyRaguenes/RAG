@@ -3,9 +3,9 @@ FROM python:3.12-slim
 WORKDIR /app
 
 RUN pip install --no-cache-dir --only-binary :all: \
-    mkdocs==1.6.1 \
     mkdocs-material==9.7.1 \
-    mkdocs-mermaid2-plugin==1.2.3
+    mkdocs-mermaid2-plugin==1.2.3 \
+    mkdocs==1.6.1
 
 COPY mkdocs.yml ./
 COPY docs ./docs

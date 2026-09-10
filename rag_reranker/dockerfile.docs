@@ -19,4 +19,4 @@ RUN useradd --create-home --uid 10001 appuser && chown -R appuser:appuser /app /
 USER appuser
 
 EXPOSE 8000
-CMD ["uv", "run", "--no-sync", "mkdocs", "serve", "-a", "0.0.0.0:8000"]
+CMD ["uv", "run", "--no-sync", "--no-build", "mkdocs", "serve", "-a", "0.0.0.0:8000"]
