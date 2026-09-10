@@ -5,11 +5,11 @@ permettre d'avoir une vision du modèle de données de la base de données .
 c'est à dire les tables / colonnes / lien entre les tables.
 
 on y trouve aussi aussi plusieurs schéma afin de comprendre la modélisation de certains modules.
-bref une mine d'information pour ceux qui s'intéressent au schéma de la base de données IWS.
+bref une mine d'information pour ceux qui s'intéressent au schéma de la base de données de `<APPLICATION_NAME>`.
 
 
 # Accès
-Ca se passe sous Normea, sur la partie intranet et le module "IWS - Etude - Conseil & intégration"
+Cela se passe dans `<INTERNAL_PORTAL>`, dans la section `<INTRANET_SECTION>` et le module `<DATA_MODEL_MODULE>`.
 
 ![image.png](/.attachments/image-9f8bdfc8-85a8-404b-8ba6-9b72e40361e1.png)
 
@@ -17,11 +17,11 @@ Ca se passe sous Normea, sur la partie intranet et le module "IWS - Etude - Cons
 
 #Description
 
-Le modèle est par version IWS, donc à chaque version son MPD
+Le modèle est organisé par version de `<APPLICATION_NAME>` : chaque version possède son MPD.
 
 Vous pourrez aussi retrouver le delta des modifications de schéma d'une version au niveau d'un document présent par version. ( ce document reprend  l'historique des mise à jour en plus des  modifications de la version courante. 
 
 ![image.png](/.attachments/image-bd650de5-36f6-404f-a7af-f96e49ff4cad.png)
 
 #Astuce 
-Si vous souhaitez une informations rapide (clé primaire ou nom d'une contrainte...), vous pouvez directement aller voir le fichier "Crebas"  de la version qui contient l'intégralité de la modélisation.  
+Pour obtenir rapidement une information, comme une clé primaire ou le nom d'une contrainte, consultez directement le fichier `<DATABASE_SCHEMA_FILE>` de la version concernée, qui contient l'intégralité de la modélisation.

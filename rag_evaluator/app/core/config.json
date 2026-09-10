@@ -5,12 +5,14 @@
         "common": {
             "timeout_seconds": 360,
             "stream": false,
-            "temperature": 0.2
+            "max_retries": 5,
+            "retry_backoff_seconds": 2
         },
         "local": {
             "provider": "Ollama",
             "endpoint": "http://ollama:11434/v1/chat/completions",
             "model": "qwen2.5:3b",
+            "temperature": 0.2,
             "context_window_tokens": 8000,
             "max_output_tokens": 1500,
             "max_prompt_chars": 8000

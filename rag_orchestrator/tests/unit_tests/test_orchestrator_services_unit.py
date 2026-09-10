@@ -14,10 +14,11 @@ def _config() -> dict:
     return {
         "retrieval": {"use_reranker": True, "fetch_all_chunks_by_path": True},
         "llm": {
-            "common": {"timeout_seconds": 30, "temperature": 0.2, "stream": False},
+            "common": {"timeout_seconds": 30, "stream": False},
             "local": {
                 "endpoint": "http://ollama/v1/chat/completions",
                 "model": "local-model",
+                "temperature": 0.2,
                 "max_output_tokens": 128,
                 "context_window_tokens": 4096,
                 "max_prompt_chars": 1000,
@@ -45,7 +46,7 @@ async def test_retrieve_chunks_service_embeds_retrieves_reranks_then_fetches_doc
 
     async def fake_retrieve_chunks_client(
         embedding: list[float], profile: str
-    ) -> list[dict]:
+    ) -> tuple[list[dict], bool]:
         calls.append(("retrieve", embedding, profile))
         return [{"document": "doc"}]
 
@@ -204,6 +205,7 @@ async def test_ask_question_to_local_model_builds_payload_and_response(
 
     async def fake_llm_client(payload: dict, timeout_seconds: int, url: str) -> dict:
         assert payload["model"] == "local-model"
+        assert payload["options"]["temperature"] == 0.2
         assert payload["options"]["num_predict"] == 128
         assert timeout_seconds == 30
         assert url == "http://ollama/v1/chat/completions"
@@ -248,6 +250,7 @@ async def test_ask_question_to_api_builds_payload_and_tokens(
     ) -> dict:
         calls.append(("llm", payload["model"]))
         assert payload["model"] == "api-model"
+        assert "temperature" not in payload
         assert endpoint == "http://api/v1/responses"
         assert timeout_seconds == 30
         return {

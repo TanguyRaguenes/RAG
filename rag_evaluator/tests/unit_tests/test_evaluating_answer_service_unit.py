@@ -13,7 +13,6 @@ def _config() -> EvaluatorConfig:
             "judge_provider": "local",
             "llm": {
                 "common": {
-                    "temperature": 0.1,
                     "timeout_seconds": 10,
                     "stream": False,
                 },
@@ -21,6 +20,7 @@ def _config() -> EvaluatorConfig:
                     "provider": "Ollama",
                     "endpoint": "http://ollama/v1/chat/completions",
                     "model": "judge",
+                    "temperature": 0.1,
                     "context_window_tokens": 1024,
                     "max_output_tokens": 128,
                     "max_prompt_chars": 2000,

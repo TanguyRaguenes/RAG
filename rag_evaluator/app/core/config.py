@@ -16,7 +16,8 @@ class CommonLlmConfig(BaseModel):
 
     timeout_seconds: float = Field(gt=0)
     stream: bool = False
-    temperature: float = Field(ge=0)
+    max_retries: int = Field(default=2, ge=0)
+    retry_backoff_seconds: float = Field(default=0.5, ge=0)
 
 
 class LocalLlmConfig(BaseModel):
@@ -25,6 +26,7 @@ class LocalLlmConfig(BaseModel):
     provider: str = Field(min_length=1)
     endpoint: str = Field(min_length=1)
     model: str = Field(min_length=1)
+    temperature: float = Field(ge=0)
     context_window_tokens: int = Field(gt=0)
     max_output_tokens: int = Field(gt=0)
     max_prompt_chars: int = Field(gt=0)

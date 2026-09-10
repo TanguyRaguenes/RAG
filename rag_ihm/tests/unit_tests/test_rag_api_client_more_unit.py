@@ -165,6 +165,21 @@ def test_run_evaluation_sends_selected_question_limit() -> None:
     assert client.calls[0]["payload"] == {"question_limit": 25}
 
 
+def test_run_evaluation_accepts_missing_refusal_metric() -> None:
+    payload = _evaluation_response()
+    answer_quality = payload["average_answer_quality"]
+    assert isinstance(answer_quality, dict)
+    answer_quality["safe_refusal"] = None
+
+    result = service.run_evaluation(
+        EvaluatorApiConfig("http://health", "http://eval/evaluate"),
+        "user-token",
+        FakeRagClient([payload]),
+    )
+
+    assert result["average_answer_quality"]["safe_refusal"] is None
+
+
 @pytest.mark.parametrize(
     "payload",
     [

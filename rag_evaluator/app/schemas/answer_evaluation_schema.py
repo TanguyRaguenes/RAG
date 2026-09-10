@@ -17,3 +17,16 @@ class AnswerEvaluationBase(BaseModel):
     faithfulness: float = Field(ge=0, le=5)
     # Qualité du refus lorsque la question ne doit pas recevoir de réponse factuelle (1-5)
     safe_refusal: float = Field(ge=0, le=5)
+
+
+class AverageAnswerEvaluationBase(BaseModel):
+    """Scores agrégés avec une métrique de refus éventuellement non calculée."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    feedback: str = Field(min_length=1)
+    accuracy: float = Field(ge=0, le=5)
+    completeness: float = Field(ge=0, le=5)
+    relevance: float = Field(ge=0, le=5)
+    faithfulness: float = Field(ge=0, le=5)
+    safe_refusal: float | None = Field(default=None, ge=0, le=5)

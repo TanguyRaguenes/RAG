@@ -47,11 +47,11 @@ async def ask_question_to_local_model(
         span.set_attribute("llm.provider", "local")
 
         timeout_seconds: int = config["llm"]["common"]["timeout_seconds"]
-        temperature: float = config["llm"]["common"]["temperature"]
         stream: bool = config["llm"]["common"]["stream"]
 
         endpoint: str = config["llm"]["local"]["endpoint"]
         model: str = config["llm"]["local"]["model"]
+        temperature: float = config["llm"]["local"]["temperature"]
         max_output_tokens: int = config["llm"]["local"]["max_output_tokens"]
         context_window_tokens: int = config["llm"]["local"]["context_window_tokens"]
         max_prompt_chars = config["llm"]["local"]["max_prompt_chars"]

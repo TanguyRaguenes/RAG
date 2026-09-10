@@ -17,7 +17,6 @@ def _raw_config() -> dict:
         "judge_provider": "local",
         "llm": {
             "common": {
-                "temperature": 0.1,
                 "timeout_seconds": 10,
                 "stream": False,
             },
@@ -25,6 +24,7 @@ def _raw_config() -> dict:
                 "provider": "Ollama",
                 "endpoint": "http://ollama/v1/chat/completions",
                 "model": "test-local",
+                "temperature": 0.1,
                 "context_window_tokens": 1024,
                 "max_output_tokens": 128,
                 "max_prompt_chars": 2000,
@@ -70,6 +70,7 @@ def test_load_config_reads_json_file(
     config = config_module.load_config()
 
     assert config.llm.local.model == "test-local"
+    assert config.llm.local.temperature == 0.1
     assert config.llm.api.endpoint == "https://api.openai.com/v1/responses"
     assert config.judge_provider == "local"
     assert config.rag_provider == "api"

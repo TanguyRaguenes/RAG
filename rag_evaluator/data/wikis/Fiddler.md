@@ -3,7 +3,7 @@
 # Introduction
 Vous souhaitez devenir un vrai petit hackeur, alors ne partez pas vous êtes au bon endroit.
 Ici nous allons voir comment utiliser Fiddler.
-Fiddler est disponible ici : **W:\\_Outils html-Web\Fiddler**.
+Fiddler est disponible ici : **<INTERNAL_SHARE>\Tools\Fiddler**.
 
 # Description
 Une fois installé, Fiddler est disponible en recherchant "Fiddler Classic" dans la barre de recherche Windows.
@@ -45,7 +45,7 @@ remplacer [monUrl] par l'url que vous souhaitez break ou juste un mot clé de la
 
 <u>exemple :</u>
 ``` URL
-bpu https://rbed.isilog.fr/xlv50/Classes/IsiAjax/IsiAjax.aspx
+bpu <INTERNAL_APPLICATION_URL>
 ```
  D'autres commandes existent, voir [ici](https://docs.telerik.com/fiddler/knowledge-base/quickexec)
 

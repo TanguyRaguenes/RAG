@@ -115,7 +115,7 @@ class AnswerEvaluation(TypedDict):
     completeness: float
     relevance: float
     faithfulness: float
-    safe_refusal: float
+    safe_refusal: float | None
 
 
 class EvaluationResponse(TypedDict):
@@ -394,8 +394,8 @@ def validate_evaluation_response(payload: object) -> EvaluationResponse:
         "completeness",
         "relevance",
         "faithfulness",
-        "safe_refusal",
     )
+    _require_nullable_number_fields(answer, "safe_refusal")
 
     return cast(EvaluationResponse, data)
 
@@ -511,6 +511,16 @@ def _require_number_fields(data: dict[str, Any], *fields: str) -> None:
     for field in fields:
         if not _is_number(data.get(field)):
             raise ResponseContractError(f"{field} est absent ou invalide")
+
+
+def _require_nullable_number_fields(data: dict[str, Any], *fields: str) -> None:
+    """Exige des champs présents contenant un nombre fini ou ``None``."""
+    for field in fields:
+        if field not in data:
+            raise ResponseContractError(f"{field} est absent ou invalide")
+        value = data[field]
+        if value is not None and not _is_number(value):
+            raise ResponseContractError(f"{field} est invalide")
 
 
 def _is_integer(value: object) -> bool:

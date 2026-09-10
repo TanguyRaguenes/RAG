@@ -4,7 +4,7 @@
 Kelio est notre outil de gestion RH. Il nous assiste dans la gestion de notre temps de travail (badgeage) et dans la gestion de nos demandes d'absence (Congés payés, RTT, Maladie, etc.).
 
 # Accès
-Pour accéder à Kelio, vous pouvez simplement aller sur votre navigateur préféré et vous rendre à l'url suivante : https://isilog-isiware.bodet-software.com/open/homepage
+Pour accéder à Kelio, vous pouvez simplement aller sur votre navigateur préféré et vous rendre à l'URL suivante : `<INTERNAL_HR_URL>`.
 
 Il y a un second moyen pour accéder à Kelio. Il vous suffit d'accéder directement à Kelio depuis votre menu Windows : 
 ![Kelio.png](/.attachments/Kelio-80c116f0-4819-48d6-9397-51534abcd29a.png)

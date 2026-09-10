@@ -6,7 +6,11 @@ import pytest
 from app.core.config import EvaluatorConfig
 from app.core.exceptions import EvaluatorClientError
 from app.dal.clients import judge_client as client
-from app.dal.clients.judge_client import LocalJudgeClient, OpenAIJudgeClient
+from app.dal.clients.judge_client import (
+    ConfiguredJudgeClient,
+    LocalJudgeClient,
+    OpenAIJudgeClient,
+)
 from app.domain.models.judge_response_model import JudgeOutput
 from app.schemas.judge_schema import JudgeMessage
 
@@ -19,13 +23,13 @@ def _config(*, judge_provider: str = "local") -> EvaluatorConfig:
             "llm": {
                 "common": {
                     "stream": False,
-                    "temperature": 0.1,
                     "timeout_seconds": 10,
                 },
                 "local": {
                     "provider": "Ollama",
                     "endpoint": "http://ollama:11434/v1/chat/completions",
                     "model": "judge-local",
+                    "temperature": 0.1,
                     "context_window_tokens": 4096,
                     "max_output_tokens": 512,
                     "max_prompt_chars": 8000,
@@ -76,18 +80,25 @@ class FakeResponse:
 
 class FakeAsyncClient:
     calls: ClassVar[list[dict[str, object]]] = []
+    responses: ClassVar[list[FakeResponse | BaseException]] = []
+    instances_created: ClassVar[int] = 0
+    instances_closed: ClassVar[int] = 0
     response: ClassVar[FakeResponse] = FakeResponse(
         {"choices": [{"message": {"content": "judgement"}}]}
     )
 
     def __init__(self, timeout: float) -> None:
         self.timeout = timeout
+        type(self).instances_created += 1
 
     async def __aenter__(self) -> Self:
         return self
 
     async def __aexit__(self, *args: object) -> bool:
         return False
+
+    async def aclose(self) -> None:
+        type(self).instances_closed += 1
 
     async def post(
         self,
@@ -98,7 +109,10 @@ class FakeAsyncClient:
         self.calls.append(
             {"url": url, "json": json, "headers": headers, "timeout": self.timeout}
         )
-        return self.response
+        outcome = self.responses.pop(0) if self.responses else self.response
+        if isinstance(outcome, BaseException):
+            raise outcome
+        return outcome
 
 
 @pytest.mark.asyncio
@@ -208,7 +222,107 @@ async def test_local_client_uses_openai_compatible_payload(
         "http://ollama:11434/v1/chat/completions"
     )
     assert FakeAsyncClient.calls[0]["json"]["max_tokens"] == 512
+    assert FakeAsyncClient.calls[0]["json"]["temperature"] == 0.1
     assert "options" not in FakeAsyncClient.calls[0]["json"]
+
+
+@pytest.mark.asyncio
+async def test_judge_client_reuses_and_closes_single_http_client(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(FakeAsyncClient, "calls", [])
+    monkeypatch.setattr(FakeAsyncClient, "instances_created", 0)
+    monkeypatch.setattr(FakeAsyncClient, "instances_closed", 0)
+    monkeypatch.setattr(client.httpx, "AsyncClient", FakeAsyncClient)
+    judge_client = LocalJudgeClient(_config())
+
+    await judge_client.judge([JudgeMessage(role="user", content="first")])
+    await judge_client.judge([JudgeMessage(role="user", content="second")])
+    await judge_client.aclose()
+
+    assert FakeAsyncClient.instances_created == 1
+    assert FakeAsyncClient.instances_closed == 1
+    assert len(FakeAsyncClient.calls) == 2
+
+
+@pytest.mark.asyncio
+async def test_configured_judge_client_closes_delegate_on_context_error() -> None:
+    class FakeJudgeClient:
+        closed = False
+
+        async def judge(self, messages: list[JudgeMessage]) -> str:
+            return "judgement"
+
+        async def aclose(self) -> None:
+            self.closed = True
+
+    delegate = FakeJudgeClient()
+
+    with pytest.raises(RuntimeError, match="evaluation failed"):
+        async with ConfiguredJudgeClient(delegate):
+            raise RuntimeError("evaluation failed")
+
+    assert delegate.closed is True
+
+
+@pytest.mark.asyncio
+async def test_judge_client_retries_transient_connection_errors(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    request = httpx.Request("POST", "http://judge")
+    monkeypatch.setattr(FakeAsyncClient, "calls", [])
+    monkeypatch.setattr(
+        FakeAsyncClient,
+        "responses",
+        [
+            httpx.ConnectError("dns unavailable", request=request),
+            httpx.ConnectError("dns unavailable", request=request),
+            FakeResponse({"choices": [{"message": {"content": "judgement"}}]}),
+        ],
+    )
+    delays = []
+
+    async def fake_sleep(delay: float) -> None:
+        delays.append(delay)
+
+    monkeypatch.setattr(client.httpx, "AsyncClient", FakeAsyncClient)
+    monkeypatch.setattr(client.asyncio, "sleep", fake_sleep)
+
+    result = await LocalJudgeClient(_config()).judge(
+        [JudgeMessage(role="user", content="judge")]
+    )
+
+    assert result == "judgement"
+    assert len(FakeAsyncClient.calls) == 3
+    assert delays == [0.5, 1.0]
+
+
+@pytest.mark.asyncio
+async def test_judge_client_retries_retryable_http_status(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(FakeAsyncClient, "calls", [])
+    monkeypatch.setattr(
+        FakeAsyncClient,
+        "responses",
+        [
+            FakeResponse({}, status_code=503),
+            FakeResponse({"choices": [{"message": {"content": "judgement"}}]}),
+        ],
+    )
+
+    async def fake_sleep(delay: float) -> None:
+        return None
+
+    monkeypatch.setattr(client.httpx, "AsyncClient", FakeAsyncClient)
+    monkeypatch.setattr(client.asyncio, "sleep", fake_sleep)
+
+    result = await LocalJudgeClient(_config()).judge(
+        [JudgeMessage(role="user", content="judge")]
+    )
+
+    assert result == "judgement"
+    assert len(FakeAsyncClient.calls) == 2
 
 
 @pytest.mark.asyncio
@@ -232,7 +346,8 @@ async def test_judge_client_rejects_missing_content(
 async def test_judge_client_wraps_http_status_without_response_body(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    FakeAsyncClient.response = FakeResponse({"secret": "upstream"}, status_code=500)
+    monkeypatch.setattr(FakeAsyncClient, "calls", [])
+    FakeAsyncClient.response = FakeResponse({"secret": "upstream"}, status_code=400)
     monkeypatch.setattr(client.httpx, "AsyncClient", FakeAsyncClient)
 
     with pytest.raises(EvaluatorClientError) as exc_info:
@@ -240,7 +355,8 @@ async def test_judge_client_wraps_http_status_without_response_body(
             [JudgeMessage(role="user", content="judge")]
         )
 
-    assert exc_info.value.details == {"status_code": 500}
+    assert exc_info.value.details == {"status_code": 400}
+    assert len(FakeAsyncClient.calls) == 1
     FakeAsyncClient.response = FakeResponse(
         {"choices": [{"message": {"content": "judgement"}}]}
     )

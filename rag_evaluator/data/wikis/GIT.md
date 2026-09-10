@@ -1,7 +1,7 @@
 ﻿[[_TOC_]]
 
 # Introduction
-Cet article détaille la méthode pour utiliser **git** pour IWS et les commandes associées.
+Cet article détaille la méthode pour utiliser **git** pour `<PROJECT_NAME>` et les commandes associées.
 
 # Principe de **git**
 ## Décentralisation
@@ -10,17 +10,17 @@ A la différence de **tfvc** qui repose sur la centralisation. C'est alors le se
 
 Dans **git**, voici les étapes principales :
 - récupérer en local un dépôt stocké sur le serveur 
-  - **git** télécharge les fichiers depuis `tfs.isilog.fr/tfs` vers `d:\git`
+  - **git** télécharge les fichiers depuis `<INTERNAL_TFS_URL>` vers `D:\git`
 - se positionner sur la branche désirée
 - faire des modifications (dev, patch, fix)
   - dans le dossier `d:\git`
 - valider les modifications localement
   - dans le dossier `d:\git`
 - envoyer au server les modifications
-  - **git** téléverse (upload) les fichiers depuis `d:\git` vers `tfs.isilog.fr/tfs`
+  - **git** téléverse (upload) les fichiers depuis `D:\git` vers `<INTERNAL_TFS_URL>`
 
 # Installation de **git**
-Voir : [Installation de Git](/Accueil/Git/Installation-de-Git)
+Voir : [Installation de Git](<INTERNAL_WIKI_URL>).
 
 # La méthode
 
@@ -29,7 +29,7 @@ Pour chaque étape de la méthode, il est possible d'utiliser Visual Studio ou l
 ## Récupérer les sources d'un projet - Clone
 Pour récupérer un dépôt localement, il faut utiliser la commande **clone**.
 
-Pour l'exemple, nous allons utiliser le dépôt **FormationGit**.
+Pour l'exemple, nous allons utiliser le dépôt **<REPOSITORY_NAME>**.
 
 Dans Azure devops, menu **Dépôts**, sélectionner le dépôt à cloner, cliquer sur **Cloner**
 
@@ -40,19 +40,19 @@ Copier l'url du dépôt
 ![image.png](/.attachments/image-7e4789c6-f7ef-4a40-aa4a-75648fb671b7.png)
 
 Ouvrir l'application `terminal`
-Créer et aller dans le dossier `d:\git\iws`
+Créer et aller dans le dossier `D:\git\<REPOSITORY_NAME>`
 Exécuter la commande :
 ```Powershell
-git clone http://tfs.isilog.fr:8080/tfs/Groupe%20ISILOG/IWS/_git/FormationGit
-cd .\FormationGit\
+git clone <INTERNAL_REPOSITORY_URL>
+cd .\<REPOSITORY_NAME>\
 ```
-Le dossier FormationGit est créé et contient les sources.
+Le dossier `<REPOSITORY_NAME>` est créé et contient les sources.
 
 ### Astuces
 Pour ouvrir Visual Studio Code directement positionné sur le dossier qu'on vient de clôner, il suffit de faire :
 ```Powershell
 # On se place dans le dossier du dépôt
-cd .\FormationGit\
+cd .\<REPOSITORY_NAME>\
 # Ouvre Visual Studio Code
 code .
 ```
@@ -63,10 +63,10 @@ ii .
 ```
 
 ## Créer une branche pour un développement
-Comme spécifié dans l'article [Branches de Git](/Accueil/Git/Branches-de-Git), on crée une branche par développeur par feature :
-`users/{matricule}/{nom de la feature}`
+Comme spécifié dans l'article [Branches de Git](<INTERNAL_WIKI_URL>), on crée une branche par développeur par feature :
+`users/<EMPLOYEE_ID>/<FEATURE_NAME>`
 par exemple :
-`users/lbri/formation`
+`users/<EMPLOYEE_ID>/formation`
 Dans Azure Devops, menu **Dépôts/Branches**, 
 
 ![image.png](/.attachments/image-46c08950-52b5-44cd-aae0-17647a0f0318.png)
@@ -139,7 +139,7 @@ Dans notre exemple, on a le résultat suivant, si on a cloner le dépôt avant d
 
 Pour changer de branche, on utilise la commande **switch**
 ```Powershell
-git switch users/lbri/formation
+git switch users/<EMPLOYEE_ID>/formation
 ```
 Et un `git branch` nous donne alors le résultat suivant :
 
@@ -215,7 +215,7 @@ git push
 
 Pour l'exemple, faire plusieurs cycles "modification locale, add puis commit" successifs.
 
-Consulter le dépôt **FormationGit** dans Azure DevOps, en se positionnant sur "Tout" pour voir les branches de tout le monde.
+Consulter le dépôt **<REPOSITORY_NAME>** dans Azure DevOps, en se positionnant sur "Tout" pour voir les branches de tout le monde.
 
 ![image.png](/.attachments/image-bf88286b-dde7-4e8d-b3b5-1286756a9396.png)
 
@@ -229,52 +229,52 @@ Le mode "squash" est à privilégier lors du merge d'une branche de feature vers
 
 La branche de feature est supprimée au terme de la PR.
 
-Cf. [Requête de tirage Git](/Accueil/Git/Requête-de-tirage-Git)
+Cf. [Requête de tirage Git](<INTERNAL_WIKI_URL>).
 
 ## Gestion des conflits
 Lors de la pull request, **git** recherche d'éventuel conflit. Celle-ci ne pourra pas être validée tant que les conflits ne seront pas résolut.
-Cf. [Gestion des conflits dans Git](/Accueil/Git/Gestion-des-conflits-dans-Git)
+Cf. [Gestion des conflits dans Git](<INTERNAL_WIKI_URL>).
 
 ## Utilisation pour IWS
-Afin de faciliter la gestion des conflits, voici les règles à suivre pour un développement IWS :
+Afin de faciliter la gestion des conflits, voici les règles à suivre pour un développement `<PROJECT_NAME>` :
 - mettre à jour régulièrement sa branche personnelle avec les évolutions de la branche parente : **pull** + **merge**
   - c'est à dire au maximum tous les 2 jours
 - mettre à jour sa branche personnelle avec les évolutions de la branche parente lors de la fin du dev et avant la PR
 - lancer une daily build sur sa branche personnelle après le dernier **commit** + **push**, avant la PR.
 
 # Visual Studio
-Toutes les actions présentées précédemment sont possibles dans Visual Studio. Voir pour le détail : [Git dans Visual Studio](/Accueil/Git/Git-dans-Visual-Studio).
+Toutes les actions présentées précédemment sont possibles dans Visual Studio. Voir pour le détail : [Git dans Visual Studio](<INTERNAL_WIKI_URL>).
 
 # Résumé de l'utilisation de **git**
 ## Cycle d'utilisation de **git** pour le développement de la feature planning
 
-- création d'une branche de feature (**users/lbri/planning**) à partir de **develop**
+- création d'une branche de feature (**users/<EMPLOYEE_ID>/planning**) à partir de **develop**
 - mise à jour du dépôt local
-- sélection de la branche **users/lbri/planning**
+- sélection de la branche **users/<EMPLOYEE_ID>/planning**
 - développement
   - jour 1 du développement
   - add + commit + push
   - jour 2 du développement
   - add + commit + push
-  - merge de la branche **develop** sur la branche **users/lbri/planning** + commit + push
+  - merge de la branche **develop** sur la branche **users/<EMPLOYEE_ID>/planning** + commit + push
   - dernier jour du développement
   - add + commit + push
-  - merge de la branche **develop** sur la branche **users/lbri/planning** + commit + push
-- exécution de la build Daily sur la branche **users/lbri/planning**
+  - merge de la branche **develop** sur la branche **users/<EMPLOYEE_ID>/planning** + commit + push
+- exécution de la build Daily sur la branche **users/<EMPLOYEE_ID>/planning**
   - gestion des erreurs s'il y en a, avec s'il le faut commit + push
-- pull request de la branche **users/lbri/planning** vers la branche parente **develop**
+- pull request de la branche **users/<EMPLOYEE_ID>/planning** vers la branche parente **develop**
 - gestion des conflits
 - prise en compte des remarques de revue de code
   - éventuels nouveau commits liés aux revues de code
 - la pull request est validée,
   - les modifications arrivent sur la branche parente
-  - la branche users/lbri/planning est supprimée
+  - la branche `users/<EMPLOYEE_ID>/planning` est supprimée
 
 # Remarques
 - Les fichiers ne sont plus en lecture seule, comme avec **tfvc**. Ils sont tous éditables à tout moment. L'ajout et la suppression de fichiers ou dossiers sont aussi possibles à tout moment.
 - Lorsqu'on renomme un fichier, ou un dossier, **git** considère qu'on supprime un fichier (dossier) et qu'on ajoute un nouveau.
 - **git** fait la différence entre majuscule et minuscule
-  - /users/Lbri et /users/lbri sont des branches différentes
+  - `/users/<EMPLOYEE_ID_UPPER>` et `/users/<EMPLOYEE_ID_LOWER>` sont des branches différentes
   - un conseil : préférer les noms cours et sans majuscule, espace ou caractère exotique
 - **git** ne veut pas de dossier vide
   - C'est un gestionnaire de source pas de dossier. Un dossier vide n'a aucun intérêt

@@ -57,8 +57,11 @@ async def evaluate_answer(
             ),
         )
     ]
-    client = judge_client or ConfiguredJudgeClient.from_config(config)
-    raw_judgement = await client.judge(messages)
+    if judge_client is not None:
+        raw_judgement = await judge_client.judge(messages)
+    else:
+        async with ConfiguredJudgeClient.from_config(config) as client:
+            raw_judgement = await client.judge(messages)
 
     try:
         judge_output = judge_parser.parse(raw_judgement)

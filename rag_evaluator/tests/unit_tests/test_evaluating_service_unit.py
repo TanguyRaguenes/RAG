@@ -36,7 +36,6 @@ def _config() -> EvaluatorConfig:
             "judge_provider": "local",
             "llm": {
                 "common": {
-                    "temperature": 0.1,
                     "timeout_seconds": 10,
                     "stream": False,
                 },
@@ -44,6 +43,7 @@ def _config() -> EvaluatorConfig:
                     "provider": "Ollama",
                     "endpoint": "http://ollama/v1/chat/completions",
                     "model": "judge",
+                    "temperature": 0.1,
                     "context_window_tokens": 1024,
                     "max_output_tokens": 128,
                     "max_prompt_chars": 2000,
@@ -244,6 +244,7 @@ def test_quality_accumulator_and_average() -> None:
     assert average.accuracy == 3
     assert average.completeness == 4
     assert average.relevance == 4
+    assert average.safe_refusal is None
 
 
 def test_quality_average_rejects_missing_judgements() -> None:
@@ -324,13 +325,22 @@ async def test_evaluation_service_excludes_refusals_from_retrieval_average(
     )
 
     async def fake_evaluate_answer(**kwargs: object) -> AnswerEvaluationBase:
+        if kwargs["expected_behavior"] == "refuse":
+            return AnswerEvaluationBase(
+                feedback="refusal",
+                accuracy=1,
+                completeness=1,
+                relevance=1,
+                faithfulness=1,
+                safe_refusal=2,
+            )
         return AnswerEvaluationBase(
-            feedback="ok",
-            accuracy=5,
-            completeness=5,
+            feedback="answer",
+            accuracy=4,
+            completeness=3,
             relevance=5,
-            faithfulness=5,
-            safe_refusal=5,
+            faithfulness=4,
+            safe_refusal=1,
         )
 
     monkeypatch.setattr(evaluating_service, "evaluate_answer", fake_evaluate_answer)
@@ -342,6 +352,11 @@ async def test_evaluation_service_excludes_refusals_from_retrieval_average(
     assert result.average_retrieval.ndcg == 1.0
     assert result.average_retrieval.recall == 1.0
     assert result.average_retrieval.precision == 1.0
+    assert result.average_answer_quality.accuracy == 4.0
+    assert result.average_answer_quality.completeness == 3.0
+    assert result.average_answer_quality.relevance == 5.0
+    assert result.average_answer_quality.faithfulness == 4.0
+    assert result.average_answer_quality.safe_refusal == 2.0
 
 
 @pytest.mark.asyncio

@@ -1,6 +1,6 @@
 {
-    "embedding":{
-        "provider" : "ollama",
+    "embedding": {
+        "provider": "ollama",
         "url": "http://ollama:11434/api/embed",
         "model": "bge-m3:567m",
         "batch_size": 16,
@@ -9,10 +9,9 @@
             "document": "document: "
         }
     },
-    "chunking":{
+    "chunking": {
         "enabled": true,
-        "size_chars": 1400, 
+        "size_chars": 1400,
         "overlap_chars": 240
     }
-
 }

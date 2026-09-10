@@ -220,7 +220,7 @@ _IsiSession.IsiEmptyBeforeHomePage: Libère toutes les variables qu'il ne faut p
 _NB : Au retour sur la page d’accueil, l’ensemble des variables dites « locales » sont réinitialisées._
 
 # Requêtes
-Pour tout savoir des bonnes pratiques dans l'écriture des requêtes SQL, cf. [Exécuter une requête dans IWS](/Accueil/Bonnes-pratiques/Exécuter-une-requête-SQL-dans-IWS).
+Pour tout savoir des bonnes pratiques dans l'écriture des requêtes SQL, cf. [Exécuter une requête dans le produit](<INTERNAL_WIKI_URL>).
 
 # Utilisation de la propriété "IsiPageCtrlsMngrs"
 Lorsque vous désirez récupérer ou modifier les propriétés d’un contrôle présent sur une page, il est préférable, d’utiliser la propriété « IsiPageCtrlsMngrs » plutôt que la fonction « FindControl ».

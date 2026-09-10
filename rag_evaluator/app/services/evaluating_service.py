@@ -16,7 +16,10 @@ from app.dal.clients.rag_orchestrator_client import (
     HttpRagOrchestratorClient,
     RagOrchestratorClient,
 )
-from app.schemas.answer_evaluation_schema import AnswerEvaluationBase
+from app.schemas.answer_evaluation_schema import (
+    AnswerEvaluationBase,
+    AverageAnswerEvaluationBase,
+)
 from app.schemas.dataset_schema import EvaluationCase
 from app.schemas.evaluator_response_schema import EvaluatorResponseBase
 from app.schemas.orchestrator_schema import AskQuestionResponse, AuthenticatedUser
@@ -98,6 +101,9 @@ class EvaluationService:
             retrieval_scores = build_retrieval_accumulator()
             retrieval_question_count = 0
             quality_scores = build_quality_accumulator()
+            answer_question_count = 0
+            refusal_score_total = 0.0
+            refusal_question_count = 0
             question_latencies: list[float] = []
 
             for test in tests:
@@ -121,7 +127,12 @@ class EvaluationService:
                     generated_answer=rag_response.llm_response,
                     retrieved_chunks=retrieved_chunks,
                 )
-                add_quality_score(quality_scores, answer_evaluation)
+                if test.expected_behavior == "answer":
+                    add_quality_score(quality_scores, answer_evaluation)
+                    answer_question_count += 1
+                else:
+                    refusal_score_total += answer_evaluation.safe_refusal
+                    refusal_question_count += 1
                 question_latencies.append(time.perf_counter() - question_start)
 
             response = EvaluatorResponseBase(
@@ -129,7 +140,10 @@ class EvaluationService:
                     retrieval_scores, retrieval_question_count
                 ),
                 average_answer_quality=calculate_average_quality(
-                    quality_scores, total_questions
+                    quality_scores,
+                    answer_question_count,
+                    refusal_score_total,
+                    refusal_question_count,
                 ),
                 total_duration="00:00",
                 total_questions=total_questions,
@@ -248,16 +262,17 @@ async def evaluate_rag(
         EvaluatorContainerCustomException: Si une frontière externe échoue.
     """
     typed_config = EvaluatorConfig.model_validate(config)
-    service = EvaluationService(
-        config=typed_config,
-        dataset_repository=JsonDatasetRepository.from_environment(),
-        orchestrator_client=HttpRagOrchestratorClient.from_environment(
-            typed_config.rag_provider
-        ),
-        judge_client=ConfiguredJudgeClient.from_config(typed_config),
-        admin_groups=load_admin_groups(),
-    )
-    return await service.evaluate(access_token, question_limit)
+    async with ConfiguredJudgeClient.from_config(typed_config) as judge_client:
+        service = EvaluationService(
+            config=typed_config,
+            dataset_repository=JsonDatasetRepository.from_environment(),
+            orchestrator_client=HttpRagOrchestratorClient.from_environment(
+                typed_config.rag_provider
+            ),
+            judge_client=judge_client,
+            admin_groups=load_admin_groups(),
+        )
+        return await service.evaluate(access_token, question_limit)
 
 
 def build_empty_evaluation_response() -> EvaluatorResponseBase:
@@ -274,13 +289,13 @@ def build_empty_evaluation_response() -> EvaluatorResponseBase:
             precision=0.0,
             source_hit_at_5=0.0,
         ),
-        average_answer_quality=AnswerEvaluationBase(
+        average_answer_quality=AverageAnswerEvaluationBase(
             feedback="Aucune évaluation",
             accuracy=0,
             completeness=0,
             relevance=0,
             faithfulness=0,
-            safe_refusal=0,
+            safe_refusal=None,
         ),
         total_duration="00:00",
         total_questions=0,
@@ -335,7 +350,6 @@ def build_quality_accumulator() -> QualityAccumulator:
         "completeness": 0.0,
         "relevance": 0.0,
         "faithfulness": 0.0,
-        "safe_refusal": 0.0,
     }
 
 
@@ -376,7 +390,6 @@ def add_quality_score(
     accumulator["completeness"] += answer_evaluation.completeness
     accumulator["relevance"] += answer_evaluation.relevance
     accumulator["faithfulness"] += answer_evaluation.faithfulness
-    accumulator["safe_refusal"] += answer_evaluation.safe_refusal
 
 
 def calculate_average_retrieval(
@@ -413,12 +426,16 @@ def calculate_average_retrieval(
 def calculate_average_quality(
     accumulator: QualityAccumulator,
     valid_judgements: int,
-) -> AnswerEvaluationBase:
+    refusal_score_total: float = 0.0,
+    refusal_judgements: int = 0,
+) -> AverageAnswerEvaluationBase:
     """Calcule les moyennes des scores de qualité de réponse.
 
     Args:
         accumulator: Sommes des scores de qualité.
-        valid_judgements: Nombre de jugements LLM valides.
+        valid_judgements: Nombre de jugements valides sur des questions de réponse.
+        refusal_score_total: Somme des scores des véritables questions de refus.
+        refusal_judgements: Nombre de véritables questions de refus jugées.
 
     Returns:
         Scores moyens calculés sur les jugements valides.
@@ -429,13 +446,17 @@ def calculate_average_quality(
     if valid_judgements <= 0:
         raise ValueError("Au moins un jugement valide est requis")
 
-    return AnswerEvaluationBase(
+    return AverageAnswerEvaluationBase(
         feedback="Moyenne Globale du Dataset",
         accuracy=round(accumulator["accuracy"] / valid_judgements, 2),
         completeness=round(accumulator["completeness"] / valid_judgements, 2),
         relevance=round(accumulator["relevance"] / valid_judgements, 2),
         faithfulness=round(accumulator["faithfulness"] / valid_judgements, 2),
-        safe_refusal=round(accumulator["safe_refusal"] / valid_judgements, 2),
+        safe_refusal=(
+            round(refusal_score_total / refusal_judgements, 2)
+            if refusal_judgements > 0
+            else None
+        ),
     )
 
 
@@ -467,6 +488,7 @@ def _record_scores(response: EvaluatorResponseBase) -> None:
     evaluator_score.labels(metric="faithfulness").set(
         response.average_answer_quality.faithfulness
     )
+    safe_refusal = response.average_answer_quality.safe_refusal
     evaluator_score.labels(metric="safe_refusal").set(
-        response.average_answer_quality.safe_refusal
+        safe_refusal if safe_refusal is not None else math.nan
     )

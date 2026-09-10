@@ -1,7 +1,9 @@
+import asyncio
+import logging
 import os
 import time
 from collections.abc import Callable
-from typing import Protocol
+from typing import Protocol, Self
 
 import httpx
 from opentelemetry import trace
@@ -21,6 +23,7 @@ from app.schemas.judge_schema import (
 )
 
 tracer = trace.get_tracer(__name__)
+logger = logging.getLogger(__name__)
 INVALID_JUDGE_RESPONSE_MESSAGE = "Réponse du juge LLM invalide"
 
 
@@ -41,6 +44,10 @@ class JudgeClient(Protocol):
         """
         ...
 
+    async def aclose(self) -> None:
+        """Ferme les ressources réseau détenues par le client."""
+        ...
+
 
 class OpenAIJudgeClient:
     """Client du contrat OpenAI `POST /v1/responses`."""
@@ -54,6 +61,7 @@ class OpenAIJudgeClient:
         """
         self._config = config
         self._api_key = api_key
+        self._http_client = httpx.AsyncClient(timeout=config.llm.common.timeout_seconds)
 
     async def judge(self, messages: list[JudgeMessage]) -> str:
         """Envoie un prompt selon le contrat chat completions OpenAI.
@@ -83,12 +91,18 @@ class OpenAIJudgeClient:
             },
         }
         return await _post_json(
+            client=self._http_client,
             url=llm.api.endpoint,
             payload=payload,
-            timeout_seconds=llm.common.timeout_seconds,
+            max_retries=llm.common.max_retries,
+            retry_backoff_seconds=llm.common.retry_backoff_seconds,
             headers=_build_auth_headers(self._api_key),
             response_parser=_parse_responses_api_content,
         )
+
+    async def aclose(self) -> None:
+        """Ferme le pool de connexions OpenAI."""
+        await self._http_client.aclose()
 
 
 class LocalJudgeClient:
@@ -101,6 +115,7 @@ class LocalJudgeClient:
             config: URL, modèle et paramètres validés du juge local.
         """
         self._config = config
+        self._http_client = httpx.AsyncClient(timeout=config.llm.common.timeout_seconds)
 
     async def judge(self, messages: list[JudgeMessage]) -> str:
         """Envoie le prompt au endpoint chat completions local.
@@ -118,16 +133,22 @@ class LocalJudgeClient:
         payload: dict[str, object] = {
             "model": llm.local.model,
             "messages": [message.model_dump() for message in messages],
-            "temperature": llm.common.temperature,
+            "temperature": llm.local.temperature,
             "max_tokens": llm.local.max_output_tokens,
             "stream": llm.common.stream,
         }
         return await _post_json(
+            client=self._http_client,
             url=llm.local.endpoint,
             payload=payload,
-            timeout_seconds=llm.common.timeout_seconds,
+            max_retries=llm.common.max_retries,
+            retry_backoff_seconds=llm.common.retry_backoff_seconds,
             response_parser=_parse_chat_completion_content,
         )
+
+    async def aclose(self) -> None:
+        """Ferme le pool de connexions du juge local."""
+        await self._http_client.aclose()
 
 
 class ConfiguredJudgeClient:
@@ -173,6 +194,18 @@ class ConfiguredJudgeClient:
             EvaluatorClientError: Si le fournisseur externe échoue.
         """
         return await self._delegate.judge(messages)
+
+    async def aclose(self) -> None:
+        """Ferme le transport du fournisseur sélectionné."""
+        await self._delegate.aclose()
+
+    async def __aenter__(self) -> Self:
+        """Retourne le client prêt à être réutilisé pendant une évaluation."""
+        return self
+
+    async def __aexit__(self, *args: object) -> None:
+        """Ferme le transport à la sortie du contexte, succès ou erreur."""
+        await self.aclose()
 
 
 def _build_auth_headers(api_key: str | None) -> dict[str, str]:
@@ -242,18 +275,22 @@ def _parse_responses_api_content(data: object) -> str:
 
 async def _post_json(
     *,
+    client: httpx.AsyncClient,
     url: str,
     payload: dict[str, object],
-    timeout_seconds: float,
+    max_retries: int,
+    retry_backoff_seconds: float,
     response_parser: Callable[[object], str],
     headers: dict[str, str] | None = None,
 ) -> str:
     """Exécute l'appel HTTP instrumenté vers le juge.
 
     Args:
+        client: Client HTTP persistant détenu par le fournisseur de jugement.
         url: Endpoint chat completions cible.
         payload: Corps JSON conforme au fournisseur sélectionné.
-        timeout_seconds: Délai maximal validé de l'appel.
+        max_retries: Nombre maximal de nouvelles tentatives après la première.
+        retry_backoff_seconds: Délai initial du backoff exponentiel.
         response_parser: Fonction validant et extrayant le texte du fournisseur.
         headers: Headers HTTP optionnels, dont l'authentification OpenAI.
 
@@ -266,10 +303,15 @@ async def _post_json(
     start = time.perf_counter()
     try:
         with tracer.start_as_current_span("evaluator.call_judge"):
-            async with httpx.AsyncClient(timeout=timeout_seconds) as client:
-                response = await client.post(url, json=payload, headers=headers)
-                response.raise_for_status()
-                data = response.json()
+            response = await _post_with_retries(
+                client=client,
+                url=url,
+                payload=payload,
+                headers=headers,
+                max_retries=max_retries,
+                retry_backoff_seconds=retry_backoff_seconds,
+            )
+            data = response.json()
     except httpx.HTTPStatusError as exception:
         _record_external_error("judge", "judge", "http_status", start)
         raise EvaluatorClientError(
@@ -307,6 +349,54 @@ async def _post_json(
         dependency="judge", operation="judge", status="success"
     ).observe(time.perf_counter() - start)
     return content
+
+
+async def _post_with_retries(
+    *,
+    client: httpx.AsyncClient,
+    url: str,
+    payload: dict[str, object],
+    headers: dict[str, str] | None,
+    max_retries: int,
+    retry_backoff_seconds: float,
+) -> httpx.Response:
+    """Rejoue les erreurs de transport et statuts fournisseur temporaires."""
+    for retry_index in range(max_retries + 1):
+        try:
+            response = await client.post(url, json=payload, headers=headers)
+            response.raise_for_status()
+            return response
+        except httpx.HTTPStatusError as exception:
+            status_code = exception.response.status_code
+            if retry_index >= max_retries or not _is_retryable_status(status_code):
+                raise
+            error_type = "http_status"
+        except (httpx.ConnectError, httpx.ConnectTimeout):
+            if retry_index >= max_retries:
+                raise
+            status_code = None
+            error_type = "transport"
+
+        delay_seconds = retry_backoff_seconds * (2**retry_index)
+        logger.warning(
+            "Retrying judge request after transient failure",
+            extra={
+                "event": "judge_request_retry",
+                "failed_attempt": retry_index + 1,
+                "max_attempts": max_retries + 1,
+                "error_type": error_type,
+                "status_code": status_code,
+                "delay_seconds": delay_seconds,
+            },
+        )
+        await asyncio.sleep(delay_seconds)
+
+    raise RuntimeError("Unreachable retry state")
+
+
+def _is_retryable_status(status_code: int) -> bool:
+    """Indique si un statut fournisseur peut réussir lors d'une nouvelle tentative."""
+    return status_code == 429 or status_code >= 500
 
 
 def _record_external_error(

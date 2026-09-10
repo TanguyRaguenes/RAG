@@ -2,7 +2,7 @@ import pytest
 
 from app.api.routers import evaluate_router
 from app.core.config import EvaluatorConfig
-from app.schemas.answer_evaluation_schema import AnswerEvaluationBase
+from app.schemas.answer_evaluation_schema import AverageAnswerEvaluationBase
 from app.schemas.evaluate_request_schema import EvaluateRequest
 from app.schemas.evaluator_response_schema import EvaluatorResponseBase
 from app.schemas.retrieval_evaluation_schema import RetrievalEvaluationBase
@@ -18,7 +18,6 @@ async def test_ask_question_route_sets_total_duration(
             "judge_provider": "local",
             "llm": {
                 "common": {
-                    "temperature": 0.1,
                     "timeout_seconds": 10,
                     "stream": False,
                 },
@@ -26,6 +25,7 @@ async def test_ask_question_route_sets_total_duration(
                     "provider": "Ollama",
                     "endpoint": "http://ollama/v1/chat/completions",
                     "model": "judge",
+                    "temperature": 0.1,
                     "context_window_tokens": 1024,
                     "max_output_tokens": 128,
                     "max_prompt_chars": 2000,
@@ -51,7 +51,7 @@ async def test_ask_question_route_sets_total_duration(
             average_retrieval=RetrievalEvaluationBase(
                 mrr=1, ndcg=1, recall=1, precision=1
             ),
-            average_answer_quality=AnswerEvaluationBase(
+            average_answer_quality=AverageAnswerEvaluationBase(
                 feedback="ok",
                 accuracy=4,
                 completeness=4,
