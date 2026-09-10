@@ -42,12 +42,11 @@ def render_page_header(title: str, subtitle: str) -> None:
         st.caption(subtitle)
 
 
-def render_api_error(error: RagApiError, debug_enabled: bool = False) -> None:
+def render_api_error(error: RagApiError) -> None:
     """Journalise puis affiche une erreur API depuis un point Streamlit unique.
 
     Args:
         error: Erreur dont le corps backend a déjà été écarté.
-        debug_enabled: Paramètre conservé pour les callbacks Streamlit existants.
     """
     if error.status_code == 401:
         st.session_state.clear()

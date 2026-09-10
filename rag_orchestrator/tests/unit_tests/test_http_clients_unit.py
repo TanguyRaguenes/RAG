@@ -50,7 +50,7 @@ class FakeAsyncClient:
 async def test_embed_posts_texts_and_returns_embeddings(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    FakeAsyncClient.calls = []
+    monkeypatch.setattr(FakeAsyncClient, "calls", [])
     monkeypatch.setenv("RAG_EMBEDDER_EMBED_URL", "http://embedder/embed")
     monkeypatch.setattr(embedder_client.httpx, "AsyncClient", FakeAsyncClient)
 
@@ -70,7 +70,7 @@ async def test_embed_posts_texts_and_returns_embeddings(
 async def test_retrieve_chunks_posts_embedding_and_returns_chunks(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    FakeAsyncClient.calls = []
+    monkeypatch.setattr(FakeAsyncClient, "calls", [])
     monkeypatch.setenv(
         "RAG_RETRIEVER_RETRIEVE_CHUNKS_URL", "http://retriever/retrieve_chunks"
     )
@@ -107,7 +107,7 @@ async def test_retrieve_chunks_raises_domain_exception_when_url_is_missing(
 async def test_retrieve_document_chunks_posts_paths(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    FakeAsyncClient.calls = []
+    monkeypatch.setattr(FakeAsyncClient, "calls", [])
     monkeypatch.setenv(
         "RAG_RETRIEVER_RETRIEVE_DOCUMENT_CHUNKS_URL",
         "http://retriever/retrieve_document_chunks",
@@ -145,7 +145,7 @@ async def test_retrieve_document_chunks_raises_domain_exception_when_url_is_miss
 async def test_rerank_chunks_posts_question_and_chunks(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    FakeAsyncClient.calls = []
+    monkeypatch.setattr(FakeAsyncClient, "calls", [])
     monkeypatch.setenv(
         "RAG_RERANKER_RERANK_CHUNKS_URL", "http://reranker/rerank_chunks"
     )

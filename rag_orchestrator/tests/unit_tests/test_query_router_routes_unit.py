@@ -66,21 +66,15 @@ async def test_ask_question_route_delegates_to_injected_service() -> None:
 async def test_ask_question_route_propagates_application_errors_to_handler() -> None:
     service = FakeQuestionOrchestrationService()
     service.ask_error = QuestionQuotaExceededError()
+    request = AskQuestionRequestBase(question="Q", provider="local")
+    current_user = _user()
 
     with pytest.raises(QuestionQuotaExceededError):
-        await query_router.ask_question_route(
-            AskQuestionRequestBase(question="Q", provider="local"),
-            _user(),
-            service,
-        )
+        await query_router.ask_question_route(request, current_user, service)
 
     service.ask_error = UsageSessionValidationError("invalid session")
     with pytest.raises(UsageSessionValidationError):
-        await query_router.ask_question_route(
-            AskQuestionRequestBase(question="Q", provider="local"),
-            _user(),
-            service,
-        )
+        await query_router.ask_question_route(request, current_user, service)
 
 
 @pytest.mark.asyncio

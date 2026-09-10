@@ -174,37 +174,54 @@ def _render_sources(
 
     with st.expander(f"Extraits pertinents ({len(sorted_chunks)})"):
         for index, chunk in enumerate(sorted_chunks, start=1):
-            metadata = chunk.get("metadata") if isinstance(chunk, dict) else None
-            metadata = metadata if isinstance(metadata, dict) else {}
-            title = metadata.get("title") or metadata.get("path") or "Source inconnue"
-            rerank_score = (
-                chunk.get("rerank_score") if isinstance(chunk, dict) else None
+            _render_source_chunk(
+                index,
+                chunk,
+                use_reranker=use_reranker,
+                show_divider=index < len(sorted_chunks),
             )
-            retriever_score = (
-                chunk.get("similarity") if isinstance(chunk, dict) else None
-            )
-            document = chunk.get("document", "") if isinstance(chunk, dict) else ""
-            excerpt = _shorten_text(str(document), limit=700)
-
-            if use_reranker:
-                line = (
-                    f"[{index}] {title} · score reranker {_format_score(rerank_score)} "
-                    f"(score retriever {_format_score(retriever_score)})"
-                )
-            else:
-                line = (
-                    f"[{index}] {title} · score retriever "
-                    f"{_format_score(retriever_score)}"
-                )
-            st.markdown(f"**{line}**")
-            if excerpt:
-                st.markdown(excerpt)
-            if index < len(sorted_chunks):
-                st.divider()
 
     if debug_enabled:
         with st.expander(f"Extraits pertinents - JSON ({len(sorted_chunks)})"):
             st.json(sorted_chunks)
+
+
+def _render_source_chunk(
+    index: int,
+    chunk: object,
+    *,
+    use_reranker: bool,
+    show_divider: bool,
+) -> None:
+    """Affiche un extrait documentaire et ses scores dans la liste des sources.
+
+    Args:
+        index: Rang d'affichage du chunk.
+        chunk: Chunk brut retourné par le pipeline RAG.
+        use_reranker: Indique si le score de reranking doit être affiché.
+        show_divider: Ajoute un séparateur après le chunk courant.
+    """
+    chunk_data = chunk if isinstance(chunk, dict) else {}
+    metadata = chunk_data.get("metadata")
+    metadata = metadata if isinstance(metadata, dict) else {}
+    title = metadata.get("title") or metadata.get("path") or "Source inconnue"
+    retriever_score = chunk_data.get("similarity")
+
+    if use_reranker:
+        line = (
+            f"[{index}] {title} · score reranker "
+            f"{_format_score(chunk_data.get('rerank_score'))} "
+            f"(score retriever {_format_score(retriever_score)})"
+        )
+    else:
+        line = f"[{index}] {title} · score retriever {_format_score(retriever_score)}"
+
+    st.markdown(f"**{line}**")
+    excerpt = _shorten_text(str(chunk_data.get("document", "")), limit=700)
+    if excerpt:
+        st.markdown(excerpt)
+    if show_divider:
+        st.divider()
 
 
 def _render_feedback_form(
@@ -228,31 +245,9 @@ def _render_feedback_form(
     if st.session_state.pop(toast_key, False):
         st.toast("Avis envoyé.")
 
-    st.caption("Cette réponse t'a-t-elle aidé ?")
-    comment_column, vote_column = st.columns([5, 1])
-
-    with comment_column:
-        comment = st.text_area(
-            "Commentaire optionnel",
-            value=str(feedback.get("commentaire") or "") if feedback else "",
-            max_chars=2000,
-            height=88,
-            key=f"feedback_comment_{interaction_id}",
-        )
-
-    with vote_column:
-        liked = feedback and feedback.get("note") == 1
-        disliked = feedback and feedback.get("note") == -1
-        like_submitted = st.button(
-            "👍",
-            key=f"feedback_like_{interaction_id}_{'selected' if liked else 'idle'}",
-            type="primary" if liked else "secondary",
-        )
-        dislike_submitted = st.button(
-            "👎",
-            key=f"feedback_dislike_{interaction_id}_{'selected' if disliked else 'idle'}",
-            type="primary" if disliked else "secondary",
-        )
+    comment, like_submitted, dislike_submitted = _render_feedback_controls(
+        interaction_id, feedback
+    )
 
     if not like_submitted and not dislike_submitted:
         return
@@ -266,6 +261,49 @@ def _render_feedback_form(
     st.session_state[feedback_key] = feedback_value
     st.session_state[toast_key] = True
     st.rerun()
+
+
+def _render_feedback_controls(
+    interaction_id: object,
+    feedback: object,
+) -> tuple[str, bool, bool]:
+    """Affiche les champs de saisie d'un avis et retourne les actions utilisateur.
+
+    Args:
+        interaction_id: Identifiant utilisé pour stabiliser les clés Streamlit.
+        feedback: Avis déjà enregistré et éventuellement réaffiché.
+
+    Returns:
+        Commentaire saisi et état des deux boutons de vote.
+    """
+    feedback_data = feedback if isinstance(feedback, dict) else {}
+    st.caption("Cette réponse t'a-t-elle aidé ?")
+    comment_column, vote_column = st.columns([5, 1])
+
+    with comment_column:
+        comment = st.text_area(
+            "Commentaire optionnel",
+            value=str(feedback_data.get("commentaire") or ""),
+            max_chars=2000,
+            height=88,
+            key=f"feedback_comment_{interaction_id}",
+        )
+
+    with vote_column:
+        liked = feedback_data.get("note") == 1
+        disliked = feedback_data.get("note") == -1
+        like_submitted = st.button(
+            "👍",
+            key=f"feedback_like_{interaction_id}_{'selected' if liked else 'idle'}",
+            type="primary" if liked else "secondary",
+        )
+        dislike_submitted = st.button(
+            "👎",
+            key=f"feedback_dislike_{interaction_id}_{'selected' if disliked else 'idle'}",
+            type="primary" if disliked else "secondary",
+        )
+
+    return comment, like_submitted, dislike_submitted
 
 
 def _shorten_text(text: str, limit: int = 700) -> str:

@@ -140,9 +140,10 @@ def test_json_dataset_repository_validates_all_items(tmp_path: Path) -> None:
         ),
         encoding="utf-8",
     )
+    repository = JsonDatasetRepository(dataset_path)
 
     with pytest.raises(DatasetException) as exc_info:
-        JsonDatasetRepository(dataset_path).load()
+        repository.load()
 
     assert exc_info.value.details["errors"] == 1
 
@@ -154,11 +155,11 @@ async def test_invalid_dataset_is_rejected_before_external_call(tmp_path: Path) 
         '[{"question":"Q","reference_answer":""}]', encoding="utf-8"
     )
     orchestrator = FakeOrchestratorClient()
+    repository = JsonDatasetRepository(dataset_path)
+    evaluation_service = _service(repository, orchestrator)
 
     with pytest.raises(DatasetException):
-        await _service(JsonDatasetRepository(dataset_path), orchestrator).evaluate(
-            "token"
-        )
+        await evaluation_service.evaluate("token")
 
     assert orchestrator.auth_tokens == ["token"]
     assert orchestrator.question_calls == []
@@ -248,8 +249,10 @@ def test_quality_accumulator_and_average() -> None:
 
 
 def test_quality_average_rejects_missing_judgements() -> None:
+    accumulator = build_quality_accumulator()
+
     with pytest.raises(ValueError, match="jugement valide"):
-        calculate_average_quality(build_quality_accumulator(), valid_judgements=0)
+        calculate_average_quality(accumulator, valid_judgements=0)
 
 
 @pytest.mark.asyncio
@@ -397,9 +400,10 @@ async def test_evaluation_rejects_user_without_admin_group() -> None:
         [EvaluationCase(id="Q001", question="Q", reference_answer="R")]
     )
     orchestrator = FakeOrchestratorClient(groups=["developers"])
+    evaluation_service = _service(repository, orchestrator)
 
     with pytest.raises(EvaluatorAuthorizationError, match="administrateur"):
-        await _service(repository, orchestrator).evaluate("token")
+        await evaluation_service.evaluate("token")
 
     assert orchestrator.question_calls == []
 
@@ -410,9 +414,10 @@ async def test_orchestrator_failure_aborts_evaluation() -> None:
         [EvaluationCase(id="Q001", question="Q", reference_answer="R")]
     )
     orchestrator = FakeOrchestratorClient(EvaluatorClientError("rag down"))
+    evaluation_service = _service(repository, orchestrator)
 
     with pytest.raises(EvaluatorClientError, match="rag down"):
-        await _service(repository, orchestrator).evaluate("token")
+        await evaluation_service.evaluate("token")
 
 
 @pytest.mark.asyncio
@@ -427,6 +432,8 @@ async def test_judge_failure_aborts_evaluation(
         raise EvaluatorClientError("judge down")
 
     monkeypatch.setattr(evaluating_service, "evaluate_answer", failing_evaluate_answer)
+    orchestrator = FakeOrchestratorClient()
+    evaluation_service = _service(repository, orchestrator)
 
     with pytest.raises(EvaluatorClientError, match="judge down"):
-        await _service(repository, FakeOrchestratorClient()).evaluate("token")
+        await evaluation_service.evaluate("token")

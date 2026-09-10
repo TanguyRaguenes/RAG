@@ -103,7 +103,7 @@ def _render_admin_panel(config: ChatApiConfig, access_token: str | None) -> None
     try:
         quotas = list_admin_quota_usages(config, access_token)
     except RagApiError as error:
-        render_api_error(error, debug_enabled=True)
+        render_api_error(error)
         return
 
     if not quotas:
@@ -155,7 +155,7 @@ def _render_admin_panel(config: ChatApiConfig, access_token: str | None) -> None
             unlimited,
         )
     except RagApiError as error:
-        render_api_error(error, debug_enabled=True)
+        render_api_error(error)
         return
 
     st.session_state[ADMIN_QUOTA_FLASH_KEY] = (

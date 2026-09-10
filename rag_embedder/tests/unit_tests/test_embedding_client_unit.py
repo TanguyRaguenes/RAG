@@ -71,7 +71,7 @@ async def test_embed_raises_exception_when_service_is_unreachable() -> None:
 async def test_embed_posts_prefixed_texts_and_returns_embeddings(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    FakeAsyncClient.calls = []
+    monkeypatch.setattr(FakeAsyncClient, "calls", [])
     config = {
         "embedding": {
             "url": "http://embedder/embeddings",
@@ -99,7 +99,7 @@ async def test_embed_posts_prefixed_texts_and_returns_embeddings(
 async def test_embed_splits_large_input_into_configured_batches(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    FakeAsyncClient.calls = []
+    monkeypatch.setattr(FakeAsyncClient, "calls", [])
     config = {
         "embedding": {
             "url": "http://embedder/embeddings",

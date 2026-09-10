@@ -90,11 +90,12 @@ def test_derive_auth_url_preserves_deployment_prefix() -> None:
 async def test_client_verifies_identity_and_propagates_same_bearer(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    FakeAsyncClient.calls = []
-    FakeAsyncClient.responses = [
-        FakeResponse(_valid_user()),
-        FakeResponse(_valid_response()),
-    ]
+    monkeypatch.setattr(FakeAsyncClient, "calls", [])
+    monkeypatch.setattr(
+        FakeAsyncClient,
+        "responses",
+        [FakeResponse(_valid_user()), FakeResponse(_valid_response())],
+    )
     monkeypatch.setattr(client.httpx, "AsyncClient", FakeAsyncClient)
     orchestrator = HttpRagOrchestratorClient("http://orchestrator/ask_question")
 
@@ -129,8 +130,8 @@ async def test_client_verifies_identity_and_propagates_same_bearer(
 async def test_client_uses_dedicated_auth_url_when_configured(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    FakeAsyncClient.calls = []
-    FakeAsyncClient.responses = [FakeResponse(_valid_user())]
+    monkeypatch.setattr(FakeAsyncClient, "calls", [])
+    monkeypatch.setattr(FakeAsyncClient, "responses", [FakeResponse(_valid_user())])
     monkeypatch.setattr(client.httpx, "AsyncClient", FakeAsyncClient)
     monkeypatch.setenv(
         "RAG_ORCHESTRATOR_ASK_QUESTION_URL",
@@ -152,8 +153,8 @@ async def test_client_uses_dedicated_auth_url_when_configured(
 async def test_client_sends_configured_local_rag_provider(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    FakeAsyncClient.calls = []
-    FakeAsyncClient.responses = [FakeResponse(_valid_response())]
+    monkeypatch.setattr(FakeAsyncClient, "calls", [])
+    monkeypatch.setattr(FakeAsyncClient, "responses", [FakeResponse(_valid_response())])
     monkeypatch.setattr(client.httpx, "AsyncClient", FakeAsyncClient)
 
     await HttpRagOrchestratorClient(
@@ -173,39 +174,42 @@ async def test_client_sends_configured_local_rag_provider(
 async def test_client_maps_upstream_unauthorized_to_authentication_error(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    FakeAsyncClient.responses = [FakeResponse({}, status_code=401)]
+    monkeypatch.setattr(
+        FakeAsyncClient, "responses", [FakeResponse({}, status_code=401)]
+    )
     monkeypatch.setattr(client.httpx, "AsyncClient", FakeAsyncClient)
+    orchestrator = HttpRagOrchestratorClient("http://orchestrator/ask_question")
 
     with pytest.raises(EvaluatorAuthenticationError):
-        await HttpRagOrchestratorClient(
-            "http://orchestrator/ask_question"
-        ).get_current_user("expired-token")
+        await orchestrator.get_current_user("expired-token")
 
 
 @pytest.mark.asyncio
 async def test_client_maps_auth_me_forbidden_to_authorization_error(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    FakeAsyncClient.responses = [FakeResponse({}, status_code=403)]
+    monkeypatch.setattr(
+        FakeAsyncClient, "responses", [FakeResponse({}, status_code=403)]
+    )
     monkeypatch.setattr(client.httpx, "AsyncClient", FakeAsyncClient)
+    orchestrator = HttpRagOrchestratorClient("http://orchestrator/ask_question")
 
     with pytest.raises(EvaluatorAuthorizationError):
-        await HttpRagOrchestratorClient(
-            "http://orchestrator/ask_question"
-        ).get_current_user("token")
+        await orchestrator.get_current_user("token")
 
 
 @pytest.mark.asyncio
 async def test_client_maps_ask_question_forbidden_to_authorization_error(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    FakeAsyncClient.responses = [FakeResponse({}, status_code=403)]
+    monkeypatch.setattr(
+        FakeAsyncClient, "responses", [FakeResponse({}, status_code=403)]
+    )
     monkeypatch.setattr(client.httpx, "AsyncClient", FakeAsyncClient)
+    orchestrator = HttpRagOrchestratorClient("http://orchestrator/ask_question")
 
     with pytest.raises(EvaluatorAuthorizationError) as error:
-        await HttpRagOrchestratorClient(
-            "http://orchestrator/ask_question"
-        ).ask_question("Question", "token")
+        await orchestrator.ask_question("Question", "token")
 
     assert error.value.details == {}
     assert error.value.internal_details == {
@@ -218,13 +222,16 @@ async def test_client_maps_ask_question_forbidden_to_authorization_error(
 async def test_client_rejects_incomplete_external_response(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    FakeAsyncClient.responses = [FakeResponse({"llm_response": "incomplete"})]
+    monkeypatch.setattr(
+        FakeAsyncClient,
+        "responses",
+        [FakeResponse({"llm_response": "incomplete"})],
+    )
     monkeypatch.setattr(client.httpx, "AsyncClient", FakeAsyncClient)
+    orchestrator = HttpRagOrchestratorClient("http://orchestrator/ask_question")
 
     with pytest.raises(EvaluatorClientError, match="réponse invalide"):
-        await HttpRagOrchestratorClient(
-            "http://orchestrator/ask_question"
-        ).ask_question("Question", "token")
+        await orchestrator.ask_question("Question", "token")
 
 
 def test_client_requires_configured_url(monkeypatch: pytest.MonkeyPatch) -> None:

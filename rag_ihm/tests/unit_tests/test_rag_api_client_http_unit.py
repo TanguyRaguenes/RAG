@@ -50,13 +50,10 @@ def _ask_question_response() -> dict[str, object]:
 
 
 def test_ask_question_requires_access_token() -> None:
+    config = ChatApiConfig("http://health", "http://rag/ask_question")
+
     with pytest.raises(RagApiError, match="session a expiré"):
-        service.ask_question(
-            ChatApiConfig("http://health", "http://rag/ask_question"),
-            "?",
-            "local",
-            None,
-        )
+        service.ask_question(config, "?", "local", None)
 
 
 def test_ask_question_posts_streamlit_channel_and_bearer_token() -> None:
@@ -101,14 +98,11 @@ def test_admin_feedbacks_request_sends_iso_dates_and_expects_a_list() -> None:
 
 
 def test_response_boundary_rejects_non_dict_payload() -> None:
+    config = ChatApiConfig("http://health", "http://rag/ask_question")
+    client = FakeRagClient([])
+
     with pytest.raises(RagApiError, match="réponse invalide"):
-        service.ask_question(
-            ChatApiConfig("http://health", "http://rag/ask_question"),
-            "Question",
-            "api",
-            "token",
-            FakeRagClient([]),
-        )
+        service.ask_question(config, "Question", "api", "token", client)
 
 
 @pytest.mark.parametrize(
@@ -128,15 +122,11 @@ def test_ask_question_rejects_missing_or_invalid_contract_fields(
 ) -> None:
     payload = _ask_question_response()
     payload[field] = invalid_value
+    config = ChatApiConfig("http://health", "http://rag/ask_question")
+    client = FakeRagClient(payload)
 
     with pytest.raises(RagApiError, match="réponse invalide"):
-        service.ask_question(
-            ChatApiConfig("http://health", "http://rag/ask_question"),
-            "Question",
-            "api",
-            "token",
-            FakeRagClient(payload),
-        )
+        service.ask_question(config, "Question", "api", "token", client)
 
 
 def test_ask_question_accepts_missing_optional_interaction_id() -> None:
@@ -161,19 +151,21 @@ def test_http_client_never_exposes_backend_response_text(
     monkeypatch.setattr(
         http_client.requests, "request", lambda *args, **kwargs: response
     )
+    client = RequestsHttpClient()
 
     with pytest.raises(RagApiError) as raised:
-        RequestsHttpClient().request_json("GET", "http://rag", timeout=5)
+        client.request_json("GET", "http://rag", timeout=5)
 
     assert raised.value.details == {"status_code": 503}
     assert "secret backend" not in raised.value.user_message
 
 
 def test_oidc_client_rejects_malformed_token_response() -> None:
-    client = FakeRagClient({"access_token": 123, "refresh_token": "secret"})
+    rag_client = FakeRagClient({"access_token": 123, "refresh_token": "secret"})
+    client = OidcClient(rag_client)
 
     with pytest.raises(RagApiError) as raised:
-        OidcClient(client).exchange_code(
+        client.exchange_code(
             token_url="http://token",
             client_id="client",
             client_secret="secret",

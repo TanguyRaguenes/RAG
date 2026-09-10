@@ -64,8 +64,8 @@ class FakeAsyncClient:
 async def test_ask_question_to_llm_posts_payload(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    FakeAsyncClient.calls = []
-    FakeAsyncClient.response = FakeResponse({"choices": []})
+    monkeypatch.setattr(FakeAsyncClient, "calls", [])
+    monkeypatch.setattr(FakeAsyncClient, "response", FakeResponse({"choices": []}))
     monkeypatch.setattr(llm_client.httpx, "AsyncClient", FakeAsyncClient)
 
     result = await llm_client.ask_question_to_llm({"model": "m"}, 12, "http://llm")
@@ -86,8 +86,8 @@ async def test_ask_question_to_llm_posts_payload(
 async def test_ask_question_to_api_sends_bearer_header(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    FakeAsyncClient.calls = []
-    FakeAsyncClient.response = FakeResponse({"output": []})
+    monkeypatch.setattr(FakeAsyncClient, "calls", [])
+    monkeypatch.setattr(FakeAsyncClient, "response", FakeResponse({"output": []}))
     monkeypatch.setattr(llm_client.httpx, "AsyncClient", FakeAsyncClient)
 
     result = await llm_client.ask_question_to_api(
@@ -106,7 +106,11 @@ async def test_ask_question_to_api_sends_bearer_header(
 async def test_ask_question_to_llm_wraps_http_errors(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    FakeAsyncClient.response = FakeResponse({}, status_code=500, text="down")
+    monkeypatch.setattr(
+        FakeAsyncClient,
+        "response",
+        FakeResponse({}, status_code=500, text="down"),
+    )
     monkeypatch.setattr(llm_client.httpx, "AsyncClient", FakeAsyncClient)
 
     with pytest.raises(
@@ -123,8 +127,10 @@ async def test_ask_question_to_llm_wraps_http_errors(
 async def test_ask_question_to_api_does_not_store_upstream_http_data(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    FakeAsyncClient.response = FakeResponse(
-        {"error": "sensitive"}, status_code=429, text="sensitive body"
+    monkeypatch.setattr(
+        FakeAsyncClient,
+        "response",
+        FakeResponse({"error": "sensitive"}, status_code=429, text="sensitive body"),
     )
     monkeypatch.setattr(llm_client.httpx, "AsyncClient", FakeAsyncClient)
 
@@ -152,7 +158,11 @@ async def test_llm_clients_wrap_successful_non_json_response_and_record_metric(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     errors = []
-    FakeAsyncClient.response = FakeResponse(ValueError("private upstream body"))
+    monkeypatch.setattr(
+        FakeAsyncClient,
+        "response",
+        FakeResponse(ValueError("private upstream body")),
+    )
     monkeypatch.setattr(llm_client.httpx, "AsyncClient", FakeAsyncClient)
     monkeypatch.setattr(
         llm_client,
@@ -162,11 +172,15 @@ async def test_llm_clients_wrap_successful_non_json_response_and_record_metric(
         ),
     )
 
+    if operation == "local":
+        client_call = llm_client.ask_question_to_llm
+        call_args = ({}, 12, "http://llm")
+    else:
+        client_call = llm_client.ask_question_to_api
+        call_args = ({}, "http://api", "key", 360)
+
     with pytest.raises(DependencyResponseError, match=expected_message) as error:
-        if operation == "local":
-            await llm_client.ask_question_to_llm({}, 12, "http://llm")
-        else:
-            await llm_client.ask_question_to_api({}, "http://api", "key", 360)
+        await client_call(*call_args)
 
     assert error.value.details == {
         "dependency": "llm",
@@ -206,8 +220,12 @@ async def test_oidc_get_userinfo_returns_empty_dict_without_url() -> None:
 async def test_oidc_get_userinfo_calls_userinfo_endpoint(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    FakeAsyncClient.calls = []
-    FakeAsyncClient.response = FakeResponse({"email": "user@example.com"})
+    monkeypatch.setattr(FakeAsyncClient, "calls", [])
+    monkeypatch.setattr(
+        FakeAsyncClient,
+        "response",
+        FakeResponse({"email": "user@example.com"}),
+    )
     monkeypatch.setattr(oidc_client.httpx, "AsyncClient", FakeAsyncClient)
     client = oidc_client.OidcClient(
         "issuer", "http://jwks", userinfo_url="http://userinfo"
@@ -228,7 +246,11 @@ async def test_oidc_get_userinfo_calls_userinfo_endpoint(
 async def test_oidc_client_translates_malformed_json(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    FakeAsyncClient.response = FakeResponse(ValueError("private response"))
+    monkeypatch.setattr(
+        FakeAsyncClient,
+        "response",
+        FakeResponse(ValueError("private response")),
+    )
     monkeypatch.setattr(oidc_client.httpx, "AsyncClient", FakeAsyncClient)
     client = oidc_client.OidcClient(
         "issuer", "http://jwks", userinfo_url="http://userinfo"

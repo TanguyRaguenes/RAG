@@ -213,12 +213,10 @@ async def test_ingest_documents_rejects_documents_without_chunks(
         service, "prepare_document_to_ingest", fake_prepare_document_to_ingest
     )
     monkeypatch.setattr(service, "client_save_items", fake_save_items)
+    documents = DocumentsBase(documents=[DocumentBase(path="empty.md", content="")])
 
     with pytest.raises(MarkdownProcessingException) as exc_info:
-        await service.ingest_documents(
-            DocumentsBase(documents=[DocumentBase(path="empty.md", content="")]),
-            {},
-        )
+        await service.ingest_documents(documents, {})
 
     assert exc_info.value.internal_details == {
         "operation": "ingest_documents",

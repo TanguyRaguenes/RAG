@@ -47,7 +47,7 @@
       ansible.builtin.file:
         path: /etc/apt/keyrings
         state: directory
-        mode: "0750"
+        mode: "0755"
 
     # Ajoute la cle officielle Docker pour verifier les paquets installes par apt.
     - name: Download Docker apt GPG key
@@ -90,7 +90,7 @@
       ansible.builtin.template:
         src: docker-daemon.json.j2
         dest: /etc/docker/daemon.json
-        mode: "0644"
+        mode: "0640"
       notify: Restart Docker
 
     # Force le redemarrage Docker maintenant, avant de lancer les conteneurs.
@@ -130,7 +130,7 @@
       ansible.builtin.file:
         path: "{{ item }}"
         state: directory
-        mode: "0755"
+        mode: "0750"
       loop:
         - "{{ deploy_dir }}"
         - "{{ deploy_dir }}/rag_embedder"
@@ -150,14 +150,14 @@
       ansible.builtin.copy:
         src: "{{ project_root }}/docker-compose.prod.yml"
         dest: "{{ deploy_dir }}/docker-compose.prod.yml"
-        mode: "0644"
+        mode: "0640"
 
     # Copie la configuration Caddy qui sera montee dans le conteneur reverse proxy.
     - name: Copy Caddyfile
       ansible.builtin.copy:
         src: "{{ project_root }}/Caddyfile"
         dest: "{{ deploy_dir }}/Caddyfile"
-        mode: "0644"
+        mode: "0640"
 
     # Copie les vrais fichiers .env.prod locaux vers les chemins attendus par Compose.
     - name: Copy production env files

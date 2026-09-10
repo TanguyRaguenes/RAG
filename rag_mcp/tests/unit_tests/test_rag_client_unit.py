@@ -73,7 +73,7 @@ class FakeAsyncClient:
 async def test_retrieve_documentation_chunks_posts_question_with_bearer_token(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    FakeAsyncClient.calls = []
+    monkeypatch.setattr(FakeAsyncClient, "calls", [])
     result = await RagClient(
         _config(), client_factory=FakeAsyncClient
     ).retrieve_documentation_chunks(
@@ -123,13 +123,13 @@ class FailingAsyncClient(FakeAsyncClient):
 async def test_rag_client_classifies_transport_errors_without_sensitive_details(
     failure: BaseException,
     expected_error: type[Exception],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    FailingAsyncClient.failure = failure
+    monkeypatch.setattr(FailingAsyncClient, "failure", failure, raising=False)
+    client = RagClient(_config(), client_factory=FailingAsyncClient)
 
     with pytest.raises(expected_error) as raised:
-        await RagClient(
-            _config(), client_factory=FailingAsyncClient
-        ).retrieve_documentation_chunks("private question", "secret-token")
+        await client.retrieve_documentation_chunks("private question", "secret-token")
 
     assert raised.value.safe_details == {
         "dependency": "rag_orchestrator",
@@ -163,13 +163,13 @@ class StatusAsyncClient(FakeAsyncClient):
 async def test_rag_client_classifies_http_status_without_body_or_url(
     status_code: int,
     expected_error: type[Exception],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    StatusAsyncClient.status_code = status_code
+    monkeypatch.setattr(StatusAsyncClient, "status_code", status_code, raising=False)
+    client = RagClient(_config(), client_factory=StatusAsyncClient)
 
     with pytest.raises(expected_error) as raised:
-        await RagClient(
-            _config(), client_factory=StatusAsyncClient
-        ).retrieve_documentation_chunks("private question", "secret-token")
+        await client.retrieve_documentation_chunks("private question", "secret-token")
 
     assert raised.value.safe_details == {
         "dependency": "rag_orchestrator",
@@ -185,10 +185,10 @@ class InvalidJsonAsyncClient(FakeAsyncClient):
 
 
 async def test_rag_client_classifies_invalid_json_without_response_body() -> None:
+    client = RagClient(_config(), client_factory=InvalidJsonAsyncClient)
+
     with pytest.raises(McpInvalidJsonError) as raised:
-        await RagClient(
-            _config(), client_factory=InvalidJsonAsyncClient
-        ).retrieve_documentation_chunks("private question", "secret-token")
+        await client.retrieve_documentation_chunks("private question", "secret-token")
 
     assert raised.value.code == "upstream_invalid_json"
     assert "private response body" not in str(raised.value)

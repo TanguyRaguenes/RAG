@@ -64,7 +64,7 @@ def _load_feedbacks(
                 end_date,
             )
         except RagApiError as error:
-            render_api_error(error, debug_enabled=True)
+            render_api_error(error)
             return []
 
 

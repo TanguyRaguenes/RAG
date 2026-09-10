@@ -141,11 +141,12 @@ async def test_quota_exceeded_is_saved_and_session_is_finished(
     monkeypatch.setattr(orchestration_module, "finish_usage_session", fake_finish)
     monkeypatch.setattr(orchestration_module.time, "perf_counter", lambda: 1.0)
 
+    service = QuestionOrchestrationService(_config(), object())
+    request = AskQuestionRequestBase(question="Q", provider="local")
+    current_user = _user()
+
     with pytest.raises(QuestionQuotaExceededError):
-        await QuestionOrchestrationService(_config(), object()).ask_question(
-            AskQuestionRequestBase(question="Q", provider="local"),
-            _user(),
-        )
+        await service.ask_question(request, current_user)
 
     assert calls == [("failed", "quota_exceeded", 42), ("finish", 42)]
 
@@ -179,11 +180,12 @@ async def test_inactive_quota_uses_same_business_error_and_finishes_session(
     monkeypatch.setattr(orchestration_module, "finish_usage_session", fake_finish)
     monkeypatch.setattr(orchestration_module.time, "perf_counter", lambda: 1.0)
 
+    service = QuestionOrchestrationService(_config(), object())
+    request = AskQuestionRequestBase(question="Q", provider="local")
+    current_user = _user()
+
     with pytest.raises(QuestionQuotaExceededError):
-        await QuestionOrchestrationService(_config(), object()).ask_question(
-            AskQuestionRequestBase(question="Q", provider="local"),
-            _user(),
-        )
+        await service.ask_question(request, current_user)
 
     assert calls == [("failed", "quota_exceeded", 42), ("finish", 42)]
 
@@ -217,11 +219,12 @@ async def test_unexpected_quota_error_still_finishes_started_session(
     monkeypatch.setattr(orchestration_module, "finish_usage_session", fake_finish)
     monkeypatch.setattr(orchestration_module.time, "perf_counter", lambda: 1.0)
 
+    service = QuestionOrchestrationService(_config(), object())
+    request = AskQuestionRequestBase(question="Q", provider="local")
+    current_user = _user()
+
     with pytest.raises(RuntimeError, match="database unavailable"):
-        await QuestionOrchestrationService(_config(), object()).ask_question(
-            AskQuestionRequestBase(question="Q", provider="local"),
-            _user(),
-        )
+        await service.ask_question(request, current_user)
 
     assert calls == [("failed", "error"), ("finish", 42)]
 

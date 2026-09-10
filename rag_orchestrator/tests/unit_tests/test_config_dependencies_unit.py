@@ -36,8 +36,10 @@ def test_load_config_reads_json_file(tmp_path, monkeypatch) -> None:
 
 @pytest.mark.asyncio
 async def test_get_current_user_requires_credentials() -> None:
+    auth_service = object()
+
     with pytest.raises(AuthenticationRequiredError) as exc_info:
-        await dependencies.get_current_user(credentials=None, auth_service=object())
+        await dependencies.get_current_user(credentials=None, auth_service=auth_service)
 
     assert exc_info.value.STATUS_CODE == 401
 
@@ -48,12 +50,13 @@ async def test_get_current_user_maps_jwt_errors_to_401() -> None:
         async def authenticate(self, token: str):
             raise jwt.PyJWTError("invalid")
 
+    credentials = HTTPAuthorizationCredentials(scheme="Bearer", credentials="bad")
+    auth_service = FailingAuthService()
+
     with pytest.raises(AuthenticationInvalidError) as exc_info:
         await dependencies.get_current_user(
-            credentials=HTTPAuthorizationCredentials(
-                scheme="Bearer", credentials="bad"
-            ),
-            auth_service=FailingAuthService(),
+            credentials=credentials,
+            auth_service=auth_service,
         )
 
     assert exc_info.value.STATUS_CODE == 401

@@ -53,20 +53,21 @@ jobs:
       # 5. Verifie la qualite du code Python avec Ruff
       - name: Run Ruff linter
         working-directory: ${{ matrix.service }}
-        run: uv run --with ruff ruff check .
+        run: uv run --no-sync ruff check .
 
       # 6. Verifie que le code est bien formate avec Ruff
       - name: Run Ruff format check
         working-directory: ${{ matrix.service }}
-        run: uv run --with ruff ruff format --check .
+        run: uv run --no-sync ruff format --check .
 
       # 7. Lance les tests unitaires avec un seuil de couverture minimal
       - name: Run unit tests
         working-directory: ${{ matrix.service }}
         run: |
-          uv run --with pytest-cov --with pytest-asyncio pytest -q tests/unit_tests \
+          uv run --no-sync pytest -q tests/unit_tests \
             --cov=${{ matrix.coverage }} \
             --cov-report=term-missing \
+            --cov-report=xml:coverage.xml \
             --cov-fail-under=70
 
   docker-checks:
@@ -212,7 +213,7 @@ jobs:
           for service in rag_embedder rag_retriever rag_reranker rag_orchestrator rag_evaluator rag_ihm rag_mcp; do
             if [ -d "$service/tests/integration_tests" ]; then
               echo "Running integration tests for $service"
-              (cd "$service" && uv sync --frozen --dev && uv run --with pytest-asyncio pytest -q tests/integration_tests)
+              (cd "$service" && uv sync --frozen --dev && uv run --no-sync pytest -q tests/integration_tests)
             else
               echo "No integration tests for $service"
             fi

@@ -1,4 +1,3 @@
-import re
 from textwrap import dedent
 from typing import Any
 
@@ -33,10 +32,6 @@ def build_context(chunks: list[dict[str, Any]], max_prompt_chars: int) -> str:
     return "\n\n".join(parts)
 
 
-CHUNK_DOCUMENT_PATTERN = re.compile(
-    r"^\s*CONTEXT\s*:\s*(?P<context>.*?)\r?\nCONTENT\s*:\s*(?P<content>.*)\s*$",
-    re.DOTALL,
-)
 MISSING_METADATA_VALUE = "Non renseigné"
 
 
@@ -82,15 +77,20 @@ def parse_chunk_document(document: str) -> tuple[str | None, str]:
     Returns:
         Tuple contenant les métadonnées de contexte et le contenu principal du chunk.
     """
-    match = CHUNK_DOCUMENT_PATTERN.match(document)
+    header, separator, remainder = document.strip().partition("\n")
+    context_label, context_separator, context = header.rstrip("\r").partition(":")
+    content_label, content_separator, content = remainder.partition(":")
 
-    if not match:
+    if (
+        not separator
+        or not context_separator
+        or not content_separator
+        or context_label.strip() != "CONTEXT"
+        or content_label.strip() != "CONTENT"
+    ):
         return None, document.strip()
 
-    section = match.group("context").strip()
-    content = match.group("content").strip()
-
-    return section, content
+    return context.strip(), content.strip()
 
 
 def build_prompt(

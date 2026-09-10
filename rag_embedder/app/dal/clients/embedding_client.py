@@ -175,28 +175,44 @@ def _validate_embeddings(
 
     validated_embeddings: list[list[float]] = []
     for vector in raw_embeddings:
-        if not isinstance(vector, list) or not vector:
-            raise ValueError("embedding vectors must be non-empty lists")
-
-        validated_vector: list[float] = []
-        for coordinate in vector:
-            if isinstance(coordinate, bool) or not isinstance(coordinate, Real):
-                raise TypeError("embedding coordinates must be real numbers")
-            try:
-                normalized_coordinate = float(coordinate)
-            except (OverflowError, ValueError) as exception:
-                raise ValueError(
-                    "embedding coordinates must be finite real numbers"
-                ) from exception
-            if not math.isfinite(normalized_coordinate):
-                raise ValueError("embedding coordinates must be finite real numbers")
-            validated_vector.append(normalized_coordinate)
-        validated_embeddings.append(validated_vector)
+        validated_embeddings.append(_validate_embedding_vector(vector))
 
     dimensions = {len(vector) for vector in validated_embeddings}
     if len(dimensions) != 1:
         raise ValueError("embedding dimensions are inconsistent")
     return validated_embeddings
+
+
+def _validate_embedding_vector(raw_vector: object) -> list[float]:
+    """Valide un vecteur individuel et normalise ses coordonnées en flottants finis.
+
+    Args:
+        raw_vector: Valeur JSON représentant un vecteur retourné par le provider.
+
+    Returns:
+        Coordonnées numériques normalisées.
+
+    Raises:
+        ValueError: Si le vecteur est vide ou contient une valeur non finie.
+        TypeError: Si une coordonnée n'est pas un nombre réel.
+    """
+    if not isinstance(raw_vector, list) or not raw_vector:
+        raise ValueError("embedding vectors must be non-empty lists")
+
+    validated_vector: list[float] = []
+    for coordinate in raw_vector:
+        if isinstance(coordinate, bool) or not isinstance(coordinate, Real):
+            raise TypeError("embedding coordinates must be real numbers")
+        try:
+            normalized_coordinate = float(coordinate)
+        except (OverflowError, ValueError) as exception:
+            raise ValueError(
+                "embedding coordinates must be finite real numbers"
+            ) from exception
+        if not math.isfinite(normalized_coordinate):
+            raise ValueError("embedding coordinates must be finite real numbers")
+        validated_vector.append(normalized_coordinate)
+    return validated_vector
 
 
 def _record_request_success(operation: str, duration_seconds: float) -> None:

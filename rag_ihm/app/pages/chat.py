@@ -187,7 +187,7 @@ def _process_prompt(
             access_token = get_access_token()
             response = ask_question(config, prompt, provider, access_token)
         except RagApiError as error:
-            render_api_error(error, debug_enabled=show_technical_details)
+            render_api_error(error)
             return
 
     assistant_message = build_assistant_message(response)

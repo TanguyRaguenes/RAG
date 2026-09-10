@@ -281,23 +281,28 @@ def validate_admin_feedback_list(
 
     validated: list[AdminInteractionFeedback] = []
     for item in payload:
-        data = _require_dict(item, "admin_feedback")
-        _require_integer_fields(data, "interaction_id")
-        _require_string_fields(data, "cree_le", "question")
-        for field in ("reponse", "commentaire"):
-            value = data.get(field)
-            if value is not None and not isinstance(value, str):
-                raise ResponseContractError(f"admin_feedback.{field} est invalide")
-        note = data.get("note")
-        if note is not None and (not _is_integer(note) or note not in (-1, 1)):
-            raise ResponseContractError("admin_feedback.note est invalide")
-        chunks = data.get("chunks")
-        if not isinstance(chunks, list):
-            raise ResponseContractError("admin_feedback.chunks est invalide")
-        for chunk in chunks:
-            _validate_admin_feedback_chunk(chunk)
-        validated.append(cast(AdminInteractionFeedback, data))
+        validated.append(_validate_admin_feedback(item))
     return validated
+
+
+def _validate_admin_feedback(payload: object) -> AdminInteractionFeedback:
+    """Valide une interaction et les chunks associés dans la réponse administrateur."""
+    data = _require_dict(payload, "admin_feedback")
+    _require_integer_fields(data, "interaction_id")
+    _require_string_fields(data, "cree_le", "question")
+    for field in ("reponse", "commentaire"):
+        value = data.get(field)
+        if value is not None and not isinstance(value, str):
+            raise ResponseContractError(f"admin_feedback.{field} est invalide")
+    note = data.get("note")
+    if note is not None and (not _is_integer(note) or note not in (-1, 1)):
+        raise ResponseContractError("admin_feedback.note est invalide")
+    chunks = data.get("chunks")
+    if not isinstance(chunks, list):
+        raise ResponseContractError("admin_feedback.chunks est invalide")
+    for chunk in chunks:
+        _validate_admin_feedback_chunk(chunk)
+    return cast(AdminInteractionFeedback, data)
 
 
 def validate_ask_question_response(payload: object) -> AskQuestionResponse:

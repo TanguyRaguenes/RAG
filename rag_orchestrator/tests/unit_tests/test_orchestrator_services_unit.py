@@ -369,8 +369,10 @@ async def test_auth_service_rejects_userinfo_for_another_subject() -> None:
 
     import jwt
 
+    auth_service = AuthService(oidc)
+
     with pytest.raises(jwt.InvalidTokenError):
-        await AuthService(oidc).authenticate("token")
+        await auth_service.authenticate("token")
 
     assert not oidc.pocket_id_user_called
 
@@ -379,8 +381,11 @@ async def test_auth_service_rejects_userinfo_for_another_subject() -> None:
 async def test_auth_service_rejects_token_without_subject() -> None:
     import jwt
 
+    oidc = FakeOidcClient({"iss": "issuer"})
+    auth_service = AuthService(oidc)
+
     with pytest.raises(jwt.InvalidTokenError):
-        await AuthService(FakeOidcClient({"iss": "issuer"})).authenticate("token")
+        await auth_service.authenticate("token")
 
 
 @pytest.mark.asyncio

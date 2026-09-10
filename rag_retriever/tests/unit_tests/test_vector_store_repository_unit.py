@@ -198,8 +198,10 @@ def test_repository_rejects_misaligned_chroma_query_payload() -> None:
                 "distances": [[]],
             }
 
+    repository = _repository(InvalidCollection())
+
     with pytest.raises(RetrievalFormatException) as exc_info:
-        _repository(InvalidCollection()).query_chunks("wiki", [0.1], 2)
+        repository.query_chunks("wiki", [0.1], 2)
 
     assert exc_info.value.internal_details == {"operation": "query"}
 
@@ -213,8 +215,10 @@ def test_repository_rejects_malformed_metadata_as_format_error() -> None:
                 "distances": [[0.1]],
             }
 
+    repository = _repository(InvalidCollection())
+
     with pytest.raises(RetrievalFormatException) as exc_info:
-        _repository(InvalidCollection()).query_chunks("wiki", [0.1], 2)
+        repository.query_chunks("wiki", [0.1], 2)
 
     assert exc_info.value.internal_details == {"operation": "query"}
 
@@ -224,8 +228,10 @@ def test_repository_wraps_chroma_failures() -> None:
         def count(self) -> int:
             raise InternalError("chroma unavailable")
 
+    repository = _repository(FailingCollection())
+
     with pytest.raises(VectorStoreException) as exc_info:
-        _repository(FailingCollection()).count_items("wiki")
+        repository.count_items("wiki")
 
     assert exc_info.value.internal_details == {
         "operation": "count",
@@ -238,8 +244,10 @@ def test_repository_does_not_misclassify_unexpected_errors_as_chroma() -> None:
         def count(self) -> int:
             raise RuntimeError("programming failure")
 
+    repository = _repository(FailingCollection())
+
     with pytest.raises(RuntimeError, match="programming failure"):
-        _repository(FailingCollection()).count_items("wiki")
+        repository.count_items("wiki")
 
 
 def test_repository_resets_collection_without_exposing_collection_object() -> None:

@@ -257,9 +257,10 @@ async def test_configured_judge_client_closes_delegate_on_context_error() -> Non
             self.closed = True
 
     delegate = FakeJudgeClient()
+    configured_client = ConfiguredJudgeClient(delegate)
 
     with pytest.raises(RuntimeError, match="evaluation failed"):
-        async with ConfiguredJudgeClient(delegate):
+        async with configured_client:
             raise RuntimeError("evaluation failed")
 
     assert delegate.closed is True
@@ -329,17 +330,13 @@ async def test_judge_client_retries_retryable_http_status(
 async def test_judge_client_rejects_missing_content(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    FakeAsyncClient.response = FakeResponse({"choices": []})
+    monkeypatch.setattr(FakeAsyncClient, "response", FakeResponse({"choices": []}))
     monkeypatch.setattr(client.httpx, "AsyncClient", FakeAsyncClient)
+    judge_client = LocalJudgeClient(_config())
+    messages = [JudgeMessage(role="user", content="judge")]
 
     with pytest.raises(EvaluatorClientError, match="Réponse du juge LLM invalide"):
-        await LocalJudgeClient(_config()).judge(
-            [JudgeMessage(role="user", content="judge")]
-        )
-
-    FakeAsyncClient.response = FakeResponse(
-        {"choices": [{"message": {"content": "judgement"}}]}
-    )
+        await judge_client.judge(messages)
 
 
 @pytest.mark.asyncio
@@ -347,16 +344,17 @@ async def test_judge_client_wraps_http_status_without_response_body(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setattr(FakeAsyncClient, "calls", [])
-    FakeAsyncClient.response = FakeResponse({"secret": "upstream"}, status_code=400)
+    monkeypatch.setattr(
+        FakeAsyncClient,
+        "response",
+        FakeResponse({"secret": "upstream"}, status_code=400),
+    )
     monkeypatch.setattr(client.httpx, "AsyncClient", FakeAsyncClient)
+    judge_client = LocalJudgeClient(_config())
+    messages = [JudgeMessage(role="user", content="judge")]
 
     with pytest.raises(EvaluatorClientError) as exc_info:
-        await LocalJudgeClient(_config()).judge(
-            [JudgeMessage(role="user", content="judge")]
-        )
+        await judge_client.judge(messages)
 
     assert exc_info.value.details == {"status_code": 400}
     assert len(FakeAsyncClient.calls) == 1
-    FakeAsyncClient.response = FakeResponse(
-        {"choices": [{"message": {"content": "judgement"}}]}
-    )

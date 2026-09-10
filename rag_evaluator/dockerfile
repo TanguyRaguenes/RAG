@@ -11,7 +11,7 @@ WORKDIR /workspace
 ENV PYTHONPATH=/workspace
 
 # 3. Installer uv dans l'image
-RUN pip install --no-cache-dir --only-binary :all: uv
+RUN pip install --no-cache-dir --only-binary :all: uv==0.9.8
 
 # 4. Copier les fichiers de config du projet (sans le code pour l'instant)
 COPY pyproject.toml uv.lock ./
@@ -20,9 +20,9 @@ COPY pyproject.toml uv.lock ./
 ENV UV_HTTP_TIMEOUT=300
 ARG DEBUG=0
 RUN if [ "$DEBUG" = "1" ]; then \
-      uv sync --frozen --dev; \
+      uv sync --frozen --dev --no-build; \
     else \
-      uv sync --frozen --no-dev; \
+      uv sync --frozen --no-dev --no-build; \
     fi
 
 # 6. Copier le reste du code dans l'image

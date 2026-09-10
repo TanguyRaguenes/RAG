@@ -72,14 +72,17 @@ async def test_evaluate_answer_uses_injected_judge_client() -> None:
 
 @pytest.mark.asyncio
 async def test_evaluate_answer_rejects_invalid_judgement() -> None:
+    config = _config()
+    judge_client = FakeJudgeClient("not-json")
+
     with pytest.raises(JudgeEvaluationException):
         await service.evaluate_answer(
-            _config(),
+            config,
             "question",
             "generated",
             "reference",
             [],
-            judge_client=FakeJudgeClient("not-json"),
+            judge_client=judge_client,
         )
 
 
@@ -91,13 +94,15 @@ async def test_evaluate_answer_does_not_mask_unexpected_parser_bug(
         raise RuntimeError("programming bug")
 
     monkeypatch.setattr(type(service.judge_parser), "parse", fail_unexpectedly)
+    config = _config()
+    judge_client = FakeJudgeClient("valid-looking")
 
     with pytest.raises(RuntimeError, match="programming bug"):
         await service.evaluate_answer(
-            _config(),
+            config,
             "question",
             "generated",
             "reference",
             [],
-            judge_client=FakeJudgeClient("valid-looking"),
+            judge_client=judge_client,
         )

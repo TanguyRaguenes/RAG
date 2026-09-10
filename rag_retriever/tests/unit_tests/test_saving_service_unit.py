@@ -169,13 +169,11 @@ def test_delete_obsolete_snapshots_are_serialized_in_process() -> None:
 def test_save_items_never_deletes_old_items_when_upsert_fails() -> None:
     repository = FakeVectorStoreRepository()
     repository.fail_upsert = True
+    items = _items(delete_obsolete=True)
+    config = _config()
 
     with pytest.raises(RuntimeError, match="write failed"):
-        save_items(
-            _items(delete_obsolete=True),
-            _config(),
-            repository,
-        )
+        save_items(items, config, repository)
 
     assert not any(call[0] == "delete" for call in repository.calls)
     assert repository.ids == {"old-id", "kept-id"}

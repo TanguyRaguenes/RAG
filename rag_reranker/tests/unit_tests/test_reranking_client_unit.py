@@ -79,7 +79,7 @@ class FakeAsyncClient:
 async def test_tei_client_posts_contract_and_returns_exhaustive_scores(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    FakeAsyncClient.calls = []
+    monkeypatch.setattr(FakeAsyncClient, "calls", [])
     monkeypatch.setattr(reranking_client.httpx, "AsyncClient", FakeAsyncClient)
 
     scores = await TeiRerankingClient(_config().reranking).score("Question", _chunks())
@@ -103,17 +103,17 @@ async def test_tei_client_posts_contract_and_returns_exhaustive_scores(
 async def test_transport_error_does_not_expose_upstream_details(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    FakeAsyncClient.response = FakeResponse({"secret": "upstream"}, status_code=500)
+    response = FakeResponse({"secret": "upstream"}, status_code=500)
+    monkeypatch.setattr(FakeAsyncClient, "response", response)
     monkeypatch.setattr(reranking_client.httpx, "AsyncClient", FakeAsyncClient)
+    client = TeiRerankingClient(_config().reranking)
+    chunks = _chunks()
 
     with pytest.raises(RerankingServiceException) as exc_info:
-        await TeiRerankingClient(_config().reranking).score("Question", _chunks())
+        await client.score("Question", chunks)
 
     assert exc_info.value.details == {}
     assert "upstream" not in exc_info.value.message
-    FakeAsyncClient.response = FakeResponse(
-        [{"index": 0, "score": 0.8}, {"index": 1, "score": 0.4}]
-    )
 
 
 @pytest.mark.parametrize(
@@ -149,8 +149,10 @@ def test_parse_scores_accepts_results_envelope() -> None:
 
 @pytest.mark.asyncio
 async def test_legacy_scoring_boundary_translates_pydantic_validation_error() -> None:
+    config = _config()
+
     with pytest.raises(RerankingResponseFormatException) as exc_info:
-        await score_chunks("Question", [{"document": "missing fields"}], _config())
+        await score_chunks("Question", [{"document": "missing fields"}], config)
 
     assert exc_info.value.__cause__ is not None
     assert exc_info.value.details == {}

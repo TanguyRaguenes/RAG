@@ -78,35 +78,7 @@ class AuthService:
         is_machine_token = subject.startswith("client-")
 
         if not is_machine_token:
-            try:
-                userinfo = await self.oidc_client.get_userinfo(token)
-                _log_user_claims("userinfo_response", userinfo)
-                if userinfo:
-                    claims = _merge_userinfo_claims(claims, userinfo)
-            except IdentityProviderError:
-                logger.info(
-                    "Userinfo Pocket ID indisponible pour le token utilisateur",
-                    extra={
-                        "service": "rag_orchestrator",
-                        "event": "userinfo_unavailable",
-                        "error_type": "IdentityProviderError",
-                    },
-                )
-                try:
-                    pocket_id_user = await self.oidc_client.get_user_by_id(subject)
-                except IdentityProviderError:
-                    logger.warning(
-                        "Enrichissement utilisateur Pocket ID indisponible",
-                        extra={
-                            "service": "rag_orchestrator",
-                            "event": "pocket_id_user_lookup_failed",
-                            "error_type": "IdentityProviderError",
-                        },
-                    )
-                else:
-                    if pocket_id_user:
-                        _log_user_claims("pocket_id_api_user", pocket_id_user)
-                        claims = _merge_profile_claims(claims, pocket_id_user)
+            claims = await self._enrich_user_claims(token, subject, claims)
 
         issuer = claims.get("iss")
         if not isinstance(issuer, str) or not issuer:
@@ -121,6 +93,70 @@ class AuthService:
             preferred_username=claims.get("preferred_username"),
             groups=claims.get("groups", []),
         )
+
+    async def _enrich_user_claims(
+        self,
+        token: str,
+        subject: str,
+        claims: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Enrichit un token utilisateur via userinfo puis via l'API Pocket ID en repli.
+
+        Args:
+            token: Token validé transmis à l'endpoint userinfo.
+            subject: Sujet validé utilisé pour le repli Pocket ID.
+            claims: Claims signés à enrichir sans modifier leur identité stable.
+
+        Returns:
+            Claims enrichis lorsque le fournisseur d'identité est disponible.
+        """
+        try:
+            userinfo = await self.oidc_client.get_userinfo(token)
+        except IdentityProviderError:
+            logger.info(
+                "Userinfo Pocket ID indisponible pour le token utilisateur",
+                extra={
+                    "service": "rag_orchestrator",
+                    "event": "userinfo_unavailable",
+                    "error_type": "IdentityProviderError",
+                },
+            )
+            return await self._enrich_claims_from_pocket_id(subject, claims)
+
+        _log_user_claims("userinfo_response", userinfo)
+        return _merge_userinfo_claims(claims, userinfo) if userinfo else claims
+
+    async def _enrich_claims_from_pocket_id(
+        self,
+        subject: str,
+        claims: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Tente l'enrichissement par identifiant sans bloquer l'authentification.
+
+        Args:
+            subject: Sujet validé utilisé pour rechercher le profil Pocket ID.
+            claims: Claims signés à conserver si le fournisseur est indisponible.
+
+        Returns:
+            Claims enrichis, ou claims d'origine si la recherche échoue.
+        """
+        try:
+            pocket_id_user = await self.oidc_client.get_user_by_id(subject)
+        except IdentityProviderError:
+            logger.warning(
+                "Enrichissement utilisateur Pocket ID indisponible",
+                extra={
+                    "service": "rag_orchestrator",
+                    "event": "pocket_id_user_lookup_failed",
+                    "error_type": "IdentityProviderError",
+                },
+            )
+            return claims
+
+        if not pocket_id_user:
+            return claims
+        _log_user_claims("pocket_id_api_user", pocket_id_user)
+        return _merge_profile_claims(claims, pocket_id_user)
 
 
 def _merge_userinfo_claims(

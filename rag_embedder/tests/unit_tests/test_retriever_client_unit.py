@@ -79,9 +79,10 @@ async def test_save_items_requires_retriever_url(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.delenv("RAG_RETRIEVER_INGEST_DOCUMENTS_URL", raising=False)
+    items = _items()
 
     with pytest.raises(RetrievalServiceException) as exc_info:
-        await retriever_client.save_items(_items())
+        await retriever_client.save_items(items)
 
     assert exc_info.value.message == (
         "Le service de stockage est temporairement indisponible."
@@ -93,23 +94,27 @@ async def test_save_items_requires_retriever_url(
 async def test_save_items_posts_vector_store_payload(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    FakeAsyncClient.calls = []
-    FakeAsyncClient.response = FakeResponse(
-        {
-            "collection_count_before": 0,
-            "collection_count_after": 1,
-            "saved_items": [
-                {
-                    "id": "id-1",
-                    "chunk": "doc",
-                    "metadatas": {
-                        "path": "doc.md",
-                        "title": "Doc",
-                        "chunk_index": 0,
-                    },
-                }
-            ],
-        }
+    monkeypatch.setattr(FakeAsyncClient, "calls", [])
+    monkeypatch.setattr(
+        FakeAsyncClient,
+        "response",
+        FakeResponse(
+            {
+                "collection_count_before": 0,
+                "collection_count_after": 1,
+                "saved_items": [
+                    {
+                        "id": "id-1",
+                        "chunk": "doc",
+                        "metadatas": {
+                            "path": "doc.md",
+                            "title": "Doc",
+                            "chunk_index": 0,
+                        },
+                    }
+                ],
+            }
+        ),
     )
     monkeypatch.setenv(
         "RAG_RETRIEVER_INGEST_DOCUMENTS_URL", "http://retriever/save_items"
@@ -132,14 +137,19 @@ async def test_save_items_posts_vector_store_payload(
 async def test_save_items_wraps_http_status_errors(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    FakeAsyncClient.response = FakeResponse({}, status_code=503, text="down")
+    monkeypatch.setattr(
+        FakeAsyncClient,
+        "response",
+        FakeResponse({}, status_code=503, text="down"),
+    )
     monkeypatch.setenv(
         "RAG_RETRIEVER_INGEST_DOCUMENTS_URL", "http://retriever/save_items"
     )
     monkeypatch.setattr(retriever_client.httpx, "AsyncClient", FakeAsyncClient)
+    items = _items()
 
     with pytest.raises(RetrievalServiceException) as exc_info:
-        await retriever_client.save_items(_items())
+        await retriever_client.save_items(items)
 
     assert exc_info.value.message == (
         "Le service de stockage est temporairement indisponible."

@@ -21,7 +21,7 @@ def chunk_text(text: str, config: EmbedderConfig) -> list[str]:
         Chunks Markdown nettoyés et enrichis avec leur contexte de titres.
     """
     text = text.replace("[[_TOC_]]", "").strip()
-    text = re.sub(r"!\[.*?\]\(.*?\)", "", text)
+    text = re.sub(r"!\[[^\]\r\n]*\]\([^\)\r\n]*\)", "", text)
 
     if not text.strip():
         return []

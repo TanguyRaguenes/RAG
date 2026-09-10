@@ -152,7 +152,8 @@ async def test_feedback_and_admin_feedbacks_are_mapped() -> None:
     assert feedback.commentaire == "ok"
     assert rows[0].chunks[0].contenu == "doc"
 
+    start_date = date(2026, 2, 1)
+    end_date = date(2026, 1, 1)
+
     with pytest.raises(InvalidRequestError):
-        await service.list_admin_interaction_feedbacks(
-            db_pool, date(2026, 2, 1), date(2026, 1, 1)
-        )
+        await service.list_admin_interaction_feedbacks(db_pool, start_date, end_date)

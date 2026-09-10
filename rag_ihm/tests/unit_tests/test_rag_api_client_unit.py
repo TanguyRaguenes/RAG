@@ -2,7 +2,6 @@ from app.services.rag_api_client import (
     ChatApiConfig,
     _auth_headers,
     _docs_url,
-    _extract_error_message,
     _truncate,
     _usage_url,
 )
@@ -31,13 +30,6 @@ def test_orchestrator_base_url_ignores_query_and_trailing_slash() -> None:
     )
 
     assert config.base_url == "http://orchestrator/api"
-
-
-def test_extract_error_message_never_exposes_backend_details() -> None:
-    assert _extract_error_message({"detail": "secret backend"}) == (
-        "Le service RAG a retourné une erreur."
-    )
-    assert _extract_error_message({}) == "Le service RAG a retourné une erreur."
 
 
 def test_truncate_limits_long_values() -> None:

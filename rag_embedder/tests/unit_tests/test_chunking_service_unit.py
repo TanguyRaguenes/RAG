@@ -31,9 +31,7 @@ def test_chunk_text_returns_chunks_with_markdown_context() -> None:
 
 def test_chunk_text_repeats_markdown_context_on_each_split_chunk() -> None:
     text = "# Guide RAG\n\n## Installation\n\n" + "Phrase longue. " * 80
-    config = {
-        "chunking": {"enabled": True, "size_chars": 120, "overlap_chars": 20}
-    }
+    config = {"chunking": {"enabled": True, "size_chars": 120, "overlap_chars": 20}}
 
     chunks = chunk_text(text, config)
 
@@ -70,9 +68,7 @@ def test_chunk_text_returns_empty_list_when_text_is_empty() -> None:
 
 def test_chunk_text_returns_whole_document_when_chunking_is_disabled() -> None:
     text = "# Guide RAG\n\n## Installation\n\nContenu utile."
-    config = {
-        "chunking": {"enabled": False, "size_chars": 10, "overlap_chars": 2}
-    }
+    config = {"chunking": {"enabled": False, "size_chars": 10, "overlap_chars": 2}}
 
     chunks = chunk_text(text, config)
 

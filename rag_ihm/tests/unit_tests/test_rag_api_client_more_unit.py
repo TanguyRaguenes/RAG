@@ -201,19 +201,18 @@ def test_run_evaluation_accepts_missing_refusal_metric() -> None:
 def test_run_evaluation_rejects_incomplete_or_invalid_contract(
     payload: dict[str, object],
 ) -> None:
+    config = EvaluatorApiConfig("http://health", "http://eval/evaluate")
+    client = FakeRagClient([payload])
+
     with pytest.raises(RagApiError, match="réponse invalide"):
-        service.run_evaluation(
-            EvaluatorApiConfig("http://health", "http://eval/evaluate"),
-            "user-token",
-            FakeRagClient([payload]),
-        )
+        service.run_evaluation(config, "user-token", client)
 
 
 def test_authenticated_request_requires_token() -> None:
+    client = FakeRagClient()
+
     with pytest.raises(RagApiError, match="session a expiré"):
-        service._authenticated_request(
-            "GET", "http://rag", None, client=FakeRagClient()
-        )
+        service._authenticated_request("GET", "http://rag", None, client=client)
 
 
 @pytest.mark.parametrize(
@@ -245,28 +244,26 @@ def test_quota_and_feedback_operations_reject_malformed_contracts(
 ) -> None:
     config = ChatApiConfig("http://health", "http://rag/ask_question")
     client = FakeRagClient([payload])
+    start_date = date(2026, 8, 1)
+    end_date = date(2026, 8, 2)
+
+    operations = {
+        "my_quota": lambda: service.get_my_quota_usage(config, "token", client),
+        "quota_list": lambda: service.list_admin_quota_usages(config, "token", client),
+        "quota_update": lambda: service.update_admin_quota_usage(
+            config, "token", "user-id", 100, True, False, client
+        ),
+        "feedback": lambda: service.submit_interaction_feedback(
+            config, "token", 1, 1, "private comment", client
+        ),
+        "admin_feedbacks": lambda: service.list_admin_interaction_feedbacks(
+            config, "token", start_date, end_date, client
+        ),
+    }
+    operation_call = operations[operation]
 
     with pytest.raises(RagApiError) as raised:
-        if operation == "my_quota":
-            service.get_my_quota_usage(config, "token", client)
-        elif operation == "quota_list":
-            service.list_admin_quota_usages(config, "token", client)
-        elif operation == "quota_update":
-            service.update_admin_quota_usage(
-                config, "token", "user-id", 100, True, False, client
-            )
-        elif operation == "feedback":
-            service.submit_interaction_feedback(
-                config, "token", 1, 1, "private comment", client
-            )
-        else:
-            service.list_admin_interaction_feedbacks(
-                config,
-                "token",
-                date(2026, 8, 1),
-                date(2026, 8, 2),
-                client,
-            )
+        operation_call()
 
     assert raised.value.code == "response_contract_error"
     assert "private comment" not in str(raised.value)

@@ -99,14 +99,16 @@ async def test_service_never_invents_missing_score() -> None:
     service = RerankChunksService(
         _config(top_k=3), FakeRerankingClient({0: 0.5, 1: 0.4})
     )
+    chunks = _chunks()
 
     with pytest.raises(RerankingResponseFormatException, match="exhaustive"):
-        await service.rerank("Question", _chunks())
+        await service.rerank("Question", chunks)
 
 
 @pytest.mark.asyncio
 async def test_service_does_not_mask_unexpected_client_bug() -> None:
     service = RerankChunksService(_config(), FailingRerankingClient())
+    chunks = _chunks()
 
     with pytest.raises(RuntimeError, match="programming bug"):
-        await service.rerank("Question", _chunks())
+        await service.rerank("Question", chunks)

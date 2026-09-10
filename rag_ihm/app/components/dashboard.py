@@ -3,6 +3,10 @@ from dataclasses import dataclass
 
 import streamlit as st
 
+SOURCE_HIT_LABEL = "Bon document dans le top 5"
+FAITHFULNESS_LABEL = "Fidélité aux sources"
+SAFE_REFUSAL_LABEL = "Qualité des refus"
+
 
 @dataclass(frozen=True)
 class ScoreMetric:
@@ -19,7 +23,7 @@ RETRIEVAL_HELP = {
     "nDCG": "Mesure si les meilleurs extraits sont bien classés.",
     "Recall": "Mesure si les informations attendues ont été retrouvées.",
     "Precision": "Mesure la proportion d'extraits utiles parmi ceux retournés.",
-    "Bon document dans le top 5": (
+    SOURCE_HIT_LABEL: (
         "Mesure si au moins une source attendue apparaît dans les cinq premiers résultats."
     ),
 }
@@ -28,8 +32,8 @@ ANSWER_HELP = {
     "Accuracy": "Mesure l'exactitude factuelle de la réponse.",
     "Completeness": "Mesure si la réponse couvre les informations attendues.",
     "Relevance": "Mesure si la réponse répond directement à la question.",
-    "Fidélité aux sources": "Mesure si la réponse reste étayée par les sources récupérées.",
-    "Qualité des refus": "Mesure si le système refuse correctement les demandes inappropriées.",
+    FAITHFULNESS_LABEL: "Mesure si la réponse reste étayée par les sources récupérées.",
+    SAFE_REFUSAL_LABEL: "Mesure si le système refuse correctement les demandes inappropriées.",
 }
 
 
@@ -120,10 +124,10 @@ def render_retrieval_scores(retrieval: dict) -> None:
             RETRIEVAL_HELP["Precision"],
         ),
         ScoreMetric(
-            "Bon document dans le top 5",
+            SOURCE_HIT_LABEL,
             _as_float(retrieval.get("source_hit_at_5")),
             1.0,
-            RETRIEVAL_HELP["Bon document dans le top 5"],
+            RETRIEVAL_HELP[SOURCE_HIT_LABEL],
         ),
     ]
     _render_score_grid(metrics)
@@ -155,16 +159,16 @@ def render_answer_scores(answer: dict) -> None:
             ANSWER_HELP["Relevance"],
         ),
         ScoreMetric(
-            "Fidélité aux sources",
+            FAITHFULNESS_LABEL,
             _as_float(answer.get("faithfulness")),
             5.0,
-            ANSWER_HELP["Fidélité aux sources"],
+            ANSWER_HELP[FAITHFULNESS_LABEL],
         ),
         ScoreMetric(
-            "Qualité des refus",
+            SAFE_REFUSAL_LABEL,
             _as_float(answer.get("safe_refusal")),
             5.0,
-            ANSWER_HELP["Qualité des refus"],
+            ANSWER_HELP[SAFE_REFUSAL_LABEL],
         ),
     ]
     _render_score_grid(metrics)
@@ -196,7 +200,7 @@ def _format_score(value: float | None, scale_max: float) -> str:
     """Formate un score en pourcentage ou sur son échelle absolue."""
     if value is None:
         return "N/A"
-    if scale_max == 1.0:
+    if math.isclose(scale_max, 1.0):
         return f"{value:.0%}"
     return f"{value:.1f}/{int(scale_max)}"
 

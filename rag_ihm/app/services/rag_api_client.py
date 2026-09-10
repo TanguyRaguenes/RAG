@@ -218,7 +218,7 @@ def get_my_quota_usage(
     try:
         return validate_quota_usage_response(payload)
     except ResponseContractError as exception:
-        raise _quota_contract_error(exception) from exception
+        raise _quota_contract_error() from exception
 
 
 def list_admin_quota_usages(
@@ -245,7 +245,7 @@ def list_admin_quota_usages(
     try:
         return validate_quota_usage_list(payload)
     except ResponseContractError as exception:
-        raise _quota_contract_error(exception) from exception
+        raise _quota_contract_error() from exception
 
 
 def update_admin_quota_usage(
@@ -285,7 +285,7 @@ def update_admin_quota_usage(
     try:
         return validate_quota_usage_response(payload)
     except ResponseContractError as exception:
-        raise _quota_contract_error(exception) from exception
+        raise _quota_contract_error() from exception
 
 
 def list_admin_interaction_feedbacks(
@@ -458,7 +458,7 @@ def _authenticated_request(
     *,
     params: dict[str, Any] | None = None,
     payload: dict[str, Any] | None = None,
-    timeout: int = 30,
+    timeout: int | None = 30,
     client: RagClient | None = None,
 ) -> JsonValue:
     """Exécute un appel RAG authentifié via le client DAL.
@@ -562,18 +562,6 @@ def _docs_url(health_url: str) -> str:
     return health_url.strip()
 
 
-def _extract_error_message(details: dict[str, Any]) -> str:
-    """Retourne un message stable sans recopier les détails backend.
-
-    Args:
-        details: Métadonnées techniques sûres ignorées pour l'affichage.
-
-    Returns:
-        Message utilisateur générique.
-    """
-    return "Le service RAG a retourné une erreur."
-
-
 def _truncate(value: str, limit: int = 1000) -> str:
     """Tronque une chaîne non affichée afin de préserver l'ancien helper.
 
@@ -589,11 +577,8 @@ def _truncate(value: str, limit: int = 1000) -> str:
     return f"{value[:limit].rstrip()}..."
 
 
-def _quota_contract_error(exception: ResponseContractError) -> RagApiError:
+def _quota_contract_error() -> RagApiError:
     """Traduit une erreur de contrat quota sans reprendre sa valeur brute.
-
-    Args:
-        exception: Erreur de validation utilisée uniquement comme cause chaînée.
 
     Returns:
         Erreur publique stable pour le point central Streamlit.
