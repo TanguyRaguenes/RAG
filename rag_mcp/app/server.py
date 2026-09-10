@@ -44,6 +44,8 @@ AUTH_SETTINGS = AuthSettings(
     issuer_url=config.oidc_issuer,
     required_scopes=list(config.required_scopes),
     resource_server_url=config.resource_server_url,
+    # PocketIdTokenVerifier already enforces the configured audience allowlist.
+    validate_token_resource=False,
 )
 TRANSPORT_SECURITY = TransportSecuritySettings(
     enable_dns_rebinding_protection=True,

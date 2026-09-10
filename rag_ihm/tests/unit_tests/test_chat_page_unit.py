@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import pytest
 from streamlit.testing.v1 import AppTest
 
@@ -28,7 +30,7 @@ def test_examples_disappear_after_first_question(
         },
     )
 
-    app = AppTest.from_file("app/main.py")
+    app = AppTest.from_file(Path(__file__).parents[2] / "app" / "main.py")
     app.session_state[ACCESS_TOKEN_KEY] = "token"
     app.session_state[USER_KEY] = {"issuer": "issuer", "sub": "user", "groups": []}
     app.session_state[IDENTITY_VERIFIED_KEY] = True

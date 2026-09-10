@@ -67,3 +67,4 @@ def test_mcp_transport_allows_public_host() -> None:
 def test_mcp_server_requires_bearer_auth() -> None:
     assert AUTH_SETTINGS.required_scopes == ["rag:mcp"]
     assert AUTH_SETTINGS.resource_server_url is not None
+    assert AUTH_SETTINGS.validate_token_resource is False
